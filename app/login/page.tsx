@@ -78,16 +78,16 @@ export default function Login({
         action={signIn}
       >
         <label className="text-md" htmlFor="email">
-          Email
+          Correo electronico
         </label>
         <input
           className="rounded-md px-4 py-2 bg-inherit border mb-6"
           name="email"
-          placeholder="you@example.com"
+          placeholder="tucorreo@ejemplo.com"
           required
         />
         <label className="text-md" htmlFor="password">
-          Password
+          Contraseña
         </label>
         <input
           className="rounded-md px-4 py-2 bg-inherit border mb-6"
@@ -97,13 +97,7 @@ export default function Login({
           required
         />
         <button className="bg-green-700 rounded-md px-4 py-2 text-foreground mb-2">
-          Sign In
-        </button>
-        <button
-          formAction={signUp}
-          className="border border-foreground/20 rounded-md px-4 py-2 text-foreground mb-2"
-        >
-          Sign Up
+          Iniciar Sesion
         </button>
         {searchParams?.message && (
           <p className="mt-4 p-4 bg-foreground/10 text-foreground text-center">

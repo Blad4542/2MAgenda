@@ -4,18 +4,14 @@
 
 @layer base {
   :root {
-    --background: 200 20% 98%;
     --btn-background: 200 10% 91%;
     --btn-background-hover: 200 10% 89%;
-    --foreground: 200 50% 3%;
   }
 
   @media (prefers-color-scheme: dark) {
     :root {
-      --background: 200 50% 3%;
       --btn-background: 200 10% 9%;
       --btn-background-hover: 200 10% 12%;
-      --foreground: 200 20% 96%;
     }
   }
 }
@@ -28,6 +24,23 @@
 
 .animate-in {
   animation: animateIn 0.3s ease 0.15s both;
+}
+
+.textarea {
+  width: 100%;
+  /* Ocupa el ancho completo del contenedor */
+  height: 150px;
+  /* Altura fija */
+  padding: 10px;
+  /* Espacio interior para el texto */
+  border: 1px solid #ccc;
+  /* Borde sutil */
+  border-radius: 5px;
+  /* Bordes redondeados */
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+  /* Sombra interior ligera */
+  font-size: 16px;
+  /* Tamaño de letra */
 }
 
 @keyframes animateIn {
