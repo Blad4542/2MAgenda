@@ -1,7 +1,7 @@
 "use client";
 import React, { useEffect, useState } from "react";
 import TaskModal from "./TaskModal";
-import { addNoteToSupabase } from "../utils/index";
+import { addNoteToSupabase, updateNoteInSupabase } from "../utils/index";
 import { createClient } from "@/utils/supabase/client";
 
 const Agenda = () => {
@@ -19,12 +19,12 @@ const Agenda = () => {
     status: "pending", // Estado inicial
   });
   const [notes, setNotes] = useState<any[]>([]);
+  const [isNewTask, setIsNewTask] = useState(true);
 
   const supabase = createClient();
 
   const fetchNotes = async () => {
     const { data, error } = await supabase.from("appointments").select("*");
-    console.log("log de data", data);
     if (error) {
       console.error("Error al recuperar las notas:", error);
     } else {
@@ -49,28 +49,50 @@ const Agenda = () => {
   const people = ["Keilor", "Andrey", "Dylan", "Steven"];
 
   const handleCellClick = (hour: any, person: any) => {
-    setCurrentTask({
-      ...currentTask,
-      appointment_time: hour,
-      assigned_person: person,
-      name: "",
-      phone: "",
-      description: "",
-      vehicle: "",
-      status: "pending",
-    });
+    const existingTask = notes.find(
+      (note) =>
+        note.appointment_time === hour && note.assigned_person === person
+    );
+    if (existingTask) {
+      // Carga la tarea existente, incluyendo su ID autogenerado
+      setCurrentTask(existingTask);
+      setIsNewTask(false);
+    } else {
+      // Establece un nuevo objeto de tarea sin ID
+      setCurrentTask({
+        start_time: hour,
+        end_time: hour,
+        appointment_time: hour,
+        assigned_person: person,
+        name: "",
+        phone: "",
+        description: "",
+        vehicle: "",
+        status: "pending",
+      });
+      setIsNewTask(true);
+    }
     setIsModalOpen(true);
   };
 
   const handleSaveNote = async () => {
-    const { data, error } = await addNoteToSupabase(currentTask);
-    if (error) {
-      console.error("Error al guardar la nota:", error.message);
-      setErrorMessage(`Error al guardar la nota: ${error.message}`);
+    let result;
+    if (isNewTask) {
+      // Llama a la función para agregar una nueva tarea
+      result = await addNoteToSupabase(currentTask);
     } else {
-      setIsModalOpen(false); // Cierra el modal correctamente
-      fetchNotes();
+      // Llama a la función para actualizar una tarea existente usando su ID
+      result = await updateNoteInSupabase(currentTask);
+    }
+
+    if (result.error) {
+      console.error("Error al guardar la nota:", result.error.message);
+      setErrorMessage(`Error al guardar la nota: ${result.error.message}`);
+    } else {
+      setIsModalOpen(false);
+      fetchNotes(); // Recarga las notas para reflejar los cambios
       setCurrentTask({
+        // Limpia el formulario
         start_time: "",
         end_time: "",
         appointment_time: "",
@@ -81,28 +103,8 @@ const Agenda = () => {
         vehicle: "",
         status: "pending",
       });
-      setErrorMessage(""); // Limpia cualquier mensaje de error anterior
-
-      // Opcional: Recargar las notas desde Supabase para reflejar la nueva nota
-      // Considera llamar aquí a fetchNotes() si necesitas actualizar la lista de notas
+      setErrorMessage("");
     }
-  };
-
-  // Función para determinar si una nota debe mostrarse en un intervalo de hora específico
-  const noteMatchesInterval = (noteCreatedAt: any, interval: any) => {
-    // Convierte el timestamp de la nota a un objeto Date
-    const noteDate = new Date(noteCreatedAt);
-    // Formatea tanto la hora de la nota como el intervalo para comparación
-    const noteHour = noteDate.getHours();
-    const noteMinutes = noteDate.getMinutes();
-    const [intervalHour, intervalMinutes] = interval.split(":").map(Number);
-
-    // Determina si la nota cae dentro del intervalo de tiempo específico
-    return (
-      noteHour === intervalHour &&
-      noteMinutes >= intervalMinutes &&
-      noteMinutes < intervalMinutes + 30
-    );
   };
 
   const getBgColorBasedOnStatus = (status: any) => {
@@ -153,6 +155,27 @@ const Agenda = () => {
     return -1; // En caso de no encontrar una coincidencia, lo cual no debería ocurrir si las tareas siempre comienzan en una hora definida en `hours`
   };
 
+  const handleNewTaskClick = (hour: string, person: string): void => {
+    setCurrentTask({
+      ...currentTask,
+      appointment_time: hour,
+      assigned_person: person,
+      name: "",
+      phone: "",
+      description: "",
+      vehicle: "",
+      status: "pending",
+    });
+    setIsModalOpen(true);
+    setIsNewTask(true);
+  };
+
+  const handleTaskClick = (task: any) => {
+    setCurrentTask(task);
+    setIsNewTask(false);
+    setIsModalOpen(true);
+  };
+
   return (
     <div className="h-screen flex flex-col">
       <div className="flex flex-auto overflow-auto">
@@ -178,7 +201,6 @@ const Agenda = () => {
                   {hour}
                 </div>
                 {people.map((person, personIndex) => {
-                  // Filtra las notas por persona y verifica si están activas durante esta hora.
                   const tasksForPersonAndHour = notes.filter(
                     (note) =>
                       note.assigned_person === person &&
@@ -188,8 +210,6 @@ const Agenda = () => {
                         hour
                       )
                   );
-
-                  // Solo muestra detalles para la primera franja horaria de la tarea.
                   return (
                     <div
                       key={`${person}-${hour}`}
@@ -200,7 +220,11 @@ const Agenda = () => {
                             )
                           : "transparent"
                       }`}
-                      onClick={() => handleCellClick(hour, person)}
+                      onClick={() =>
+                        tasksForPersonAndHour.length > 0
+                          ? handleTaskClick(tasksForPersonAndHour[0])
+                          : handleNewTaskClick(hour, person)
+                      }
                     >
                       {tasksForPersonAndHour.map((task, taskIndex) => {
                         const firstHourIndex = getFirstHourIndex(
@@ -230,6 +254,7 @@ const Agenda = () => {
           onSave={handleSaveNote}
           task={currentTask}
           setTask={setCurrentTask}
+          isNewTask={isNewTask}
         />
       </div>
     </div>

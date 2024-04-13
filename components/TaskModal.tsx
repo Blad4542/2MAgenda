@@ -1,7 +1,20 @@
 import { Dialog } from "@headlessui/react";
 
-const TaskModal = ({ isOpen, onClose, onSave, task, setTask }) => {
-  // Función para manejar el cambio en los campos del formulario
+const TaskModal = ({
+  isOpen,
+  onClose,
+  onSave,
+  task,
+  setTask,
+  isNewTask,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: () => void;
+  task: any;
+  setTask: (task: any) => void;
+  isNewTask: boolean;
+}) => {
   const handleChange = (e: { target: { name: any; value: any } }) => {
     const { name, value } = e.target;
     setTask({ ...task, [name]: value });
@@ -15,10 +28,9 @@ const TaskModal = ({ isOpen, onClose, onSave, task, setTask }) => {
     >
       <div className="flex items-center justify-center min-h-screen">
         <Dialog.Overlay className="fixed inset-0 bg-black opacity-30" />
-
         <div className="relative bg-white rounded max-w-sm mx-auto p-6">
           <Dialog.Title className="text-lg font-bold">
-            Agregar Tarea
+            {isNewTask ? "Agregar Tarea" : "Editar Tarea"}
           </Dialog.Title>
           <input
             type="text"
@@ -67,7 +79,6 @@ const TaskModal = ({ isOpen, onClose, onSave, task, setTask }) => {
             value={task.end_time}
             onChange={handleChange}
           />
-
           <select
             name="status"
             className="border p-2 mb-2 w-full"

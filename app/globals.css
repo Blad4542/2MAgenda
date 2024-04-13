@@ -26,6 +26,13 @@
   animation: animateIn 0.3s ease 0.15s both;
 }
 
+.cell-with-task:hover {
+  background-color: #f2f2f2;
+}
+.cell {
+  cursor: pointer;
+}
+
 .textarea {
   width: 100%;
   /* Ocupa el ancho completo del contenedor */
