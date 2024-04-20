@@ -30,6 +30,14 @@ export const updateNoteInSupabase = async (task) => {
       assigned_person: task.assigned_person,
     })
     .match({ id: task.id });
+  return { data, error };
+};
+
+export const deleteNoteFromSupabase = async (id) => {
+  const { data, error } = await supabase
+    .from("appointments")
+    .delete()
+    .match({ id });
 
   return { data, error };
 };

@@ -4,6 +4,7 @@ const TaskModal = ({
   isOpen,
   onClose,
   onSave,
+  onDelete,
   task,
   setTask,
   isNewTask,
@@ -11,6 +12,7 @@ const TaskModal = ({
   isOpen: boolean;
   onClose: () => void;
   onSave: () => void;
+  onDelete: (id: number | string) => void;
   task: any;
   setTask: (task: any) => void;
   isNewTask: boolean;
@@ -96,6 +98,14 @@ const TaskModal = ({
             >
               Guardar
             </button>
+            {!isNewTask && (
+              <button
+                className="bg-red-500 text-white px-4 py-2 rounded mr-2"
+                onClick={() => onDelete(task.id)}
+              >
+                Eliminar
+              </button>
+            )}
             <button
               className="bg-gray-500 text-white px-4 py-2 rounded"
               onClick={onClose}

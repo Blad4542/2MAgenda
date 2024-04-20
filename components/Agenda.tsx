@@ -1,10 +1,17 @@
 "use client";
 import React, { useEffect, useState } from "react";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
 import TaskModal from "./TaskModal";
-import { addNoteToSupabase, updateNoteInSupabase } from "../utils/index";
+import {
+  addNoteToSupabase,
+  deleteNoteFromSupabase,
+  updateNoteInSupabase,
+} from "../utils/index";
 import { createClient } from "@/utils/supabase/client";
 
 const Agenda = () => {
+  const [selectedDate, setSelectedDate] = useState(new Date());
   const [errorMessage, setErrorMessage] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentTask, setCurrentTask] = useState({
@@ -23,18 +30,39 @@ const Agenda = () => {
 
   const supabase = createClient();
 
-  const fetchNotes = async () => {
-    const { data, error } = await supabase.from("appointments").select("*");
+  const currentDate = new Date().toLocaleDateString("es-ES", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+
+  const fetchNotesForSelectedDate = async () => {
+    const startOfDay = new Date(
+      selectedDate.setHours(0, 0, 0, 0)
+    ).toISOString();
+    const endOfDay = new Date(
+      selectedDate.setHours(23, 59, 59, 999)
+    ).toISOString();
+
+    const { data, error } = await supabase
+      .from("appointments")
+      .select("*")
+      .gte("created_at", startOfDay)
+      .lt("created_at", endOfDay)
+      .order("start_time", { ascending: true });
+
     if (error) {
       console.error("Error al recuperar las notas:", error);
+      setErrorMessage(`Error al recuperar las notas: ${error.message}`);
     } else {
       setNotes(data);
     }
   };
 
   useEffect(() => {
-    fetchNotes();
-  }, []);
+    fetchNotesForSelectedDate();
+  }, [selectedDate]);
 
   const hours: string[] = [];
   for (let hour = 8; hour <= 17; hour++) {
@@ -48,20 +76,18 @@ const Agenda = () => {
 
   const people = ["Keilor", "Andrey", "Dylan", "Steven"];
 
-  const handleCellClick = (hour: any, person: any) => {
+  const handleCellClick = (hour: string, person: string): void => {
     const existingTask = notes.find(
       (note) =>
         note.appointment_time === hour && note.assigned_person === person
     );
     if (existingTask) {
-      // Carga la tarea existente, incluyendo su ID autogenerado
       setCurrentTask(existingTask);
       setIsNewTask(false);
     } else {
-      // Establece un nuevo objeto de tarea sin ID
       setCurrentTask({
-        start_time: hour,
-        end_time: hour,
+        start_time: `${selectedDate.toISOString().split("T")[0]}T${hour}`,
+        end_time: `${selectedDate.toISOString().split("T")[0]}T${hour}`,
         appointment_time: hour,
         assigned_person: person,
         name: "",
@@ -90,7 +116,7 @@ const Agenda = () => {
       setErrorMessage(`Error al guardar la nota: ${result.error.message}`);
     } else {
       setIsModalOpen(false);
-      fetchNotes(); // Recarga las notas para reflejar los cambios
+      fetchNotesForSelectedDate(); // Recarga las notas para reflejar los cambios
       setCurrentTask({
         // Limpia el formulario
         start_time: "",
@@ -104,6 +130,18 @@ const Agenda = () => {
         status: "pending",
       });
       setErrorMessage("");
+    }
+  };
+
+  const handleDeleteNote = async (id: number | string) => {
+    const { error } = await deleteNoteFromSupabase(id);
+    if (error) {
+      console.error("Error al eliminar la nota:", error.message);
+      setErrorMessage(`Error al eliminar la nota: ${error.message}`);
+    } else {
+      // Cierra el modal y actualiza la lista de notas.
+      setIsModalOpen(false);
+      fetchNotesForSelectedDate();
     }
   };
 
@@ -178,14 +216,28 @@ const Agenda = () => {
 
   return (
     <div className="h-screen flex flex-col">
+      <div className=" flex">
+        <DatePicker
+          selected={selectedDate}
+          onChange={(date) => setSelectedDate(date || new Date())}
+          inline
+        />
+
+        <div className="flex-1 w-full mt-20 text-4xl text-center">
+          Agenda - {currentDate}
+        </div>
+      </div>
       <div className="flex flex-auto overflow-auto">
         <div className="flex flex-col bg-white shadow overflow-hidden rounded-lg w-full">
           <div className="grid grid-cols-5 text-sm font-medium text-gray-700">
-            <div className="border-r border-b p-4 text-center bg-gray-100 sticky left-0">
+            <div className="text-xl border-r border-b p-4 text-center bg-gray-100 sticky left-0">
               Hora
             </div>
             {people.map((person) => (
-              <div key={person} className="p-4 border-b border-r text-center">
+              <div
+                key={person}
+                className="p-4 border-b border-r text-center text-xl"
+              >
                 {person}
               </div>
             ))}
@@ -194,7 +246,7 @@ const Agenda = () => {
             {hours.map((hour, hourIndex) => (
               <React.Fragment key={hour}>
                 <div
-                  className={`p-4 border-r ${
+                  className={`text-xl p-4 border-r${
                     hourIndex % 2 === 0 ? "bg-gray-50" : ""
                   } sticky left-0`}
                 >
@@ -255,6 +307,7 @@ const Agenda = () => {
           task={currentTask}
           setTask={setCurrentTask}
           isNewTask={isNewTask}
+          onDelete={handleDeleteNote}
         />
       </div>
     </div>
