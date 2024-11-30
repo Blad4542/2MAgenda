@@ -207,95 +207,86 @@ const Agenda = () => {
   };
 
   return (
-    <div className="h-screen flex flex-col">
-      <div className="flex">
+    <div className="flex flex-col h-screen">
+      <div className="flex items-center justify-between p-4 bg-white shadow-md">
         <DatePicker
           selected={selectedDate}
           onChange={(date) => setSelectedDate(date || new Date())}
           inline
         />
-
-        <div className="flex-1 w-full mt-20 text-4xl text-center">
+        <h1 className="text-4xl font-bold text-center">
           Agenda - {currentDate}
-        </div>
+        </h1>
       </div>
-      <div className="flex flex-auto overflow-auto">
-        <div className="flex flex-col bg-white shadow overflow-hidden rounded-lg w-full">
-          <div
-            className={`grid grid-cols-${
-              people.length + 1
-            } text-sm font-medium text-gray-700`}
-          >
-            <div className="text-xl border-r border-b p-4 text-center bg-gray-100 sticky left-0">
+      <div className="flex-grow overflow-auto">
+        <div className="min-w-max bg-white shadow overflow-hidden rounded-lg">
+          <div className="grid grid-cols-1 md:grid-cols-6 gap-4 p-4 bg-gray-200 text-lg font-bold">
+            <div className="p-4 text-center border-b border-r border-gray-300">
               Hora
             </div>
             {people.map((person) => (
               <div
                 key={person}
-                className="p-4 border-b border-r text-center text-xl"
+                className="p-4 text-center border-b border-gray-300"
               >
                 {person}
               </div>
             ))}
           </div>
-          <div className={`grid grid-cols-${people.length + 1} overflow-auto`}>
-            {hours.map((hour, hourIndex) => (
-              <React.Fragment key={hour}>
-                <div
-                  className={`text-xl p-4 border-r${
-                    hourIndex % 2 === 0 ? " bg-gray-50" : ""
-                  } sticky left-0`}
-                >
-                  {hour}
-                </div>
-                {people.map((person, personIndex) => {
-                  const tasksForPersonAndHour = notes.filter(
-                    (note) =>
-                      note.assigned_person === person &&
-                      isTaskActiveDuringHour(
-                        note.start_time,
-                        note.end_time,
-                        hour
-                      )
-                  );
-                  return (
-                    <div
-                      key={`${person}-${hour}`}
-                      className={`col-span-1 p-4 border-r cursor-pointer hover:bg-gray-200 ${
-                        tasksForPersonAndHour.length > 0
-                          ? getBgColorBasedOnStatus(
-                              tasksForPersonAndHour[0].status
-                            )
-                          : "transparent"
-                      }`}
-                      onClick={() =>
-                        tasksForPersonAndHour.length > 0
-                          ? handleTaskClick(tasksForPersonAndHour[0])
-                          : handleNewTaskClick(hour, person)
-                      }
-                    >
-                      {tasksForPersonAndHour.map((task, taskIndex) => {
-                        const firstHourIndex = getFirstHourIndex(
-                          task.start_time,
-                          hours
-                        );
-                        const showTaskDetails = firstHourIndex === hourIndex;
-                        return showTaskDetails ? (
-                          <div key={taskIndex}>
+          {hours.map((hour, hourIndex) => (
+            <div
+              className="grid grid-cols-1 md:grid-cols-6 gap-4 p-4"
+              key={hour}
+            >
+              <div
+                className={`p-4 text-center border-r border-gray-300 ${
+                  hourIndex % 2 ? "bg-gray-50" : "bg-white"
+                }`}
+              >
+                {hour}
+              </div>
+              {people.map((person) => {
+                const tasksForPersonAndHour = notes.filter(
+                  (note) =>
+                    note.assigned_person === person &&
+                    isTaskActiveDuringHour(note.start_time, note.end_time, hour)
+                );
+                return (
+                  <div
+                    key={`${person}-${hour}`}
+                    className={`p-4 border-r border-gray-300 cursor-pointer ${
+                      tasksForPersonAndHour.length > 0
+                        ? getBgColorBasedOnStatus(
+                            tasksForPersonAndHour[0].status
+                          )
+                        : "bg-transparent"
+                    }`}
+                    onClick={() =>
+                      tasksForPersonAndHour.length > 0
+                        ? handleTaskClick(tasksForPersonAndHour[0])
+                        : handleNewTaskClick(hour, person)
+                    }
+                  >
+                    {tasksForPersonAndHour.map(
+                      (task, taskIndex) =>
+                        getFirstHourIndex(task.start_time, hours) ===
+                          hourIndex && (
+                          <div key={taskIndex} className="text-sm">
                             <p>{task.name}</p>
                             <p>{task.phone}</p>
                             <p>{task.description}</p>
                             <p>{task.vehicle}</p>
                           </div>
-                        ) : null;
-                      })}
-                    </div>
-                  );
-                })}
-              </React.Fragment>
-            ))}
-          </div>
+                        )
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ))}
         </div>
+      </div>
+      {isModalOpen && (
         <TaskModal
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
@@ -305,7 +296,10 @@ const Agenda = () => {
           isNewTask={isNewTask}
           onDelete={handleDeleteNote}
         />
-      </div>
+      )}
+      {errorMessage && (
+        <div className="text-red-500 text-center mt-4">{errorMessage}</div>
+      )}
     </div>
   );
 };
