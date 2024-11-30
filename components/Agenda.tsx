@@ -17,7 +17,6 @@ const Agenda = () => {
   const [currentTask, setCurrentTask] = useState({
     start_time: "",
     end_time: "",
-    appointment_time: "",
     assigned_person: "",
     name: "",
     phone: "",
@@ -62,7 +61,7 @@ const Agenda = () => {
 
   useEffect(() => {
     fetchNotesForSelectedDate();
-  }, [selectedDate]);
+  }, [selectedDate, notes.length]);
 
   const hours: string[] = [];
   for (let hour = 8; hour <= 17; hour++) {
@@ -74,12 +73,11 @@ const Agenda = () => {
   }
   hours.push("17:30"); // Añade manualmente 5:30 PM al final del bucle
 
-  const people = ["Keilor", "Andrey", "Dylan", "Steven"];
+  const people = ["Keilor", "Andrey", "Dylan", "Steven", "Josué"];
 
   const handleCellClick = (hour: string, person: string): void => {
     const existingTask = notes.find(
-      (note) =>
-        note.appointment_time === hour && note.assigned_person === person
+      (note) => note.start_time === hour && note.assigned_person === person
     );
     if (existingTask) {
       setCurrentTask(existingTask);
@@ -88,7 +86,6 @@ const Agenda = () => {
       setCurrentTask({
         start_time: `${selectedDate.toISOString().split("T")[0]}T${hour}`,
         end_time: `${selectedDate.toISOString().split("T")[0]}T${hour}`,
-        appointment_time: hour,
         assigned_person: person,
         name: "",
         phone: "",
@@ -104,10 +101,8 @@ const Agenda = () => {
   const handleSaveNote = async () => {
     let result;
     if (isNewTask) {
-      // Llama a la función para agregar una nueva tarea
       result = await addNoteToSupabase(currentTask);
     } else {
-      // Llama a la función para actualizar una tarea existente usando su ID
       result = await updateNoteInSupabase(currentTask);
     }
 
@@ -116,12 +111,10 @@ const Agenda = () => {
       setErrorMessage(`Error al guardar la nota: ${result.error.message}`);
     } else {
       setIsModalOpen(false);
-      fetchNotesForSelectedDate(); // Recarga las notas para reflejar los cambios
+      await fetchNotesForSelectedDate(); // Asegúrate de esperar a que finalice la carga
       setCurrentTask({
-        // Limpia el formulario
         start_time: "",
         end_time: "",
-        appointment_time: "",
         assigned_person: "",
         name: "",
         phone: "",
@@ -129,7 +122,6 @@ const Agenda = () => {
         vehicle: "",
         status: "pending",
       });
-      setErrorMessage("");
     }
   };
 
@@ -196,7 +188,7 @@ const Agenda = () => {
   const handleNewTaskClick = (hour: string, person: string): void => {
     setCurrentTask({
       ...currentTask,
-      appointment_time: hour,
+      start_time: hour,
       assigned_person: person,
       name: "",
       phone: "",
@@ -216,7 +208,7 @@ const Agenda = () => {
 
   return (
     <div className="h-screen flex flex-col">
-      <div className=" flex">
+      <div className="flex">
         <DatePicker
           selected={selectedDate}
           onChange={(date) => setSelectedDate(date || new Date())}
@@ -229,7 +221,11 @@ const Agenda = () => {
       </div>
       <div className="flex flex-auto overflow-auto">
         <div className="flex flex-col bg-white shadow overflow-hidden rounded-lg w-full">
-          <div className="grid grid-cols-5 text-sm font-medium text-gray-700">
+          <div
+            className={`grid grid-cols-${
+              people.length + 1
+            } text-sm font-medium text-gray-700`}
+          >
             <div className="text-xl border-r border-b p-4 text-center bg-gray-100 sticky left-0">
               Hora
             </div>
@@ -242,12 +238,12 @@ const Agenda = () => {
               </div>
             ))}
           </div>
-          <div className="grid grid-cols-5 overflow-auto">
+          <div className={`grid grid-cols-${people.length + 1} overflow-auto`}>
             {hours.map((hour, hourIndex) => (
               <React.Fragment key={hour}>
                 <div
                   className={`text-xl p-4 border-r${
-                    hourIndex % 2 === 0 ? "bg-gray-50" : ""
+                    hourIndex % 2 === 0 ? " bg-gray-50" : ""
                   } sticky left-0`}
                 >
                   {hour}
