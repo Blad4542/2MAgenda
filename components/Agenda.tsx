@@ -1,4 +1,5 @@
 "use client";
+
 import React, { useEffect, useState } from "react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -26,6 +27,7 @@ const Agenda = () => {
   });
   const [notes, setNotes] = useState<any[]>([]);
   const [isNewTask, setIsNewTask] = useState(true);
+  const [userEmail, setUserEmail] = useState(null);
 
   const supabase = createClient();
 
@@ -73,7 +75,7 @@ const Agenda = () => {
   }
   hours.push("17:30"); // Añade manualmente 5:30 PM al final del bucle
 
-  const people = ["Keilor", "Andrey", "Dylan", "Steven", "Josué"];
+  const people = ["Josué", "Keilor", "Andrey", "Dylan", "Steven"];
 
   const handleCellClick = (hour: string, person: string): void => {
     const existingTask = notes.find(
@@ -235,14 +237,12 @@ const Agenda = () => {
           </div>
           {hours.map((hour, hourIndex) => (
             <div
-              className="grid grid-cols-1 md:grid-cols-6 gap-4 p-4"
+              className={`grid grid-cols-1 md:grid-cols-6 gap-4 p-4 ${
+                hourIndex % 2 ? "bg-gray-50" : "bg-white"
+              }`}
               key={hour}
             >
-              <div
-                className={`p-4 text-center border-r border-gray-300 ${
-                  hourIndex % 2 ? "bg-gray-50" : "bg-white"
-                }`}
-              >
+              <div className="p-4 text-center border-r border-gray-300">
                 {hour}
               </div>
               {people.map((person) => {
@@ -266,6 +266,7 @@ const Agenda = () => {
                         ? handleTaskClick(tasksForPersonAndHour[0])
                         : handleNewTaskClick(hour, person)
                     }
+                    style={{ minHeight: "4rem" }}
                   >
                     {tasksForPersonAndHour.map(
                       (task, taskIndex) =>
