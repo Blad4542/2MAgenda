@@ -24,6 +24,7 @@ const Agenda = () => {
     description: "",
     vehicle: "",
     status: "pending", // Estado inicial
+    appointment_date: new Date().toISOString(), // Inicializa con la fecha actual, se actualizará al seleccionar una fecha
   });
   const [notes, setNotes] = useState<any[]>([]);
   const [isNewTask, setIsNewTask] = useState(true);
@@ -39,18 +40,17 @@ const Agenda = () => {
   });
 
   const fetchNotesForSelectedDate = async () => {
-    const startOfDay = new Date(
-      selectedDate.setHours(0, 0, 0, 0)
-    ).toISOString();
-    const endOfDay = new Date(
-      selectedDate.setHours(23, 59, 59, 999)
-    ).toISOString();
+    // Establece el inicio y final del día seleccionado correctamente
+    const startOfSelectedDay = new Date(selectedDate);
+    startOfSelectedDay.setHours(0, 0, 0, 0);
+    const endOfSelectedDay = new Date(selectedDate);
+    endOfSelectedDay.setHours(23, 59, 59, 999);
 
     const { data, error } = await supabase
       .from("appointments")
       .select("*")
-      .gte("created_at", startOfDay)
-      .lt("created_at", endOfDay)
+      .gte("appointment_date", startOfSelectedDay.toISOString())
+      .lt("appointment_date", endOfSelectedDay.toISOString())
       .order("start_time", { ascending: true });
 
     if (error) {
@@ -63,7 +63,7 @@ const Agenda = () => {
 
   useEffect(() => {
     fetchNotesForSelectedDate();
-  }, [selectedDate, notes.length]);
+  }, [selectedDate]);
 
   const hours: string[] = [];
   for (let hour = 8; hour <= 17; hour++) {
@@ -78,22 +78,33 @@ const Agenda = () => {
   const people = ["Josué", "Keilor", "Andrey", "Dylan", "Steven"];
 
   const handleCellClick = (hour: string, person: string): void => {
+    const dateOfAppointment = new Date(selectedDate);
+    const [hourOfDay, minutes] = hour.split(":").map(Number);
+
+    dateOfAppointment.setHours(hourOfDay, minutes, 0);
+    const startTime = dateOfAppointment.toISOString();
+
+    dateOfAppointment.setMinutes(dateOfAppointment.getMinutes() + 59); // Suponiendo que cada cita dura 59 minutos
+    const endTime = dateOfAppointment.toISOString();
+
     const existingTask = notes.find(
-      (note) => note.start_time === hour && note.assigned_person === person
+      (note) => note.start_time === startTime && note.assigned_person === person
     );
+
     if (existingTask) {
       setCurrentTask(existingTask);
       setIsNewTask(false);
     } else {
       setCurrentTask({
-        start_time: `${selectedDate.toISOString().split("T")[0]}T${hour}`,
-        end_time: `${selectedDate.toISOString().split("T")[0]}T${hour}`,
+        start_time: startTime,
+        end_time: endTime,
         assigned_person: person,
         name: "",
         phone: "",
         description: "",
         vehicle: "",
         status: "pending",
+        appointment_date: selectedDate.toISOString(), // Utiliza la fecha seleccionada en el DatePicker
       });
       setIsNewTask(true);
     }
@@ -103,9 +114,15 @@ const Agenda = () => {
   const handleSaveNote = async () => {
     let result;
     if (isNewTask) {
-      result = await addNoteToSupabase(currentTask);
+      result = await addNoteToSupabase({
+        ...currentTask,
+        appointment_date: selectedDate.toISOString(), // Asegúrate de que se pasa la fecha correcta
+      });
     } else {
-      result = await updateNoteInSupabase(currentTask);
+      result = await updateNoteInSupabase({
+        ...currentTask,
+        appointment_date: selectedDate.toISOString(), // Asegúrate de que se actualiza la fecha si es una edición
+      });
     }
 
     if (result.error) {
@@ -113,7 +130,7 @@ const Agenda = () => {
       setErrorMessage(`Error al guardar la nota: ${result.error.message}`);
     } else {
       setIsModalOpen(false);
-      await fetchNotesForSelectedDate(); // Asegúrate de esperar a que finalice la carga
+      await fetchNotesForSelectedDate(); // Recarga las notas para el día seleccionado
       setCurrentTask({
         start_time: "",
         end_time: "",
@@ -123,6 +140,7 @@ const Agenda = () => {
         description: "",
         vehicle: "",
         status: "pending",
+        appointment_date: new Date().toISOString(), // Restablece a la fecha actual para el estado inicial
       });
     }
   };
@@ -213,7 +231,7 @@ const Agenda = () => {
       <div className="flex items-center justify-between p-4 bg-white shadow-md">
         <DatePicker
           selected={selectedDate}
-          onChange={(date) => setSelectedDate(date || new Date())}
+          onChange={(date) => setSelectedDate(date)}
           inline
         />
         <h1 className="text-4xl font-bold text-center">
