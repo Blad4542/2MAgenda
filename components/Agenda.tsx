@@ -157,16 +157,21 @@ const Agenda = () => {
     }
   };
 
-  const getBgColorBasedOnStatus = (status: any) => {
+  const getBgColorBasedOnStatus = (status: any, isAdjacent: boolean) => {
+    let baseClass = "p-4 cursor-pointer border-r border-gray-300"; // Clase base con borde
+    if (isAdjacent) {
+      baseClass = "p-4 cursor-pointer"; // Remueve el borde si es adyacente
+    }
+
     switch (status) {
       case "pending":
-        return "bg-red-500"; // Rojo para pendiente
+        return `${baseClass} bg-red-500`;
       case "active":
-        return "bg-yellow-500"; // Amarillo para activo
+        return `${baseClass} bg-yellow-500`;
       case "done":
-        return "bg-green-500"; // Verde para hecho
+        return `${baseClass} bg-green-500`;
       default:
-        return "transparent"; // Transparente por defecto si no hay estado
+        return `${baseClass} bg-transparent`;
     }
   };
 
@@ -235,7 +240,13 @@ const Agenda = () => {
           inline
         />
         <h1 className="text-4xl font-bold text-center">
-          Agenda - {currentDate}
+          Agenda -{" "}
+          {selectedDate.toLocaleDateString("es-ES", {
+            weekday: "long",
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+          })}
         </h1>
       </div>
       <div className="flex-grow overflow-auto">
@@ -255,42 +266,66 @@ const Agenda = () => {
           </div>
           {hours.map((hour, hourIndex) => (
             <div
-              className={`grid grid-cols-1 md:grid-cols-6 gap-4 p-4 ${
+              className={`grid grid-cols-1 md:grid-cols-6 gap-4 ${
                 hourIndex % 2 ? "bg-gray-50" : "bg-white"
               }`}
               key={hour}
             >
-              <div className="p-4 text-center border-r border-gray-300">
+              <div
+                className="text-center border-r border-gray-300"
+                style={{ padding: "1rem" }}
+              >
                 {hour}
               </div>
-              {people.map((person) => {
+              {people.map((person, index) => {
                 const tasksForPersonAndHour = notes.filter(
                   (note) =>
                     note.assigned_person === person &&
                     isTaskActiveDuringHour(note.start_time, note.end_time, hour)
                 );
+
+                const isAdjacent =
+                  index < people.length - 1 &&
+                  tasksForPersonAndHour.length > 0 &&
+                  tasksForPersonAndHour[0]?.status ===
+                    notes.find(
+                      (nextNote) =>
+                        nextNote.assigned_person === people[index + 1] &&
+                        isTaskActiveDuringHour(
+                          nextNote.start_time,
+                          nextNote.end_time,
+                          hour
+                        )
+                    )?.status;
+
                 return (
                   <div
                     key={`${person}-${hour}`}
-                    className={`p-4 border-r border-gray-300 cursor-pointer ${
-                      tasksForPersonAndHour.length > 0
-                        ? getBgColorBasedOnStatus(
-                            tasksForPersonAndHour[0].status
-                          )
-                        : "bg-transparent"
-                    }`}
+                    className={getBgColorBasedOnStatus(
+                      tasksForPersonAndHour[0]?.status,
+                      isAdjacent
+                    )}
                     onClick={() =>
                       tasksForPersonAndHour.length > 0
                         ? handleTaskClick(tasksForPersonAndHour[0])
                         : handleNewTaskClick(hour, person)
                     }
-                    style={{ minHeight: "4rem" }}
+                    style={{
+                      minHeight: "4rem",
+                      padding: isAdjacent ? "0" : "0",
+                    }} // Condicional padding
                   >
                     {tasksForPersonAndHour.map(
                       (task, taskIndex) =>
                         getFirstHourIndex(task.start_time, hours) ===
                           hourIndex && (
-                          <div key={taskIndex} className="text-sm">
+                          <div
+                            key={taskIndex}
+                            className="text-sm"
+                            style={{ padding: "1rem" }}
+                          >
+                            {" "}
+                            // Asegurando padding solo internamente
                             <p>{task.name}</p>
                             <p>{task.phone}</p>
                             <p>{task.description}</p>
