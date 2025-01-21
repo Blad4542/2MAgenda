@@ -1,5 +1,5 @@
 "use client";
-
+import { jwtDecode } from "jwt-decode";
 import React, { useEffect, useState } from "react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -10,6 +10,10 @@ import {
   updateNoteInSupabase,
 } from "../utils/index";
 import { createClient } from "@/utils/supabase/client";
+
+interface DecodedToken {
+  email: string;
+}
 
 const Agenda = () => {
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -28,7 +32,7 @@ const Agenda = () => {
   });
   const [notes, setNotes] = useState<any[]>([]);
   const [isNewTask, setIsNewTask] = useState(true);
-  const [userEmail, setUserEmail] = useState(null);
+  const [user, setUser] = useState<string | null>(null);
 
   const supabase = createClient();
 
@@ -62,6 +66,16 @@ const Agenda = () => {
   };
 
   useEffect(() => {
+    const checkAuth = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (data && data.session) {
+        const decoded = jwtDecode<DecodedToken>(data.session.access_token);
+        setUser(decoded.email); // Establece el usuario solo si la sesión existe
+      } else {
+        setUser(null); // Establece el usuario a null si no hay sesión
+      }
+    };
+    checkAuth();
     fetchNotesForSelectedDate();
   }, [selectedDate]);
 
@@ -324,8 +338,6 @@ const Agenda = () => {
                             className="text-sm"
                             style={{ padding: "1rem" }}
                           >
-                            {" "}
-                            // Asegurando padding solo internamente
                             <p>{task.name}</p>
                             <p>{task.phone}</p>
                             <p>{task.description}</p>
