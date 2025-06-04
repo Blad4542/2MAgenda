@@ -3,12 +3,12 @@ import { jwtDecode } from "jwt-decode";
 import React, { useEffect, useState } from "react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
-import TaskModal from "./TaskModal";
+import TaskModal from "../../../components/TaskModal";
 import {
   addNoteToSupabase,
   deleteNoteFromSupabase,
   updateNoteInSupabase,
-} from "../utils/index";
+} from "../../../utils/index";
 import { createClient } from "@/utils/supabase/client";
 
 interface DecodedToken {

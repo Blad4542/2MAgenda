@@ -1,4 +1,4 @@
-import Agenda from "@/components/Agenda";
+import Agenda from "@/app/dashboard/agenda/page";
 import AuthButton from "../components/AuthButton";
 
 export default async function Index() {
