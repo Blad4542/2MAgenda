@@ -21,7 +21,7 @@ export default function Login({
     });
 
     if (error) {
-      return redirect("/login?message=Could not authenticate user");
+      return redirect("/login?message=Correo o contraseña incorrectos.");
     }
 
     return redirect("/");
@@ -44,66 +44,66 @@ export default function Login({
     });
 
     if (error) {
-      return redirect("/login?message=Could not authenticate user");
+      return redirect("/login?message=No se pudo registrar el usuario.");
     }
 
-    return redirect("/login?message=Check email to continue sign in process");
+    return redirect(
+      "/login?message=Revisa tu correo para confirmar el registro."
+    );
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-white px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
-        <div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            Inicia sesión en tu cuenta
-          </h2>
-          {searchParams?.message && (
-            <p className="mt-4 text-center text-sm text-red-600">
-              {searchParams.message}
-            </p>
-          )}
-        </div>
-        <form className="mt-8 space-y-6" method="POST" action={signIn}>
-          <input type="hidden" name="remember" defaultValue="true" />
-          <div className="rounded-md shadow-sm -space-y-px">
-            <div>
-              <label htmlFor="email-address" className="sr-only">
-                Correo Electrónico
-              </label>
-              <input
-                id="email-address"
-                name="email"
-                type="email"
-                autoComplete="email"
-                required
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                placeholder="Correo electrónico"
-              />
-            </div>
-            <div>
-              <label htmlFor="password" className="sr-only">
-                Contraseña
-              </label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                autoComplete="current-password"
-                required
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                placeholder="Contraseña"
-              />
-            </div>
-          </div>
-
+    <div className="w-screen h-screen bg-gradient-to-r from-blue-50 to-blue-100 flex items-center justify-center">
+      <div className="w-full max-w-md p-8 bg-white rounded-lg shadow-lg mx-4">
+        <h2 className="text-2xl font-bold text-center text-blue-600 mb-6">
+          Inicia sesión en tu cuenta
+        </h2>
+        {searchParams?.message && (
+          <p className="text-red-500 text-center mb-4">
+            {searchParams.message}
+          </p>
+        )}
+        <form className="space-y-4" method="POST" action={signIn}>
           <div>
-            <button
-              type="submit"
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+            <label
+              htmlFor="email-address"
+              className="block text-sm font-semibold text-gray-600"
             >
-              Iniciar sesión
-            </button>
+              Correo electrónico
+            </label>
+            <input
+              id="email-address"
+              name="email"
+              type="email"
+              autoComplete="email"
+              required
+              className="w-full mt-1 px-4 py-2 border rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-blue-400"
+              placeholder="Ingresa tu correo"
+            />
           </div>
+          <div>
+            <label
+              htmlFor="password"
+              className="block text-sm font-semibold text-gray-600"
+            >
+              Contraseña
+            </label>
+            <input
+              id="password"
+              name="password"
+              type="password"
+              autoComplete="current-password"
+              required
+              className="w-full mt-1 px-4 py-2 border rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-blue-400"
+              placeholder="Ingresa tu contraseña"
+            />
+          </div>
+          <button
+            type="submit"
+            className="w-full bg-blue-500 text-white py-2 px-4 rounded-lg font-semibold hover:bg-blue-600 transition-colors"
+          >
+            Iniciar sesión
+          </button>
         </form>
       </div>
     </div>
