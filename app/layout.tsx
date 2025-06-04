@@ -7,8 +7,11 @@ const defaultUrl = process.env.VERCEL_URL
 
 export const metadata = {
   metadataBase: new URL(defaultUrl),
-  title: "Agenda 2M",
-  description: "Agenda para Autodecoracion 2M",
+  title: "Autodecoración 2M",
+  description: "Sistema para Autodecoracion 2M",
+  icons: {
+    icon: "https://igzxgawkalsqyydqxbqf.supabase.co/storage/v1/object/public/public-assets//3132f1d1-9cac-4b6b-993b-0bc6022d64bd.png",
+  },
 };
 
 export default function RootLayout({
