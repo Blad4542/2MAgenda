@@ -11,27 +11,30 @@ export default async function AuthButton() {
 
   const signOut = async () => {
     "use server";
-
     const supabase = createClient();
     await supabase.auth.signOut();
     return redirect("/login");
   };
 
   return user ? (
-    <div className="flex items-center gap-4 text-xl">
-      Hola, {user.email}!
+    <div className="flex items-center justify-between bg-white shadow-md rounded-lg px-6 py-3 w-full max-w-md text-gray-700">
+      <span className="text-base font-semibold">
+        Hola, <span className="text-blue-600">{user.email}</span>!
+      </span>
       <form action={signOut}>
-        <button className="py-2 px-4 rounded-md no-underline bg-sky-500/75">
-          Cerrar sesion
+        <button className="bg-blue-500 text-white py-2 px-4 rounded-lg font-semibold hover:bg-blue-600 transition-colors">
+          Cerrar sesión
         </button>
       </form>
     </div>
   ) : (
-    <Link
-      href="/login"
-      className="py-2 px-3 flex rounded-md no-underline bg-btn-background hover:bg-btn-background-hover"
-    >
-      Iniciar Sesion
-    </Link>
+    <div className="w-full max-w-md">
+      <Link
+        href="/login"
+        className="block text-center w-full bg-blue-500 text-white py-2 px-4 rounded-lg font-semibold hover:bg-blue-600 transition-colors"
+      >
+        Iniciar sesión
+      </Link>
+    </div>
   );
 }
