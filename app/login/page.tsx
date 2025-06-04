@@ -53,18 +53,18 @@ export default function Login({
   };
 
   return (
-    <div className="flex flex-col md:flex-row w-screen h-screen bg-gradient-to-r from-blue-50 to-blue-100">
+    <div className="flex flex-col md:flex-row w-screen h-screen bg-white md:bg-gradient-to-r md:from-blue-50 md:to-blue-100">
       {/* Columna izquierda: Logo */}
       <div className="w-full md:w-1/2 flex items-center justify-center bg-white shadow-lg order-1 md:order-none p-6">
         <img
           src="https://igzxgawkalsqyydqxbqf.supabase.co/storage/v1/object/public/public-assets//3132f1d1-9cac-4b6b-993b-0bc6022d64bd.png"
           alt="Logo 2M"
-          className="max-w-xs w-3/4"
+          className="max-w-xs w-3/4 md:w-2/3"
         />
       </div>
 
       {/* Columna derecha: Formulario */}
-      <div className="w-full md:w-1/2 flex items-center justify-center p-6 bg-[#DAF7FF] order-2 md:order-none">
+      <div className="w-full md:w-1/2 flex items-center justify-center p-6 bg-white md:bg-[#DAF7FF] order-2 md:order-none">
         <div className="w-full max-w-md p-8 bg-white rounded-lg shadow-lg">
           <h2 className="text-2xl font-bold text-center text-[#07C3F8] mb-6">
             Inicia sesión en tu cuenta
@@ -88,7 +88,7 @@ export default function Login({
                 type="email"
                 autoComplete="email"
                 required
-                className="w-full mt-1 px-4 py-2 border rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-blue-400"
+                className="w-full mt-1 px-4 py-2 border rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-[#07C3F8]"
                 placeholder="Ingresa tu correo"
               />
             </div>
@@ -105,13 +105,13 @@ export default function Login({
                 type="password"
                 autoComplete="current-password"
                 required
-                className="w-full mt-1 px-4 py-2 border rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-blue-400"
+                className="w-full mt-1 px-4 py-2 border rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-[#07C3F8]"
                 placeholder="Ingresa tu contraseña"
               />
             </div>
             <button
               type="submit"
-              className="w-full bg-[#07C3F8] text-white py-2 px-4 rounded-lg font-semibold hover:bg-blue-600 transition-colors"
+              className="w-full bg-[#07C3F8] text-white py-2 px-4 rounded-lg font-semibold hover:bg-[#06A9D8] transition-colors"
             >
               Iniciar sesión
             </button>
