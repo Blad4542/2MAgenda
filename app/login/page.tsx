@@ -53,58 +53,70 @@ export default function Login({
   };
 
   return (
-    <div className="w-screen h-screen bg-gradient-to-r from-blue-50 to-blue-100 flex items-center justify-center">
-      <div className="w-full max-w-md p-8 bg-white rounded-lg shadow-lg mx-4">
-        <h2 className="text-2xl font-bold text-center text-blue-600 mb-6">
-          Inicia sesión en tu cuenta
-        </h2>
-        {searchParams?.message && (
-          <p className="text-red-500 text-center mb-4">
-            {searchParams.message}
-          </p>
-        )}
-        <form className="space-y-4" method="POST" action={signIn}>
-          <div>
-            <label
-              htmlFor="email-address"
-              className="block text-sm font-semibold text-gray-600"
+    <div className="flex flex-col md:flex-row w-screen h-screen bg-gradient-to-r from-blue-50 to-blue-100">
+      {/* Columna izquierda: Logo */}
+      <div className="w-full md:w-1/2 flex items-center justify-center bg-white shadow-lg order-1 md:order-none p-6">
+        <img
+          src="https://igzxgawkalsqyydqxbqf.supabase.co/storage/v1/object/public/public-assets//3132f1d1-9cac-4b6b-993b-0bc6022d64bd.png"
+          alt="Logo 2M"
+          className="max-w-xs w-3/4"
+        />
+      </div>
+
+      {/* Columna derecha: Formulario */}
+      <div className="w-full md:w-1/2 flex items-center justify-center p-6 bg-[#DAF7FF] order-2 md:order-none">
+        <div className="w-full max-w-md p-8 bg-white rounded-lg shadow-lg">
+          <h2 className="text-2xl font-bold text-center text-[#07C3F8] mb-6">
+            Inicia sesión en tu cuenta
+          </h2>
+          {searchParams?.message && (
+            <p className="text-red-500 text-center mb-4">
+              {searchParams.message}
+            </p>
+          )}
+          <form className="space-y-4" method="POST" action={signIn}>
+            <div>
+              <label
+                htmlFor="email-address"
+                className="block text-sm font-semibold text-gray-600"
+              >
+                Correo electrónico
+              </label>
+              <input
+                id="email-address"
+                name="email"
+                type="email"
+                autoComplete="email"
+                required
+                className="w-full mt-1 px-4 py-2 border rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-blue-400"
+                placeholder="Ingresa tu correo"
+              />
+            </div>
+            <div>
+              <label
+                htmlFor="password"
+                className="block text-sm font-semibold text-gray-600"
+              >
+                Contraseña
+              </label>
+              <input
+                id="password"
+                name="password"
+                type="password"
+                autoComplete="current-password"
+                required
+                className="w-full mt-1 px-4 py-2 border rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-blue-400"
+                placeholder="Ingresa tu contraseña"
+              />
+            </div>
+            <button
+              type="submit"
+              className="w-full bg-[#07C3F8] text-white py-2 px-4 rounded-lg font-semibold hover:bg-blue-600 transition-colors"
             >
-              Correo electrónico
-            </label>
-            <input
-              id="email-address"
-              name="email"
-              type="email"
-              autoComplete="email"
-              required
-              className="w-full mt-1 px-4 py-2 border rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-blue-400"
-              placeholder="Ingresa tu correo"
-            />
-          </div>
-          <div>
-            <label
-              htmlFor="password"
-              className="block text-sm font-semibold text-gray-600"
-            >
-              Contraseña
-            </label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              autoComplete="current-password"
-              required
-              className="w-full mt-1 px-4 py-2 border rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-blue-400"
-              placeholder="Ingresa tu contraseña"
-            />
-          </div>
-          <button
-            type="submit"
-            className="w-full bg-blue-500 text-white py-2 px-4 rounded-lg font-semibold hover:bg-blue-600 transition-colors"
-          >
-            Iniciar sesión
-          </button>
-        </form>
+              Iniciar sesión
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   );
