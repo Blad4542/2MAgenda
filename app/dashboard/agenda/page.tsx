@@ -268,9 +268,9 @@ const Agenda = () => {
         <div className="overflow-auto relative max-h-full">
           <div className="min-w-max relative shadow rounded-lg">
             {/* Encabezado */}
-            <div className="grid grid-cols-[80px_repeat(5,1fr)] sticky top-0 z-30 bg-[#CFEAFB] text-gray-900 font-semibold">
+            <div className="grid grid-cols-[80px_repeat(5,1fr)] sticky top-0 z-[50] bg-[#CFEAFB] text-gray-900 font-semibold">
               {/* Columna fija de "Hora" */}
-              <div className="text-center py-2 border-r border-gray-300 sticky left-0 z-40 bg-[#CFEAFB]">
+              <div className="text-center py-2 border-r border-gray-300 sticky left-0 z-[60] bg-[#CFEAFB]">
                 Hora
               </div>
               {people.map((person) => (
@@ -292,7 +292,7 @@ const Agenda = () => {
                 }`}
               >
                 {/* Columna fija de "Hora" por fila */}
-                <div className="text-center text-sm py-3 border-r border-gray-300 sticky left-0 z-20 bg-inherit">
+                <div className="text-center text-sm py-3 border-r border-gray-300 sticky left-0 z-[40] bg-inherit">
                   {hour}
                 </div>
 

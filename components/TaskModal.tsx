@@ -1,3 +1,4 @@
+"use client";
 import { Dialog } from "@headlessui/react";
 
 const TaskModal = ({
@@ -23,17 +24,17 @@ const TaskModal = ({
   };
 
   return (
-    <Dialog
-      open={isOpen}
-      onClose={onClose}
-      className="fixed inset-0 z-10 overflow-y-auto"
-    >
-      <div className="flex items-center justify-center min-h-screen">
-        <Dialog.Overlay className="fixed inset-0 bg-black opacity-30" />
-        <div className="relative bg-white rounded max-w-sm mx-auto p-6">
-          <Dialog.Title className="text-lg font-bold">
+    <Dialog open={isOpen} onClose={onClose} className="relative z-[100]">
+      {/* Background overlay */}
+      <div className="fixed inset-0 bg-black/50" aria-hidden="true" />
+
+      {/* Centered modal */}
+      <div className="fixed inset-0 z-[100] flex items-center justify-center">
+        <Dialog.Panel className="bg-white rounded max-w-sm w-full mx-4 p-6 shadow-xl z-[101]">
+          <Dialog.Title className="text-lg font-bold mb-4">
             {isNewTask ? "Agregar Tarea" : "Editar Tarea"}
           </Dialog.Title>
+
           <input
             type="text"
             name="name"
@@ -45,22 +46,22 @@ const TaskModal = ({
           <input
             type="text"
             name="phone"
-            placeholder="Telefono"
+            placeholder="Teléfono"
             className="border p-2 mb-2 w-full"
             value={task.phone}
             onChange={handleChange}
           />
           <textarea
             name="description"
-            className="textarea"
-            placeholder="Descripcion"
+            className="border p-2 mb-2 w-full"
+            placeholder="Descripción"
             value={task.description}
             onChange={handleChange}
-          ></textarea>
+          />
           <input
             type="text"
             name="vehicle"
-            placeholder="Vehiculo"
+            placeholder="Vehículo"
             className="border p-2 mb-2 w-full"
             value={task.vehicle}
             onChange={handleChange}
@@ -83,7 +84,7 @@ const TaskModal = ({
           />
           <select
             name="status"
-            className="border p-2 mb-2 w-full"
+            className="border p-2 mb-4 w-full"
             value={task.status}
             onChange={handleChange}
           >
@@ -91,21 +92,22 @@ const TaskModal = ({
             <option value="active">Activo</option>
             <option value="done">Hecho</option>
           </select>
-          <div className="flex justify-end mt-4">
-            <button
-              className="bg-blue-500 text-white px-4 py-2 rounded mr-2"
-              onClick={onSave}
-            >
-              Guardar
-            </button>
+
+          <div className="flex justify-end gap-2">
             {!isNewTask && (
               <button
-                className="bg-red-500 text-white px-4 py-2 rounded mr-2"
+                className="bg-red-500 text-white px-4 py-2 rounded"
                 onClick={() => onDelete(task.id)}
               >
                 Eliminar
               </button>
             )}
+            <button
+              className="bg-blue-500 text-white px-4 py-2 rounded"
+              onClick={onSave}
+            >
+              Guardar
+            </button>
             <button
               className="bg-gray-500 text-white px-4 py-2 rounded"
               onClick={onClose}
@@ -113,7 +115,7 @@ const TaskModal = ({
               Cerrar
             </button>
           </div>
-        </div>
+        </Dialog.Panel>
       </div>
     </Dialog>
   );
