@@ -24,7 +24,7 @@ export default function Login({
       return redirect("/login?message=Correo o contraseña incorrectos.");
     }
 
-    return redirect("/");
+    return redirect("/dashboard");
   };
 
   const signUp = async (formData: FormData) => {
