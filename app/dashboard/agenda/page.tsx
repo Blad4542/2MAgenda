@@ -265,10 +265,12 @@ const Agenda = () => {
         </h1>
       </div>
       <div className="flex-grow overflow-auto bg-[#F7FAFC] p-4">
-        <div className="overflow-x-auto">
-          <div className="min-w-max shadow rounded-lg">
-            <div className="grid grid-cols-[80px_repeat(5,1fr)] bg-[#CFEAFB] text-gray-900 font-semibold sticky top-0 z-10">
-              <div className="text-center py-2 border-r border-gray-300 sticky left-0 z-10 bg-[#CFEAFB]">
+        <div className="overflow-auto relative max-h-full">
+          <div className="min-w-max relative shadow rounded-lg">
+            {/* Encabezado */}
+            <div className="grid grid-cols-[80px_repeat(5,1fr)] sticky top-0 z-30 bg-[#CFEAFB] text-gray-900 font-semibold">
+              {/* Columna fija de "Hora" */}
+              <div className="text-center py-2 border-r border-gray-300 sticky left-0 z-40 bg-[#CFEAFB]">
                 Hora
               </div>
               {people.map((person) => (
@@ -281,6 +283,7 @@ const Agenda = () => {
               ))}
             </div>
 
+            {/* Filas del horario */}
             {hours.map((hour, hourIndex) => (
               <div
                 key={hour}
@@ -288,9 +291,11 @@ const Agenda = () => {
                   hourIndex % 2 ? "bg-white" : "bg-[#F1F8FC]"
                 }`}
               >
-                <div className="text-center text-sm py-3 border-r border-gray-300">
+                {/* Columna fija de "Hora" por fila */}
+                <div className="text-center text-sm py-3 border-r border-gray-300 sticky left-0 z-20 bg-inherit">
                   {hour}
                 </div>
+
                 {people.map((person, index) => {
                   const tasksForPersonAndHour = notes.filter(
                     (note) =>
@@ -302,24 +307,8 @@ const Agenda = () => {
                       )
                   );
 
-                  const isAdjacent =
-                    index < people.length - 1 &&
-                    tasksForPersonAndHour.length > 0 &&
-                    tasksForPersonAndHour[0]?.status ===
-                      notes.find(
-                        (nextNote) =>
-                          nextNote.assigned_person === people[index + 1] &&
-                          isTaskActiveDuringHour(
-                            nextNote.start_time,
-                            nextNote.end_time,
-                            hour
-                          )
-                      )?.status;
-
                   const status = tasksForPersonAndHour[0]?.status;
-                  const baseClass = `cursor-pointer border-r border-gray-200 transition-colors duration-200 ${
-                    isAdjacent ? "" : "p-2"
-                  } ${
+                  const baseClass = `cursor-pointer border-r border-gray-200 transition-colors duration-200 p-2 ${
                     status === "pending"
                       ? "bg-[#FDE2E4] hover:bg-[#FAC8CB]"
                       : status === "active"
