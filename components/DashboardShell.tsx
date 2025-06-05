@@ -81,6 +81,28 @@ export default function DashboardShell({
               <Calendar className="w-5 h-5" />
               {isSidebarOpen && <span>Agenda</span>}
             </Link>
+            <a
+              href="https://botaguas2m.netlify.app/inventory"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 text-blue-700 font-medium"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="w-5 h-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M15 17h5l-1.405-1.405M20 12a8 8 0 11-16 0 8 8 0 0116 0z"
+                />
+              </svg>
+              {isSidebarOpen && <span>Inventario Botaguas</span>}
+            </a>
           </nav>
         </aside>
 
