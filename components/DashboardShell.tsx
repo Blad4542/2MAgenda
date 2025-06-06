@@ -4,7 +4,14 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/utils/supabase/client";
-import { Home, Calendar, ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  Home,
+  Calendar,
+  FileText,
+  ShoppingCart,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react"; // añade íconos
 
 export default function DashboardShell({
   children,
@@ -80,6 +87,22 @@ export default function DashboardShell({
             >
               <Calendar className="w-5 h-5" />
               {isSidebarOpen && <span>Agenda</span>}
+            </Link>
+            <Link
+              href="/dashboard/payments"
+              className="flex items-center gap-2 text-blue-700 font-medium"
+              onClick={() => setIsSidebarOpen(false)}
+            >
+              <FileText className="w-5 h-5" />
+              {isSidebarOpen && <span>Cuentas por pagar</span>}
+            </Link>
+            <Link
+              href="/dashboard/orders"
+              className="flex items-center gap-2 text-blue-700 font-medium"
+              onClick={() => setIsSidebarOpen(false)}
+            >
+              <ShoppingCart className="w-5 h-5" />
+              {isSidebarOpen && <span>Pedidos</span>}
             </Link>
             <a
               href="https://botaguas2m.netlify.app/inventory"
