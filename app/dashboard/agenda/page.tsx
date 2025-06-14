@@ -224,6 +224,19 @@ const Agenda = () => {
     return -1; // En caso de no encontrar una coincidencia, lo cual no debería ocurrir si las tareas siempre comienzan en una hora definida en `hours`
   };
 
+  const getLastHourIndex = (taskEndTime: string, hours: string[]) => {
+    const [endHour, endMinute] = taskEndTime.split(":").map(Number);
+    const endTimeMinutes = endHour * 60 + endMinute;
+
+    for (let i = hours.length - 1; i >= 0; i--) {
+      const [h, m] = hours[i].split(":").map(Number);
+      const total = h * 60 + m;
+      if (total < endTimeMinutes) return i;
+    }
+
+    return -1;
+  };
+
   const handleNewTaskClick = (hour: string, person: string): void => {
     setCurrentTask({
       ...currentTask,
@@ -284,71 +297,81 @@ const Agenda = () => {
             </div>
 
             {/* Filas del horario */}
-            {hours.map((hour, hourIndex) => (
-              <div
-                key={hour}
-                className={`grid grid-cols-[80px_repeat(5,1fr)] ${
-                  hourIndex % 2 ? "bg-white" : "bg-[#F1F8FC]"
-                }`}
-              >
-                {/* Columna fija de "Hora" por fila */}
-                <div className="text-center text-sm py-3 border-r border-gray-300 sticky left-0 z-[40] bg-inherit">
-                  {hour}
+            {hours.map((hour, hourIndex) => {
+              return (
+                <div
+                  key={hour}
+                  className={`grid grid-cols-[80px_repeat(5,1fr)] ${
+                    hourIndex % 2 ? "bg-white" : "bg-[#F1F8FC]"
+                  }`}
+                >
+                  {/* Hora fija */}
+                  <div className="text-center text-sm py-3 border-r border-gray-300 sticky left-0 z-[40] bg-inherit">
+                    {hour}
+                  </div>
+
+                  {/* Celdas por persona */}
+                  {people.map((person, index) => {
+                    const task = notes.find(
+                      (note) =>
+                        note.assigned_person === person &&
+                        isTaskActiveDuringHour(
+                          note.start_time,
+                          note.end_time,
+                          hour
+                        )
+                    );
+
+                    const isFirstHour =
+                      task &&
+                      getFirstHourIndex(task.start_time, hours) === hourIndex;
+
+                    const isLastHour =
+                      task &&
+                      getLastHourIndex(task.end_time, hours) === hourIndex;
+
+                    const status = task?.status;
+
+                    const baseClass = `cursor-pointer border-r border-gray-200 transition-colors duration-200 p-2 ${
+                      status === "pending"
+                        ? "bg-[#FDE2E4] hover:bg-[#FAC8CB]"
+                        : status === "active"
+                        ? "bg-[#FFF3CD] hover:bg-[#FFE69B]"
+                        : status === "done"
+                        ? "bg-[#D4EDDA] hover:bg-[#A8D5BA]"
+                        : "bg-transparent"
+                    }`;
+
+                    return (
+                      <div
+                        key={`${person}-${hour}`}
+                        className={baseClass}
+                        onClick={() =>
+                          task
+                            ? handleTaskClick(task)
+                            : handleNewTaskClick(hour, person)
+                        }
+                        style={{
+                          minHeight: "4rem",
+                          borderBottom: isLastHour
+                            ? "3px solid black"
+                            : undefined,
+                        }}
+                      >
+                        {isFirstHour && (
+                          <div className="text-xs text-gray-800 space-y-1">
+                            <p>{task.name || "-"}</p>
+                            <p>{task.phone || "-"}</p>
+                            <p>{task.description || "-"}</p>
+                            <p>{task.vehicle || "-"}</p>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
-
-                {people.map((person, index) => {
-                  const tasksForPersonAndHour = notes.filter(
-                    (note) =>
-                      note.assigned_person === person &&
-                      isTaskActiveDuringHour(
-                        note.start_time,
-                        note.end_time,
-                        hour
-                      )
-                  );
-
-                  const status = tasksForPersonAndHour[0]?.status;
-                  const baseClass = `cursor-pointer border-r border-gray-200 transition-colors duration-200 p-2 ${
-                    status === "pending"
-                      ? "bg-[#FDE2E4] hover:bg-[#FAC8CB]"
-                      : status === "active"
-                      ? "bg-[#FFF3CD] hover:bg-[#FFE69B]"
-                      : status === "done"
-                      ? "bg-[#D4EDDA] hover:bg-[#A8D5BA]"
-                      : "bg-transparent"
-                  }`;
-
-                  return (
-                    <div
-                      key={`${person}-${hour}`}
-                      className={baseClass}
-                      onClick={() =>
-                        tasksForPersonAndHour.length > 0
-                          ? handleTaskClick(tasksForPersonAndHour[0])
-                          : handleNewTaskClick(hour, person)
-                      }
-                      style={{ minHeight: "4rem" }}
-                    >
-                      {tasksForPersonAndHour.map(
-                        (task, taskIndex) =>
-                          getFirstHourIndex(task.start_time, hours) ===
-                            hourIndex && (
-                            <div
-                              key={taskIndex}
-                              className="text-xs text-gray-800 space-y-1"
-                            >
-                              <p>{task.name}</p>
-                              <p>{task.phone}</p>
-                              <p>{task.description}</p>
-                              <p>{task.vehicle}</p>
-                            </div>
-                          )
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>
