@@ -89,7 +89,7 @@ const Agenda = () => {
   }
   hours.push("17:30"); // Añade manualmente 5:30 PM al final del bucle
 
-  const people = ["Josué", "Keilor", "Andrey", "Dylan", "Steven"];
+  const people = ["Botaguas", "Keilor", "Andrey", "Dylan", "Kenneth"];
 
   const handleCellClick = (hour: string, person: string): void => {
     const dateOfAppointment = new Date(selectedDate);
