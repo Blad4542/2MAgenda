@@ -28,6 +28,7 @@ export const updateNoteInSupabase = async (task) => {
       start_time: task.start_time,
       end_time: task.end_time,
       assigned_person: task.assigned_person,
+      appointment_date: task.appointment_date,
     })
     .match({ id: task.id });
   return { data, error };
