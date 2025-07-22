@@ -104,6 +104,14 @@ export default function DashboardShell({
               <ShoppingCart className="w-5 h-5" />
               {isSidebarOpen && <span>Pedidos</span>}
             </Link>
+            <Link
+              href="/dashboard/tasks"
+              className="flex items-center gap-2 text-blue-700 font-medium"
+              onClick={() => setIsSidebarOpen(false)}
+            >
+              <FileText className="w-5 h-5" />
+              {isSidebarOpen && <span>Cotizaciones pendientes</span>}
+            </Link>
             <a
               href="https://botaguas2m.netlify.app/inventory"
               target="_blank"
