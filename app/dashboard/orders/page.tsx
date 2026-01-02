@@ -71,6 +71,7 @@ export default function OrdersPage() {
           ...form,
           total_amount: Number(form.total_amount),
           initial_payment: Number(form.initial_payment),
+          remaining: remaining,
         })
         .eq("id", editingOrder.id);
     } else {
@@ -82,6 +83,7 @@ export default function OrdersPage() {
         product_description: form.product_description,
         total_amount: Number(form.total_amount),
         initial_payment: Number(form.initial_payment),
+        remaining: remaining,
         provider: form.provider,
       });
     }

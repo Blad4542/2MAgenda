@@ -19,7 +19,17 @@ const Agenda = () => {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [errorMessage, setErrorMessage] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [currentTask, setCurrentTask] = useState({
+  const [currentTask, setCurrentTask] = useState<{
+    start_time: string;
+    end_time: string;
+    assigned_person: string;
+    name: string;
+    phone: string;
+    description: string;
+    vehicle: string;
+    status: "pending" | "active" | "done";
+    appointment_date: string;
+  }>({
     start_time: "",
     end_time: "",
     assigned_person: "",
@@ -35,13 +45,6 @@ const Agenda = () => {
   const [user, setUser] = useState<string | null>(null);
 
   const supabase = createClient();
-
-  const currentDate = new Date().toLocaleDateString("es-ES", {
-    weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
 
   const fetchNotesForSelectedDate = async () => {
     // Establece el inicio y final del día seleccionado correctamente
