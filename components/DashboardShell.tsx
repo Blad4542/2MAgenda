@@ -112,11 +112,10 @@ export default function DashboardShell({
               <FileText className="w-5 h-5" />
               {isSidebarOpen && <span>Cotizaciones pendientes</span>}
             </Link>
-            <a
-              href="https://botaguas2m.netlify.app/inventory"
-              target="_blank"
-              rel="noopener noreferrer"
+            <Link
+              href="/dashboard/botaguas"
               className="flex items-center gap-2 text-blue-700 font-medium"
+              onClick={() => setIsSidebarOpen(false)}
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -133,7 +132,7 @@ export default function DashboardShell({
                 />
               </svg>
               {isSidebarOpen && <span>Inventario Botaguas</span>}
-            </a>
+            </Link>
           </nav>
         </aside>
 
