@@ -1,6 +1,6 @@
 "use client";
 import { jwtDecode } from "jwt-decode";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import TaskModal from "@/components/TaskModal";
@@ -43,6 +43,9 @@ const Agenda = () => {
   const [notes, setNotes] = useState<any[]>([]);
   const [isNewTask, setIsNewTask] = useState(true);
   const [user, setUser] = useState<string | null>(null);
+  const [reservingSlots, setReservingSlots] = useState<Record<string, string>>({});
+  const channelRef = useRef<any>(null);
+  const currentSlotRef = useRef<string | null>(null);
 
   const supabase = createClient();
 
@@ -73,14 +76,57 @@ const Agenda = () => {
       const { data } = await supabase.auth.getSession();
       if (data && data.session) {
         const decoded = jwtDecode<DecodedToken>(data.session.access_token);
-        setUser(decoded.email); // Establece el usuario solo si la sesión existe
+        setUser(decoded.email);
       } else {
-        setUser(null); // Establece el usuario a null si no hay sesión
+        setUser(null);
       }
     };
     checkAuth();
     fetchNotesForSelectedDate();
+
+    const realtimeChannel = supabase
+      .channel(`appointments-${selectedDate.toDateString()}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "appointments" },
+        () => fetchNotesForSelectedDate()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(realtimeChannel);
+    };
   }, [selectedDate]);
+
+  useEffect(() => {
+    const channel = supabase.channel("agenda-reservations");
+
+    channel
+      .on("broadcast", { event: "slot-reserved" }, ({ payload }: any) => {
+        if (payload.action === "reserve") {
+          setReservingSlots((prev) => ({ ...prev, [payload.slot]: payload.user }));
+        } else {
+          setReservingSlots((prev) => {
+            const next = { ...prev };
+            delete next[payload.slot];
+            return next;
+          });
+        }
+      })
+      .on("broadcast", { event: "appointments-updated" }, () => {
+        fetchNotesForSelectedDate();
+      });
+
+    channel.subscribe((status) => {
+      if (status === "SUBSCRIBED") {
+        channelRef.current = channel;
+      }
+    });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   const hours: string[] = [];
   for (let hour = 8; hour <= 17; hour++) {
@@ -129,6 +175,12 @@ const Agenda = () => {
   };
 
   const handleSaveNote = async () => {
+    if (!currentTask.name.trim() || !currentTask.phone.trim() || !currentTask.vehicle.trim()) {
+      setErrorMessage("Nombre, teléfono y vehículo son obligatorios.");
+      return;
+    }
+    setErrorMessage("");
+
     let result;
     if (isNewTask) {
       result = await addNoteToSupabase({
@@ -146,6 +198,19 @@ const Agenda = () => {
       console.error("Error al guardar la nota:", result.error.message);
       setErrorMessage(`Error al guardar la nota: ${result.error.message}`);
     } else {
+      if (channelRef.current && currentSlotRef.current) {
+        channelRef.current.send({
+          type: "broadcast",
+          event: "slot-reserved",
+          payload: { action: "release", slot: currentSlotRef.current, user },
+        });
+        currentSlotRef.current = null;
+      }
+      channelRef.current?.send({
+        type: "broadcast",
+        event: "appointments-updated",
+        payload: {},
+      });
       setIsModalOpen(false);
       await fetchNotesForSelectedDate(); // Recarga las notas para el día seleccionado
       setCurrentTask({
@@ -169,6 +234,19 @@ const Agenda = () => {
       setErrorMessage(`Error al eliminar la nota: ${error.message}`);
     } else {
       // Cierra el modal y actualiza la lista de notas.
+      if (channelRef.current && currentSlotRef.current) {
+        channelRef.current.send({
+          type: "broadcast",
+          event: "slot-reserved",
+          payload: { action: "release", slot: currentSlotRef.current, user },
+        });
+        currentSlotRef.current = null;
+      }
+      channelRef.current?.send({
+        type: "broadcast",
+        event: "appointments-updated",
+        payload: {},
+      });
       setIsModalOpen(false);
       fetchNotesForSelectedDate();
     }
@@ -240,7 +318,17 @@ const Agenda = () => {
     return -1;
   };
 
-  const handleNewTaskClick = (hour: string, person: string): void => {
+  const handleNewTaskClick = async (hour: string, person: string): Promise<void> => {
+    if (user && channelRef.current) {
+      const dateStr = selectedDate.toISOString().split("T")[0];
+      const slot = `${person}-${hour}-${dateStr}`;
+      currentSlotRef.current = slot;
+      channelRef.current.send({
+        type: "broadcast",
+        event: "slot-reserved",
+        payload: { action: "reserve", slot, user },
+      });
+    }
     setCurrentTask({
       ...currentTask,
       start_time: hour,
@@ -260,6 +348,21 @@ const Agenda = () => {
     setIsNewTask(false);
     setIsModalOpen(true);
   };
+
+  const handleModalClose = () => {
+    setErrorMessage("");
+    if (channelRef.current && currentSlotRef.current) {
+      channelRef.current.send({
+        type: "broadcast",
+        event: "slot-reserved",
+        payload: { action: "release", slot: currentSlotRef.current, user },
+      });
+      currentSlotRef.current = null;
+    }
+    setIsModalOpen(false);
+  };
+
+  const dateStr = selectedDate.toISOString().split("T")[0];
 
   return (
     <div className="flex flex-col h-screen">
@@ -335,15 +438,25 @@ const Agenda = () => {
 
                     const status = task?.status;
 
-                    const baseClass = `cursor-pointer border-r border-gray-200 transition-colors duration-200 p-2 ${
-                      status === "pending"
-                        ? "bg-[#FDE2E4] hover:bg-[#FAC8CB]"
-                        : status === "active"
-                        ? "bg-[#FFF3CD] hover:bg-[#FFE69B]"
-                        : status === "done"
-                        ? "bg-[#D4EDDA] hover:bg-[#A8D5BA]"
-                        : "bg-transparent"
-                    }`;
+                    const slotKey = `${person}-${hour}-${dateStr}`;
+                    const reservingUser =
+                      !task &&
+                      reservingSlots[slotKey] &&
+                      reservingSlots[slotKey] !== user
+                        ? reservingSlots[slotKey]
+                        : null;
+
+                    const baseClass = reservingUser
+                      ? "cursor-pointer border-r border-gray-200 p-2 bg-blue-100"
+                      : `cursor-pointer border-r border-gray-200 transition-colors duration-200 p-2 ${
+                          status === "pending"
+                            ? "bg-[#FDE2E4] hover:bg-[#FAC8CB]"
+                            : status === "active"
+                            ? "bg-[#FFF3CD] hover:bg-[#FFE69B]"
+                            : status === "done"
+                            ? "bg-[#D4EDDA] hover:bg-[#A8D5BA]"
+                            : "bg-transparent"
+                        }`;
 
                     return (
                       <div
@@ -369,6 +482,11 @@ const Agenda = () => {
                             <p>{task.vehicle || "-"}</p>
                           </div>
                         )}
+                        {reservingUser && (
+                          <div className="text-xs text-blue-600 font-medium">
+                            Agendando... ({reservingUser})
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -382,12 +500,13 @@ const Agenda = () => {
       {isModalOpen && (
         <TaskModal
           isOpen={isModalOpen}
-          onClose={() => setIsModalOpen(false)}
+          onClose={handleModalClose}
           onSave={handleSaveNote}
           task={currentTask}
           setTask={setCurrentTask}
           isNewTask={isNewTask}
           onDelete={handleDeleteNote}
+          errorMessage={errorMessage}
         />
       )}
 

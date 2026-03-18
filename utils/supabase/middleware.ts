@@ -68,13 +68,20 @@ export const updateSession = async (request: NextRequest) => {
       data: { user },
     } = await supabase.auth.getUser();
 
-    const isLoginRoute = request.nextUrl.pathname === "/login";
+    const { pathname } = request.nextUrl;
+    const isLoginRoute = pathname === "/login";
+    const isRootRoute = pathname === "/";
 
-    // Redirigir si no hay usuario autenticado y no está en /login
     if (!user && !isLoginRoute) {
       const redirectUrl = request.nextUrl.clone();
       redirectUrl.pathname = "/login";
-      redirectUrl.searchParams.set("redirectedFrom", request.nextUrl.pathname);
+      redirectUrl.searchParams.set("redirectedFrom", pathname);
+      return NextResponse.redirect(redirectUrl);
+    }
+
+    if (user && (isRootRoute || isLoginRoute)) {
+      const redirectUrl = request.nextUrl.clone();
+      redirectUrl.pathname = "/dashboard/agenda";
       return NextResponse.redirect(redirectUrl);
     }
 

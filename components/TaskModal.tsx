@@ -9,6 +9,7 @@ const TaskModal = ({
   task,
   setTask,
   isNewTask,
+  errorMessage,
 }: {
   isOpen: boolean;
   onClose: () => void;
@@ -17,6 +18,7 @@ const TaskModal = ({
   task: any;
   setTask: (task: any) => void;
   isNewTask: boolean;
+  errorMessage?: string;
 }) => {
   const handleChange = (e: { target: { name: any; value: any } }) => {
     const { name, value } = e.target;
@@ -92,6 +94,10 @@ const TaskModal = ({
             <option value="active">Activo</option>
             <option value="done">Hecho</option>
           </select>
+
+          {errorMessage && (
+            <p className="text-red-500 text-sm mb-3">{errorMessage}</p>
+          )}
 
           <div className="flex justify-end gap-2">
             {!isNewTask && (
