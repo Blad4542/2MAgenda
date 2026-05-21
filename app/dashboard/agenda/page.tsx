@@ -46,6 +46,8 @@ const Agenda = () => {
   const [reservingSlots, setReservingSlots] = useState<Record<string, string>>({});
   const channelRef = useRef<any>(null);
   const currentSlotRef = useRef<string | null>(null);
+  const fetchNotesRef = useRef<(() => Promise<void>) | null>(null);
+  const userRef = useRef<string | null>(null);
 
   const supabase = createClient();
 
@@ -71,6 +73,12 @@ const Agenda = () => {
     }
   };
 
+  // Mantiene los refs siempre apuntando a los valores más recientes
+  useEffect(() => {
+    fetchNotesRef.current = fetchNotesForSelectedDate;
+    userRef.current = user;
+  });
+
   useEffect(() => {
     const checkAuth = async () => {
       const { data } = await supabase.auth.getSession();
@@ -83,19 +91,6 @@ const Agenda = () => {
     };
     checkAuth();
     fetchNotesForSelectedDate();
-
-    const realtimeChannel = supabase
-      .channel(`appointments-${selectedDate.toDateString()}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "appointments" },
-        () => fetchNotesForSelectedDate()
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(realtimeChannel);
-    };
   }, [selectedDate]);
 
   useEffect(() => {
@@ -114,7 +109,7 @@ const Agenda = () => {
         }
       })
       .on("broadcast", { event: "appointments-updated" }, () => {
-        fetchNotesForSelectedDate();
+        fetchNotesRef.current?.();
       });
 
     channel.subscribe((status) => {
@@ -123,7 +118,20 @@ const Agenda = () => {
       }
     });
 
+    const handleUnload = () => {
+      if (channelRef.current && currentSlotRef.current) {
+        channelRef.current.send({
+          type: "broadcast",
+          event: "slot-reserved",
+          payload: { action: "release", slot: currentSlotRef.current, user: userRef.current },
+        });
+      }
+    };
+
+    window.addEventListener("beforeunload", handleUnload);
+
     return () => {
+      window.removeEventListener("beforeunload", handleUnload);
       supabase.removeChannel(channel);
     };
   }, []);

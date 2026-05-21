@@ -11,6 +11,7 @@ interface InventoryItem {
   quantity: number;
   description: string;
   mold_number: string;
+  user_name: string;
 }
 
 interface InventoryTableProps {

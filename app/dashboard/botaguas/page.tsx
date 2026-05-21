@@ -52,7 +52,7 @@ export default function InventoryPage() {
           .flatMap((item) => [item.year_start, item.year_end])
           .filter((year) => year !== null)
       )
-    ).sort((a, b) => b - a);
+    ).sort((a, b) => (b as number) - (a as number));
     setBrands(uniqueBrands);
     setModels(uniqueModels);
     setYears(uniqueYears as number[]);
