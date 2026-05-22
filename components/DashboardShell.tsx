@@ -1,25 +1,51 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/utils/supabase/client";
 import {
-  Home,
-  Calendar,
-  FileText,
-  ShoppingCart,
-  ChevronLeft,
-  ChevronRight,
-} from "lucide-react"; // añade íconos
+  Home, Calendar, FileText, ShoppingCart, LogOut, Droplets, Menu, X,
+} from "lucide-react";
 
-export default function DashboardShell({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const router = useRouter();
+const navItems = [
+  { href: "/dashboard",          icon: Home,         label: "Inicio" },
+  { href: "/dashboard/agenda",   icon: Calendar,     label: "Agenda" },
+  { href: "/dashboard/payments", icon: FileText,     label: "Cuentas por pagar" },
+  { href: "/dashboard/orders",   icon: ShoppingCart, label: "Pedidos" },
+  { href: "/dashboard/tasks",    icon: FileText,     label: "Cotizaciones pendientes" },
+  { href: "/dashboard/botaguas", icon: Droplets,     label: "Inventario Botaguas" },
+];
+
+function SidebarNav({ pathname, onNav }: { pathname: string; onNav?: () => void }) {
+  return (
+    <nav className="flex flex-col gap-0.5 p-3 flex-1">
+      {navItems.map(({ href, icon: Icon, label }) => {
+        const active = pathname === href;
+        return (
+          <Link
+            key={href}
+            href={href}
+            onClick={onNav}
+            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+              active
+                ? "bg-[#07C3F8]/10 text-[#07C3F8]"
+                : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+            }`}
+          >
+            <Icon className="w-4 h-4 shrink-0" />
+            <span className="truncate">{label}</span>
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
+
+export default function DashboardShell({ children }: { children: React.ReactNode }) {
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const router   = useRouter();
+  const pathname = usePathname();
   const supabase = createClient();
 
   const handleLogout = async () => {
@@ -28,115 +54,67 @@ export default function DashboardShell({
   };
 
   return (
-    <div className="flex flex-col h-screen">
-      <header className="bg-[#07C3F8] text-white px-6 py-4 flex justify-between items-center">
-        <button
-          onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-          className="md:hidden"
-        >
-          <svg
-            className="w-6 h-6"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            viewBox="0 0 24 24"
+    <div className="flex flex-col h-screen bg-gray-50">
+
+      {/* ── Header ── */}
+      <header className="h-14 bg-white border-b border-gray-200 px-4 flex items-center justify-between shrink-0 z-20">
+        <div className="flex items-center gap-3">
+          {/* Hamburger — only on mobile */}
+          <button
+            onClick={() => setMobileOpen(true)}
+            className="md:hidden p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 transition-colors"
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M4 6h16M4 12h16M4 18h16"
-            />
-          </svg>
-        </button>
-        <h1 className="text-lg font-bold">Autodecoración 2M</h1>
+            <Menu className="w-5 h-5" />
+          </button>
+          {/* Logo */}
+          <div className="flex items-center gap-2">
+            <span className="w-1.5 h-7 bg-[#07C3F8] rounded-full" />
+            <span className="font-bold text-gray-900 text-sm">
+              Auto<span className="text-[#07C3F8]">decoración</span> 2M
+            </span>
+          </div>
+        </div>
+
         <button
           onClick={handleLogout}
-          className="bg-white text-[#07C3F8] px-4 py-1 rounded hover:bg-blue-100"
+          className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-900 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors"
         >
-          Cerrar sesión
+          <LogOut className="w-4 h-4" />
+          <span className="hidden sm:inline font-medium">Cerrar sesión</span>
         </button>
       </header>
 
       <div className="flex flex-1 overflow-hidden">
-        <aside
-          className={`bg-[#DAF7FF] h-full p-4 transition-all duration-300 ease-in-out flex flex-col
-    ${isSidebarOpen ? "w-64" : "w-16"}`}
-        >
-          {/* Botón de colapsar/expandir */}
-          <div className="flex justify-end mb-4">
-            <button
-              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              className="text-blue-700 hover:text-blue-900"
-            >
-              {isSidebarOpen ? <ChevronLeft /> : <ChevronRight />}
-            </button>
-          </div>
 
-          <nav className="space-y-4">
-            <Link
-              href="/dashboard"
-              className="flex items-center gap-2 text-blue-700 font-medium"
-            >
-              <Home className="w-5 h-5" />
-              {isSidebarOpen && <span>Inicio</span>}
-            </Link>
-            <Link
-              href="/dashboard/agenda"
-              className="flex items-center gap-2 text-blue-700 font-medium"
-              onClick={() => setIsSidebarOpen(false)} // Cierra el menú
-            >
-              <Calendar className="w-5 h-5" />
-              {isSidebarOpen && <span>Agenda</span>}
-            </Link>
-            <Link
-              href="/dashboard/payments"
-              className="flex items-center gap-2 text-blue-700 font-medium"
-              onClick={() => setIsSidebarOpen(false)}
-            >
-              <FileText className="w-5 h-5" />
-              {isSidebarOpen && <span>Cuentas por pagar</span>}
-            </Link>
-            <Link
-              href="/dashboard/orders"
-              className="flex items-center gap-2 text-blue-700 font-medium"
-              onClick={() => setIsSidebarOpen(false)}
-            >
-              <ShoppingCart className="w-5 h-5" />
-              {isSidebarOpen && <span>Pedidos</span>}
-            </Link>
-            <Link
-              href="/dashboard/tasks"
-              className="flex items-center gap-2 text-blue-700 font-medium"
-              onClick={() => setIsSidebarOpen(false)}
-            >
-              <FileText className="w-5 h-5" />
-              {isSidebarOpen && <span>Cotizaciones pendientes</span>}
-            </Link>
-            <Link
-              href="/dashboard/botaguas"
-              className="flex items-center gap-2 text-blue-700 font-medium"
-              onClick={() => setIsSidebarOpen(false)}
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="w-5 h-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M15 17h5l-1.405-1.405M20 12a8 8 0 11-16 0 8 8 0 0116 0z"
-                />
-              </svg>
-              {isSidebarOpen && <span>Inventario Botaguas</span>}
-            </Link>
-          </nav>
+        {/* ── Desktop sidebar — always visible with labels ── */}
+        <aside className="hidden md:flex flex-col w-56 bg-white border-r border-gray-200 shrink-0">
+          <SidebarNav pathname={pathname} />
         </aside>
 
-        <main className="flex-1 overflow-y-auto p-6 bg-white">{children}</main>
+        {/* ── Mobile sidebar overlay ── */}
+        {mobileOpen && (
+          <>
+            <div
+              className="fixed inset-0 z-30 bg-black/40 md:hidden"
+              onClick={() => setMobileOpen(false)}
+            />
+            <div className="fixed inset-y-0 left-0 z-40 w-64 bg-white border-r border-gray-200 flex flex-col md:hidden">
+              <div className="flex items-center justify-between h-14 px-4 border-b border-gray-100">
+                <span className="font-semibold text-gray-900 text-sm">Menú</span>
+                <button
+                  onClick={() => setMobileOpen(false)}
+                  className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <SidebarNav pathname={pathname} onNav={() => setMobileOpen(false)} />
+            </div>
+          </>
+        )}
+
+        {/* ── Main content ── */}
+        <main className="flex-1 overflow-y-auto">{children}</main>
       </div>
     </div>
   );
