@@ -1,7 +1,11 @@
 import Link from "next/link";
+import Image from "next/image";
 import { headers } from "next/headers";
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
+
+const LOGO_URL =
+  "https://igzxgawkalsqyydqxbqf.supabase.co/storage/v1/object/public/public-assets//3132f1d1-9cac-4b6b-993b-0bc6022d64bd.png";
 
 export default function Login({ searchParams }: { searchParams: { message: string } }) {
   const signIn = async (formData: FormData) => {
@@ -32,11 +36,14 @@ export default function Login({ searchParams }: { searchParams: { message: strin
     <div className="min-h-screen flex bg-gray-50">
       {/* Left panel */}
       <div className="hidden md:flex md:w-1/2 flex-col items-center justify-center bg-white border-r border-gray-200 p-12">
-        <div className="w-1.5 h-12 bg-[#07C3F8] rounded-full mb-8" />
-        <img
-          src="https://igzxgawkalsqyydqxbqf.supabase.co/storage/v1/object/public/public-assets//3132f1d1-9cac-4b6b-993b-0bc6022d64bd.png"
-          alt="Logo 2M"
-          className="w-52 mb-6"
+        <div className="w-1.5 h-12 bg-[#07C3F8] rounded-full mb-8" aria-hidden="true" />
+        <Image
+          src={LOGO_URL}
+          alt="Logo Autodecoración 2M"
+          width={208}
+          height={208}
+          priority
+          className="mb-6"
         />
         <p className="text-gray-400 text-sm text-center">Sistema de gestión interna</p>
       </div>
@@ -46,10 +53,12 @@ export default function Login({ searchParams }: { searchParams: { message: strin
         <div className="w-full max-w-sm bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
           <div className="px-8 pt-8 pb-6 border-b border-gray-100">
             <div className="flex justify-center mb-4 md:hidden">
-              <img
-                src="https://igzxgawkalsqyydqxbqf.supabase.co/storage/v1/object/public/public-assets//3132f1d1-9cac-4b6b-993b-0bc6022d64bd.png"
-                alt="Logo"
-                className="w-28"
+              <Image
+                src={LOGO_URL}
+                alt="Logo Autodecoración 2M"
+                width={112}
+                height={112}
+                priority
               />
             </div>
             <h2 className="text-2xl font-bold text-gray-900">Bienvenido</h2>
@@ -58,7 +67,7 @@ export default function Login({ searchParams }: { searchParams: { message: strin
 
           <div className="px-8 py-6">
             {searchParams?.message && (
-              <div className="mb-4 bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl px-4 py-3">
+              <div role="alert" className="mb-4 bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl px-4 py-3">
                 {searchParams.message}
               </div>
             )}

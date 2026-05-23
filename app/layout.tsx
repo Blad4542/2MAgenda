@@ -8,9 +8,14 @@ const defaultUrl = process.env.VERCEL_URL
 export const metadata = {
   metadataBase: new URL(defaultUrl),
   title: "Autodecoración 2M",
-  description: "Sistema para Autodecoracion 2M",
+  description: "Sistema de gestión interna para Autodecoración 2M",
   icons: {
-    icon: "https://igzxgawkalsqyydqxbqf.supabase.co/storage/v1/object/public/public-assets//3132f1d1-9cac-4b6b-993b-0bc6022d64bd.png",
+    icon: "/favicon.png",
+  },
+  openGraph: {
+    title: "Autodecoración 2M",
+    description: "Sistema de gestión interna para Autodecoración 2M",
+    type: "website",
   },
 };
 
@@ -20,9 +25,17 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={GeistSans.className}>
+    <html lang="es" className={GeistSans.className}>
       <body className="bg-background text-foreground">
-        <main className="min-h-screen w-full h-full">{children}</main>
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 z-50 bg-white px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-900 shadow-sm"
+        >
+          Ir al contenido principal
+        </a>
+        <main id="main-content" className="min-h-screen w-full h-full">
+          {children}
+        </main>
       </body>
     </html>
   );

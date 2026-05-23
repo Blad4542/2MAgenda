@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale/es";
 import { createClient } from "@/utils/supabase/client";
-import { Plus, Trash2, Edit } from "lucide-react";
+import { Plus, Trash2, Edit, ChevronLeft, ChevronRight } from "lucide-react";
 import Modal from "@/components/Modal";
 import { v4 as uuidv4 } from "uuid";
 
@@ -13,12 +13,16 @@ interface Order {
   remaining: number; provider?: string; created_by?: string;
 }
 
+const PAGE_SIZE = 20;
+
 const inp = "w-full border border-gray-300 bg-white text-gray-900 placeholder-gray-400 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#07C3F8] focus:border-transparent transition-colors";
 const lbl = "block text-sm font-medium text-gray-700 mb-1.5";
 
 export default function OrdersPage() {
   const supabase = createClient();
   const [orders, setOrders] = useState<Order[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [editing, setEditing] = useState<Order | null>(null);
@@ -26,9 +30,16 @@ export default function OrdersPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
 
-  const fetchOrders = async () => {
-    const { data } = await supabase.from("orders").select("*").order("order_date", { ascending: false });
+  const fetchOrders = async (p = page) => {
+    const from = p * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+    const { data, count } = await supabase
+      .from("orders")
+      .select("*", { count: "exact" })
+      .order("order_date", { ascending: false })
+      .range(from, to);
     if (data) setOrders(data as Order[]);
+    if (count !== null) setTotal(count);
     setIsLoading(false);
   };
   const checkAdmin = async () => {
@@ -37,7 +48,13 @@ export default function OrdersPage() {
     const { data } = await supabase.from("user_roles").select("role").eq("id", session.user.id).single();
     if (data?.role === "admin") setIsAdmin(true);
   };
-  useEffect(() => { fetchOrders(); checkAdmin(); }, []);
+  useEffect(() => { fetchOrders(0); checkAdmin(); }, []);
+
+  const goToPage = (p: number) => {
+    setPage(p);
+    setSelected(new Set());
+    fetchOrders(p);
+  };
 
   const save = async () => {
     const remaining = Number(form.total_amount) - Number(form.initial_payment);
@@ -56,6 +73,7 @@ export default function OrdersPage() {
     setSelected(new Set()); fetchOrders();
   };
 
+  const totalPages = Math.ceil(total / PAGE_SIZE);
   const allSelected = orders.length > 0 && selected.size === orders.length;
   const colCount = 9 + (isAdmin ? 1 : 0);
 
@@ -92,14 +110,14 @@ export default function OrdersPage() {
         <div className="flex items-center gap-3">
           {selected.size > 0 && (
             <button onClick={bulkDel} className="flex items-center gap-2 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-semibold px-4 py-2.5 rounded-xl transition-colors">
-              <Trash2 size={16} /> Eliminar ({selected.size})
+              <Trash2 size={16} aria-hidden="true" /> Eliminar ({selected.size})
             </button>
           )}
           <button
             onClick={() => { setEditing(null); setForm({ customer_name: "", phone: "", product_description: "", total_amount: 0, initial_payment: 0, provider: "" }); setIsOpen(true); }}
             className="flex items-center gap-2 bg-[#07C3F8] hover:bg-[#06aad9] text-white font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-colors"
           >
-            <Plus size={16} /> Nuevo pedido
+            <Plus size={16} aria-hidden="true" /> Nuevo pedido
           </button>
         </div>
       </div>
@@ -110,7 +128,13 @@ export default function OrdersPage() {
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
                 <th className="px-4 py-3 w-10">
-                  <input type="checkbox" checked={allSelected} onChange={() => toggleAll(allSelected)} className="rounded border-gray-300 text-[#07C3F8] focus:ring-[#07C3F8]" />
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    onChange={() => toggleAll(allSelected)}
+                    aria-label="Seleccionar todos"
+                    className="rounded border-gray-300 text-[#07C3F8] focus:ring-[#07C3F8]"
+                  />
                 </th>
                 {["Fecha", "Nombre", "Teléfono", "Descripción", "Monto", "Abono", "Restante", ...(isAdmin ? ["Proveedor"] : []), ""].map(h => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
@@ -121,7 +145,13 @@ export default function OrdersPage() {
               {orders.map(o => (
                 <tr key={o.id} className={`transition-colors ${selected.has(o.id) ? "bg-[#07C3F8]/5" : "hover:bg-gray-50"}`}>
                   <td className="px-4 py-3 w-10">
-                    <input type="checkbox" checked={selected.has(o.id)} onChange={() => toggle(o.id)} className="rounded border-gray-300 text-[#07C3F8] focus:ring-[#07C3F8]" />
+                    <input
+                      type="checkbox"
+                      checked={selected.has(o.id)}
+                      onChange={() => toggle(o.id)}
+                      aria-label={`Seleccionar pedido de ${o.customer_name}`}
+                      className="rounded border-gray-300 text-[#07C3F8] focus:ring-[#07C3F8]"
+                    />
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-500 whitespace-nowrap">{format(new Date(o.order_date), "dd/MM/yyyy", { locale: es })}</td>
                   <td className="px-4 py-3 text-sm font-medium text-gray-900">{o.customer_name}</td>
@@ -133,11 +163,19 @@ export default function OrdersPage() {
                   {isAdmin && <td className="px-4 py-3 text-sm text-gray-500">{o.provider}</td>}
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1">
-                      <button onClick={() => { setEditing(o); setForm({ customer_name: o.customer_name, phone: o.phone || "", product_description: o.product_description || "", total_amount: o.total_amount, initial_payment: o.initial_payment, provider: o.provider || "" }); setIsOpen(true); }} className="p-1.5 rounded-lg text-gray-400 hover:text-[#07C3F8] hover:bg-[#07C3F8]/10 transition-colors">
-                        <Edit size={14} />
+                      <button
+                        onClick={() => { setEditing(o); setForm({ customer_name: o.customer_name, phone: o.phone || "", product_description: o.product_description || "", total_amount: o.total_amount, initial_payment: o.initial_payment, provider: o.provider || "" }); setIsOpen(true); }}
+                        aria-label={`Editar pedido de ${o.customer_name}`}
+                        className="p-1.5 rounded-lg text-gray-400 hover:text-[#07C3F8] hover:bg-[#07C3F8]/10 transition-colors"
+                      >
+                        <Edit size={14} aria-hidden="true" />
                       </button>
-                      <button onClick={async () => { await supabase.from("orders").delete().eq("id", o.id); fetchOrders(); }} className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors">
-                        <Trash2 size={14} />
+                      <button
+                        onClick={async () => { await supabase.from("orders").delete().eq("id", o.id); fetchOrders(); }}
+                        aria-label={`Eliminar pedido de ${o.customer_name}`}
+                        className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                      >
+                        <Trash2 size={14} aria-hidden="true" />
                       </button>
                     </div>
                   </td>
@@ -149,6 +187,34 @@ export default function OrdersPage() {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100">
+            <p className="text-sm text-gray-500">
+              Mostrando {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, total)} de {total}
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => goToPage(page - 1)}
+                disabled={page === 0}
+                aria-label="Página anterior"
+                className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronLeft size={16} aria-hidden="true" />
+              </button>
+              <span className="text-sm text-gray-700 font-medium">{page + 1} / {totalPages}</span>
+              <button
+                onClick={() => goToPage(page + 1)}
+                disabled={page >= totalPages - 1}
+                aria-label="Página siguiente"
+                className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronRight size={16} aria-hidden="true" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {isOpen && (

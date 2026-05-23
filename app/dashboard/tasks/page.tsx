@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Plus, Edit, Trash2 } from "lucide-react";
+import { Plus, Edit, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
 import Modal from "@/components/Modal";
 import { createClient } from "@/utils/supabase/client";
 import { v4 as uuidv4 } from "uuid";
@@ -12,6 +12,8 @@ interface Task {
   description: string;
   status: "Pending" | "Quoting" | "Quoted";
 }
+
+const PAGE_SIZE = 50;
 
 const inp = "w-full border border-gray-300 bg-white text-gray-900 placeholder-gray-400 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#07C3F8] focus:border-transparent transition-colors";
 const lbl = "block text-sm font-medium text-gray-700 mb-1.5";
@@ -30,18 +32,32 @@ const statusLabel: Record<Task["status"], string> = {
 export default function TasksPage() {
   const supabase = createClient();
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
   const [editing, setEditing] = useState<Task | null>(null);
   const [form, setForm] = useState<Omit<Task, "id">>({ name: "", phone: "", description: "", status: "Pending" });
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
 
-  const fetchTasks = async () => {
-    const { data } = await supabase.from("pending_tasks").select("*");
+  const fetchTasks = async (p = page) => {
+    const from = p * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+    const { data, count } = await supabase
+      .from("pending_tasks")
+      .select("*", { count: "exact" })
+      .range(from, to);
     if (data) setTasks(data as Task[]);
+    if (count !== null) setTotal(count);
     setIsLoading(false);
   };
-  useEffect(() => { fetchTasks(); }, []);
+  useEffect(() => { fetchTasks(0); }, []);
+
+  const goToPage = (p: number) => {
+    setPage(p);
+    setSelected(new Set());
+    fetchTasks(p);
+  };
 
   const save = async () => {
     if (editing) await supabase.from("pending_tasks").update(form).eq("id", editing.id);
@@ -61,6 +77,8 @@ export default function TasksPage() {
     const n = new Set(p); all ? list.forEach(t => n.delete(t.id)) : list.forEach(t => n.add(t.id)); return n;
   });
 
+  const totalPages = Math.ceil(total / PAGE_SIZE);
+
   const Table = ({ list, title }: { list: Task[]; title: string }) => {
     const sel = list.map(t => t.id).filter(id => selected.has(id));
     const all = list.length > 0 && sel.length === list.length;
@@ -73,7 +91,7 @@ export default function TasksPage() {
           </div>
           {sel.length > 0 && (
             <button onClick={() => bulkDel(sel)} className="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-xl bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 transition-colors">
-              <Trash2 size={13} /> Eliminar seleccionados ({sel.length})
+              <Trash2 size={13} aria-hidden="true" /> Eliminar seleccionados ({sel.length})
             </button>
           )}
         </div>
@@ -87,7 +105,13 @@ export default function TasksPage() {
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200">
                   <th className="w-10 p-3 text-left">
-                    <input type="checkbox" checked={all} onChange={() => toggleAll(list, all)} className="cursor-pointer accent-[#07C3F8] w-4 h-4" />
+                    <input
+                      type="checkbox"
+                      checked={all}
+                      onChange={() => toggleAll(list, all)}
+                      aria-label="Seleccionar todos"
+                      className="cursor-pointer accent-[#07C3F8] w-4 h-4"
+                    />
                   </th>
                   {["Nombre", "Teléfono", "Descripción", "Estado", ""].map(h => (
                     <th key={h} className="p-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</th>
@@ -98,7 +122,13 @@ export default function TasksPage() {
                 {list.map(task => (
                   <tr key={task.id} className={`transition-colors ${selected.has(task.id) ? "bg-[#07C3F8]/5" : "hover:bg-gray-50"}`}>
                     <td className="p-3">
-                      <input type="checkbox" checked={selected.has(task.id)} onChange={() => toggle(task.id)} className="cursor-pointer accent-[#07C3F8] w-4 h-4" />
+                      <input
+                        type="checkbox"
+                        checked={selected.has(task.id)}
+                        onChange={() => toggle(task.id)}
+                        aria-label={`Seleccionar ${task.name}`}
+                        className="cursor-pointer accent-[#07C3F8] w-4 h-4"
+                      />
                     </td>
                     <td className="p-3 text-sm font-medium text-gray-900">{task.name}</td>
                     <td className="p-3 text-sm text-gray-500">{task.phone}</td>
@@ -110,11 +140,19 @@ export default function TasksPage() {
                     </td>
                     <td className="p-3">
                       <div className="flex items-center gap-1 justify-end">
-                        <button onClick={() => { setEditing(task); setForm({ name: task.name, phone: task.phone, description: task.description, status: task.status }); setIsOpen(true); }} className="p-1.5 rounded-lg text-gray-400 hover:text-[#07C3F8] hover:bg-[#07C3F8]/10 transition-colors">
-                          <Edit size={14} />
+                        <button
+                          onClick={() => { setEditing(task); setForm({ name: task.name, phone: task.phone, description: task.description, status: task.status }); setIsOpen(true); }}
+                          aria-label={`Editar ${task.name}`}
+                          className="p-1.5 rounded-lg text-gray-400 hover:text-[#07C3F8] hover:bg-[#07C3F8]/10 transition-colors"
+                        >
+                          <Edit size={14} aria-hidden="true" />
                         </button>
-                        <button onClick={() => del(task.id)} className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors">
-                          <Trash2 size={14} />
+                        <button
+                          onClick={() => del(task.id)}
+                          aria-label={`Eliminar ${task.name}`}
+                          className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                        >
+                          <Trash2 size={14} aria-hidden="true" />
                         </button>
                       </div>
                     </td>
@@ -172,12 +210,40 @@ export default function TasksPage() {
           onClick={() => { setEditing(null); setForm({ name: "", phone: "", description: "", status: "Pending" }); setIsOpen(true); }}
           className="flex items-center gap-2 bg-[#07C3F8] hover:bg-[#06aad9] text-white font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-colors"
         >
-          <Plus size={16} /> Nueva tarea
+          <Plus size={16} aria-hidden="true" /> Nueva tarea
         </button>
       </div>
 
       <Table list={tasks.filter(t => t.status !== "Quoted")} title="Pendientes / Cotizando" />
       <Table list={tasks.filter(t => t.status === "Quoted")}  title="Cotizadas" />
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between mt-2">
+          <p className="text-sm text-gray-500">
+            Mostrando {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, total)} de {total}
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => goToPage(page - 1)}
+              disabled={page === 0}
+              aria-label="Página anterior"
+              className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronLeft size={16} aria-hidden="true" />
+            </button>
+            <span className="text-sm text-gray-700 font-medium">{page + 1} / {totalPages}</span>
+            <button
+              onClick={() => goToPage(page + 1)}
+              disabled={page >= totalPages - 1}
+              aria-label="Página siguiente"
+              className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronRight size={16} aria-hidden="true" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {isOpen && (
         <Modal isOpen={isOpen} onClose={() => setIsOpen(false)} title={editing ? "Editar tarea" : "Nueva tarea"}>

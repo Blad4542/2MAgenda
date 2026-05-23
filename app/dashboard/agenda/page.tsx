@@ -14,6 +14,19 @@ import { es } from "date-fns/locale/es";
 
 interface DecodedToken { email: string; }
 
+interface Appointment {
+  id: string | number;
+  start_time: string;
+  end_time: string;
+  assigned_person: string;
+  name: string;
+  phone: string;
+  description: string;
+  vehicle: string;
+  status: "pending" | "active" | "done";
+  appointment_date: string;
+}
+
 interface WaitingEntry {
   id: string;
   name: string;
@@ -47,7 +60,7 @@ const Agenda = () => {
     phone: string; description: string; vehicle: string;
     status: "pending" | "active" | "done"; appointment_date: string;
   }>({ start_time: "", end_time: "", assigned_person: "", name: "", phone: "", description: "", vehicle: "", status: "pending", appointment_date: new Date().toISOString() });
-  const [notes, setNotes] = useState<any[]>([]);
+  const [notes, setNotes] = useState<Appointment[]>([]);
   const [isNewTask, setIsNewTask] = useState(true);
   const [user, setUser] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
