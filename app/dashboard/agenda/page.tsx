@@ -50,6 +50,7 @@ const Agenda = () => {
   const [notes, setNotes] = useState<any[]>([]);
   const [isNewTask, setIsNewTask] = useState(true);
   const [user, setUser] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [reservingSlots, setReservingSlots] = useState<Record<string, string>>({});
   const channelRef = useRef<any>(null);
   const currentSlotRef = useRef<string | null>(null);
@@ -74,6 +75,7 @@ const Agenda = () => {
       .order("start_time", { ascending: true });
     if (error) setErrorMessage(`Error: ${error.message}`);
     else setNotes(data);
+    setIsLoading(false);
   };
 
   const fetchWaitingList = async () => {
@@ -226,6 +228,36 @@ const Agenda = () => {
   const dateStr = selectedDate.toISOString().split("T")[0];
   const prevDay = () => setSelectedDate((d) => { const n = new Date(d); n.setDate(n.getDate() - 1); return n; });
   const nextDay = () => setSelectedDate((d) => { const n = new Date(d); n.setDate(n.getDate() + 1); return n; });
+
+  if (isLoading) return (
+    <div className="flex flex-col h-full overflow-hidden animate-pulse">
+      <div className="flex items-center justify-between px-5 py-3 bg-white border-b border-gray-200 shrink-0">
+        <div className="h-5 w-56 bg-gray-200 rounded-lg" />
+        <div className="flex items-center gap-1.5">
+          <div className="w-7 h-7 bg-gray-100 rounded-lg" /><div className="w-14 h-7 bg-gray-100 rounded-lg" /><div className="w-7 h-7 bg-gray-100 rounded-lg" />
+        </div>
+      </div>
+      <div className="flex flex-1 overflow-hidden">
+        <div className="hidden lg:flex flex-col items-center p-4 bg-gray-50 border-r border-gray-200 shrink-0">
+          <div className="w-[270px] h-[280px] bg-gray-200 rounded-xl" />
+        </div>
+        <div className="flex-1 overflow-auto p-4">
+          <div className="min-w-max rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+            <div className="grid grid-cols-[72px_repeat(6,minmax(120px,1fr))] bg-gray-50 border-b border-gray-200">
+              <div className="py-3 px-2 flex justify-center"><div className="h-3 w-8 bg-gray-200 rounded" /></div>
+              {[...Array(6)].map((_, i) => <div key={i} className="py-3 px-2 flex justify-center border-l border-gray-200"><div className="h-3 w-16 bg-gray-200 rounded" /></div>)}
+            </div>
+            {[...Array(12)].map((_, r) => (
+              <div key={r} className={`grid grid-cols-[72px_repeat(6,minmax(120px,1fr))] border-b border-gray-100 ${r % 2 ? "bg-white" : "bg-gray-50/30"}`}>
+                <div className="py-3 px-2 flex justify-center"><div className="h-3 w-10 bg-gray-100 rounded" /></div>
+                {[...Array(6)].map((_, c) => <div key={c} className="border-l border-gray-100" style={{ minHeight: "3.25rem" }} />)}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <div className="flex flex-col h-full overflow-hidden">

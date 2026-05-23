@@ -24,10 +24,12 @@ export default function OrdersPage() {
   const [editing, setEditing] = useState<Order | null>(null);
   const [form, setForm] = useState({ customer_name: "", phone: "", product_description: "", total_amount: 0, initial_payment: 0, provider: "" });
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [isLoading, setIsLoading] = useState(true);
 
   const fetchOrders = async () => {
     const { data } = await supabase.from("orders").select("*").order("order_date", { ascending: false });
     if (data) setOrders(data as Order[]);
+    setIsLoading(false);
   };
   const checkAdmin = async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -56,6 +58,29 @@ export default function OrdersPage() {
 
   const allSelected = orders.length > 0 && selected.size === orders.length;
   const colCount = 9 + (isAdmin ? 1 : 0);
+
+  if (isLoading) return (
+    <div className="p-6 max-w-7xl mx-auto animate-pulse">
+      <div className="flex justify-between items-center mb-8">
+        <div><div className="h-7 w-24 bg-gray-200 rounded-lg mb-2" /><div className="h-4 w-48 bg-gray-100 rounded-lg" /></div>
+        <div className="h-10 w-36 bg-gray-200 rounded-xl" />
+      </div>
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+        <table className="min-w-full">
+          <thead><tr className="bg-gray-50 border-b border-gray-200">
+            {[...Array(9)].map((_, i) => <th key={i} className="px-4 py-3"><div className="h-3 w-16 bg-gray-200 rounded" /></th>)}
+          </tr></thead>
+          <tbody className="divide-y divide-gray-100">
+            {[...Array(8)].map((_, i) => (
+              <tr key={i}>
+                {[...Array(9)].map((_, j) => <td key={j} className="px-4 py-3"><div className={`h-4 rounded bg-gray-${j === 2 ? "200" : "100"} w-${["8","20","28","20","36","20","20","20","10"][j]}`} /></td>)}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
 
   return (
     <div className="p-6 max-w-7xl mx-auto">

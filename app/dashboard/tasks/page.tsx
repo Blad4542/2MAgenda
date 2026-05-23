@@ -34,10 +34,12 @@ export default function TasksPage() {
   const [editing, setEditing] = useState<Task | null>(null);
   const [form, setForm] = useState<Omit<Task, "id">>({ name: "", phone: "", description: "", status: "Pending" });
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [isLoading, setIsLoading] = useState(true);
 
   const fetchTasks = async () => {
     const { data } = await supabase.from("pending_tasks").select("*");
     if (data) setTasks(data as Task[]);
+    setIsLoading(false);
   };
   useEffect(() => { fetchTasks(); }, []);
 
@@ -125,6 +127,39 @@ export default function TasksPage() {
       </div>
     );
   };
+
+  if (isLoading) return (
+    <div className="p-6 max-w-6xl mx-auto animate-pulse">
+      <div className="flex justify-between items-center mb-8">
+        <div><div className="h-7 w-52 bg-gray-200 rounded-lg mb-2" /><div className="h-4 w-48 bg-gray-100 rounded-lg" /></div>
+        <div className="h-10 w-36 bg-gray-200 rounded-xl" />
+      </div>
+      {[4, 2].map((rows, t) => (
+        <div key={t} className="mb-8">
+          <div className="flex items-center gap-2 mb-3"><div className="h-5 w-40 bg-gray-200 rounded" /><div className="h-5 w-6 bg-gray-100 rounded-full" /></div>
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+            <table className="min-w-full">
+              <thead><tr className="bg-gray-50 border-b border-gray-200">
+                {[...Array(6)].map((_, i) => <th key={i} className="p-3"><div className="h-3 w-16 bg-gray-200 rounded" /></th>)}
+              </tr></thead>
+              <tbody className="divide-y divide-gray-100">
+                {[...Array(rows)].map((_, i) => (
+                  <tr key={i}>
+                    <td className="p-3"><div className="w-4 h-4 bg-gray-100 rounded" /></td>
+                    <td className="p-3"><div className="h-4 w-32 bg-gray-200 rounded" /></td>
+                    <td className="p-3"><div className="h-4 w-24 bg-gray-100 rounded" /></td>
+                    <td className="p-3"><div className="h-4 w-48 bg-gray-100 rounded" /></td>
+                    <td className="p-3"><div className="h-6 w-20 bg-gray-100 rounded-full" /></td>
+                    <td className="p-3"><div className="h-4 w-12 bg-gray-100 rounded" /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 
   return (
     <div className="p-6 max-w-6xl mx-auto">

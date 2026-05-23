@@ -1,5 +1,7 @@
 import { createClient } from "@/utils/supabase/server";
 import Link from "next/link";
+
+export const dynamic = "force-dynamic";
 import { Calendar, ClipboardList, ShoppingBag, Package, AlertCircle } from "lucide-react";
 
 export default async function DashboardHome() {
