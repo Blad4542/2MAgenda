@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 import { Calendar, ClipboardList, ShoppingBag, Package, AlertCircle } from "lucide-react";
 
 export default async function DashboardHome() {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const today = new Date();
   const startOfDay = new Date(today); startOfDay.setHours(0, 0, 0, 0);

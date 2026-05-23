@@ -1,4 +1,3 @@
-import Link from "next/link";
 import Image from "next/image";
 import { headers } from "next/headers";
 import { createClient } from "@/utils/supabase/server";
@@ -7,10 +6,16 @@ import { redirect } from "next/navigation";
 const LOGO_URL =
   "https://igzxgawkalsqyydqxbqf.supabase.co/storage/v1/object/public/public-assets//3132f1d1-9cac-4b6b-993b-0bc6022d64bd.png";
 
-export default function Login({ searchParams }: { searchParams: { message: string } }) {
+export default async function Login({
+  searchParams,
+}: {
+  searchParams: Promise<{ message?: string }>;
+}) {
+  const { message } = await searchParams;
+
   const signIn = async (formData: FormData) => {
     "use server";
-    const supabase = createClient();
+    const supabase = await createClient();
     const { error } = await supabase.auth.signInWithPassword({
       email: formData.get("email") as string,
       password: formData.get("password") as string,
@@ -21,8 +26,8 @@ export default function Login({ searchParams }: { searchParams: { message: strin
 
   const signUp = async (formData: FormData) => {
     "use server";
-    const origin = headers().get("origin");
-    const supabase = createClient();
+    const origin = (await headers()).get("origin");
+    const supabase = await createClient();
     const { error } = await supabase.auth.signUp({
       email: formData.get("email") as string,
       password: formData.get("password") as string,
@@ -66,9 +71,9 @@ export default function Login({ searchParams }: { searchParams: { message: strin
           </div>
 
           <div className="px-8 py-6">
-            {searchParams?.message && (
+            {message && (
               <div role="alert" className="mb-4 bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl px-4 py-3">
-                {searchParams.message}
+                {message}
               </div>
             )}
             <form className="space-y-4" action={signIn} method="POST">
