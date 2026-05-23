@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/utils/supabase/client";
 import {
-  Home, Calendar, FileText, ShoppingCart, LogOut, Droplets, Menu, X,
+  Home, Calendar, FileText, ShoppingCart, LogOut, Droplets, Menu,
 } from "lucide-react";
 
 const navItems = [
@@ -57,7 +57,7 @@ export default function DashboardShell({ children }: { children: React.ReactNode
     <div className="flex flex-col h-screen bg-gray-50">
 
       {/* ── Header ── */}
-      <header className="h-14 bg-white border-b border-gray-200 px-4 flex items-center justify-between shrink-0 z-20">
+      <header className="h-14 bg-white border-b border-gray-200 px-4 flex items-center justify-between shrink-0 z-50">
         <div className="flex items-center gap-3">
           {/* Hamburger — only on mobile */}
           <button
@@ -95,19 +95,10 @@ export default function DashboardShell({ children }: { children: React.ReactNode
         {mobileOpen && (
           <>
             <div
-              className="fixed inset-0 z-30 bg-black/40 md:hidden"
+              className="fixed inset-0 top-14 z-[70] bg-black/40 md:hidden"
               onClick={() => setMobileOpen(false)}
             />
-            <div className="fixed inset-y-0 left-0 z-40 w-64 bg-white border-r border-gray-200 flex flex-col md:hidden">
-              <div className="flex items-center justify-between h-14 px-4 border-b border-gray-100">
-                <span className="font-semibold text-gray-900 text-sm">Menú</span>
-                <button
-                  onClick={() => setMobileOpen(false)}
-                  className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 transition-colors"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
+            <div className="fixed top-14 bottom-0 left-0 z-[80] w-64 bg-white border-r border-gray-200 flex flex-col md:hidden">
               <SidebarNav pathname={pathname} onNav={() => setMobileOpen(false)} />
             </div>
           </>
