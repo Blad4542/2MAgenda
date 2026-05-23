@@ -80,7 +80,7 @@ export default async function DashboardHome() {
           </div>
           <p className="text-3xl font-bold text-gray-900">{appts.length}</p>
           <div className="flex items-center gap-3 mt-2 text-xs">
-            <span className="text-red-500">{apptPending} pendiente{apptPending !== 1 ? "s" : ""}</span>
+            <span className="text-sky-500">{apptPending} pendiente{apptPending !== 1 ? "s" : ""}</span>
             <span className="text-amber-500">{apptActive} activa{apptActive !== 1 ? "s" : ""}</span>
             <span className="text-emerald-500">{apptDone} {apptDone !== 1 ? "listas" : "lista"}</span>
           </div>
@@ -152,7 +152,7 @@ export default async function DashboardHome() {
                     <p className="text-xs text-gray-400 truncate">{a.vehicle} · {a.assigned_person}</p>
                   </div>
                   <span className={`shrink-0 text-xs px-2 py-0.5 rounded-full font-medium ${
-                    a.status === "pending" ? "bg-red-50 text-red-600"
+                    a.status === "pending" ? "bg-sky-50 text-sky-600"
                     : a.status === "active" ? "bg-amber-50 text-amber-600"
                     : "bg-emerald-50 text-emerald-600"
                   }`}>
