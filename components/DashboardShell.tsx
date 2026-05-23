@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { memo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/utils/supabase/client";
@@ -17,7 +17,7 @@ const navItems = [
   { href: "/dashboard/botaguas", icon: Droplets,     label: "Inventario Botaguas" },
 ];
 
-function SidebarNav({ pathname, onNav }: { pathname: string; onNav?: () => void }) {
+const SidebarNav = memo(function SidebarNav({ pathname, onNav }: { pathname: string; onNav?: () => void }) {
   return (
     <nav aria-label="Navegación principal" className="flex flex-col gap-0.5 p-3 flex-1">
       {navItems.map(({ href, icon: Icon, label }) => {
@@ -41,7 +41,7 @@ function SidebarNav({ pathname, onNav }: { pathname: string; onNav?: () => void 
       })}
     </nav>
   );
-}
+});
 
 export default function DashboardShell({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);

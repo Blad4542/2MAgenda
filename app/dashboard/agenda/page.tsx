@@ -1,6 +1,6 @@
 "use client";
 import { jwtDecode } from "jwt-decode";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import TaskModal from "@/components/TaskModal";
@@ -11,6 +11,44 @@ import { ChevronLeft, ChevronRight, Plus, Edit, Trash2, CalendarPlus, X } from "
 import { v4 as uuidv4 } from "uuid";
 import { format } from "date-fns";
 import { es } from "date-fns/locale/es";
+
+// ── Module-level constants (stable across renders) ──────────────────────────
+const HOURS: string[] = [];
+for (let h = 8; h <= 17; h++) {
+  HOURS.push(`${h.toString().padStart(2, "0")}:00`);
+  if (h !== 17) HOURS.push(`${h.toString().padStart(2, "0")}:30`);
+}
+HOURS.push("17:30");
+
+const PEOPLE = ["Botaguas", "Keilor", "Andrey", "Dylan A", "Dylan S", "Bicri"];
+
+function isTaskActiveDuringHour(start: string, end: string, hour: string): boolean {
+  const [sh, sm] = start.split(":").map(Number);
+  const [eh, em] = end.split(":").map(Number);
+  const [ch, cm] = hour.split(":").map(Number);
+  return ch * 60 + cm >= sh * 60 + sm && ch * 60 + cm < eh * 60 + em;
+}
+
+function getFirstHourIndex(startTime: string): number {
+  const [h, m] = startTime.split(":").map(Number);
+  const start = h * 60 + m;
+  for (let i = 0; i < HOURS.length; i++) {
+    const [hh, mm] = HOURS[i].split(":").map(Number);
+    if (start <= hh * 60 + mm) return i;
+  }
+  return -1;
+}
+
+function getLastHourIndex(endTime: string): number {
+  const [eh, em] = endTime.split(":").map(Number);
+  const end = eh * 60 + em;
+  for (let i = HOURS.length - 1; i >= 0; i--) {
+    const [h, m] = HOURS[i].split(":").map(Number);
+    if (h * 60 + m < end) return i;
+  }
+  return -1;
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 interface DecodedToken { email: string; }
 
@@ -131,32 +169,18 @@ const Agenda = () => {
     return () => { window.removeEventListener("beforeunload", handleUnload); supabase.removeChannel(channel); };
   }, []);
 
-  const hours: string[] = [];
-  for (let h = 8; h <= 17; h++) { hours.push(`${h.toString().padStart(2, "0")}:00`); if (h !== 17) hours.push(`${h.toString().padStart(2, "0")}:30`); }
-  hours.push("17:30");
-
-  const people = ["Botaguas", "Keilor", "Andrey", "Dylan A", "Dylan S", "Bicri"];
-
-  const isTaskActiveDuringHour = (start: any, end: any, hour: any) => {
-    const [sh, sm] = start.split(":").map(Number);
-    const [eh, em] = end.split(":").map(Number);
-    const [ch, cm] = hour.split(":").map(Number);
-    return ch * 60 + cm >= sh * 60 + sm && ch * 60 + cm < eh * 60 + em;
-  };
-
-  const getFirstHourIndex = (startTime: any, hours: any) => {
-    const [h, m] = startTime.split(":").map(Number);
-    const start = h * 60 + m;
-    for (let i = 0; i < hours.length; i++) { const [hh, mm] = hours[i].split(":").map(Number); if (start <= hh * 60 + mm) return i; }
-    return -1;
-  };
-
-  const getLastHourIndex = (endTime: string, hours: string[]) => {
-    const [eh, em] = endTime.split(":").map(Number);
-    const end = eh * 60 + em;
-    for (let i = hours.length - 1; i >= 0; i--) { const [h, m] = hours[i].split(":").map(Number); if (h * 60 + m < end) return i; }
-    return -1;
-  };
+  // O(1) lookup per cell instead of O(n) find across 66 cells
+  const notesIndex = useMemo(() => {
+    const index = new Map<string, Appointment>();
+    for (const note of notes) {
+      for (const hour of HOURS) {
+        if (isTaskActiveDuringHour(note.start_time, note.end_time, hour)) {
+          index.set(`${note.assigned_person}-${hour}`, note);
+        }
+      }
+    }
+    return index;
+  }, [notes]);
 
   const handleSaveNote = async () => {
     if (!currentTask.name.trim() || !currentTask.phone.trim() || !currentTask.vehicle.trim()) { setErrorMessage("Nombre, teléfono y vehículo son obligatorios."); return; }
@@ -336,19 +360,19 @@ const Agenda = () => {
             {/* Grid header */}
             <div className="grid grid-cols-[72px_repeat(6,minmax(120px,1fr))] sticky top-0 z-[50] bg-gray-50 border-b border-gray-200">
               <div className="text-center py-3 border-r border-gray-200 sticky left-0 z-[60] bg-gray-50 text-xs font-semibold text-gray-400 uppercase tracking-wider">Hora</div>
-              {people.map((person) => (
+              {PEOPLE.map((person) => (
                 <div key={person} className="text-center py-3 border-r border-gray-200 last:border-r-0 text-xs font-semibold text-gray-700 uppercase tracking-wider">{person}</div>
               ))}
             </div>
 
             {/* Hour rows */}
-            {hours.map((hour, hourIndex) => (
+            {HOURS.map((hour, hourIndex) => (
               <div key={hour} className={`grid grid-cols-[72px_repeat(6,minmax(120px,1fr))] border-b border-gray-100 last:border-b-0 ${hourIndex % 2 ? "bg-white" : "bg-gray-50/30"}`}>
                 <div className="text-center text-xs py-3 border-r border-gray-200 sticky left-0 z-[40] bg-inherit text-gray-400 font-mono">{hour}</div>
-                {people.map((person) => {
-                  const task = notes.find((note) => note.assigned_person === person && isTaskActiveDuringHour(note.start_time, note.end_time, hour));
-                  const isFirstHour = task && getFirstHourIndex(task.start_time, hours) === hourIndex;
-                  const isLastHour  = task && getLastHourIndex(task.end_time, hours) === hourIndex;
+                {PEOPLE.map((person) => {
+                  const task = notesIndex.get(`${person}-${hour}`);
+                  const isFirstHour = task && getFirstHourIndex(task.start_time) === hourIndex;
+                  const isLastHour  = task && getLastHourIndex(task.end_time) === hourIndex;
                   const status = task?.status;
                   const slotKey = `${person}-${hour}-${dateStr}`;
                   const reservingUser = !task && reservingSlots[slotKey] && reservingSlots[slotKey] !== user ? reservingSlots[slotKey] : null;

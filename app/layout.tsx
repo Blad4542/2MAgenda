@@ -26,6 +26,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="es" className={GeistSans.className}>
+      <head>
+        <link rel="preconnect" href="https://igzxgawkalsqyydqxbqf.supabase.co" crossOrigin="anonymous" />
+      </head>
       <body className="bg-background text-foreground">
         <a
           href="#main-content"
