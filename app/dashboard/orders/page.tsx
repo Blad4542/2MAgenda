@@ -3,7 +3,9 @@ import { useEffect, useState } from "react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale/es";
 import { createClient } from "@/utils/supabase/client";
-import { Plus, Trash2, Edit, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Trash2, Edit, ChevronLeft, ChevronRight, Search, X, Download, Clock } from "lucide-react";
+import { exportCsv } from "@/utils/exportCsv";
+import { logAction } from "@/utils/auditLog";
 import Modal from "@/components/Modal";
 import { v4 as uuidv4 } from "uuid";
 
@@ -13,10 +15,16 @@ interface Order {
   remaining: number; provider?: string; created_by?: string;
 }
 
+interface AuditEntry {
+  id: string; action: string; description: string | null; user_email: string | null; created_at: string;
+}
+
 const PAGE_SIZE = 20;
 
 const inp = "w-full border border-gray-300 bg-white text-gray-900 placeholder-gray-400 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#07C3F8] focus:border-transparent transition-colors";
 const lbl = "block text-sm font-medium text-gray-700 mb-1.5";
+
+const actionLabel: Record<string, string> = { create: "Creado", update: "Editado", delete: "Eliminado" };
 
 export default function OrdersPage() {
   const supabase = createClient();
@@ -29,15 +37,24 @@ export default function OrdersPage() {
   const [form, setForm] = useState({ customer_name: "", phone: "", product_description: "", total_amount: 0, initial_payment: 0, provider: "" });
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [onlyWithBalance, setOnlyWithBalance] = useState(false);
+  const [userEmail, setUserEmail] = useState<string | undefined>(undefined);
+  const [historyOrder, setHistoryOrder] = useState<Order | null>(null);
+  const [historyLogs, setHistoryLogs] = useState<AuditEntry[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
-  const fetchOrders = async (p = page) => {
+  const fetchOrders = async (p = page, s = search, owb = onlyWithBalance) => {
     const from = p * PAGE_SIZE;
     const to = from + PAGE_SIZE - 1;
-    const { data, count } = await supabase
+    let q = supabase
       .from("orders")
       .select("*", { count: "exact" })
       .order("order_date", { ascending: false })
       .range(from, to);
+    if (s.trim()) q = q.ilike("customer_name", `%${s.trim()}%`);
+    if (owb) q = q.gt("remaining", 0);
+    const { data, count } = await q;
     if (data) setOrders(data as Order[]);
     if (count !== null) setTotal(count);
     setIsLoading(false);
@@ -45,6 +62,7 @@ export default function OrdersPage() {
   const checkAdmin = async () => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return;
+    setUserEmail(session.user.email);
     const { data } = await supabase.from("user_roles").select("role").eq("id", session.user.id).single();
     if (data?.role === "admin") setIsAdmin(true);
   };
@@ -56,12 +74,29 @@ export default function OrdersPage() {
     fetchOrders(p);
   };
 
+  const handleSearch = (value: string) => {
+    setSearch(value);
+    setPage(0);
+    setSelected(new Set());
+    fetchOrders(0, value, onlyWithBalance);
+  };
+
+  const handleBalanceFilter = (checked: boolean) => {
+    setOnlyWithBalance(checked);
+    setPage(0);
+    setSelected(new Set());
+    fetchOrders(0, search, checked);
+  };
+
   const save = async () => {
     const remaining = Number(form.total_amount) - Number(form.initial_payment);
     if (editing) {
       await supabase.from("orders").update({ ...form, total_amount: Number(form.total_amount), initial_payment: Number(form.initial_payment), remaining }).eq("id", editing.id);
+      await logAction(supabase, { table_name: "orders", record_id: editing.id, action: "update", description: `Pedido de ${form.customer_name}`, user_email: userEmail });
     } else {
-      await supabase.from("orders").insert({ id: uuidv4(), order_date: new Date().toISOString().split("T")[0], ...form, total_amount: Number(form.total_amount), initial_payment: Number(form.initial_payment), remaining });
+      const id = uuidv4();
+      await supabase.from("orders").insert({ id, order_date: new Date().toISOString().split("T")[0], ...form, total_amount: Number(form.total_amount), initial_payment: Number(form.initial_payment), remaining });
+      await logAction(supabase, { table_name: "orders", record_id: id, action: "create", description: `Pedido de ${form.customer_name}`, user_email: userEmail });
     }
     setIsOpen(false); setForm({ customer_name: "", phone: "", product_description: "", total_amount: 0, initial_payment: 0, provider: "" }); setEditing(null); fetchOrders();
   };
@@ -69,8 +104,32 @@ export default function OrdersPage() {
   const toggle = (id: string) => setSelected(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const toggleAll = (all: boolean) => setSelected(all ? new Set() : new Set(orders.map(o => o.id)));
   const bulkDel = async () => {
-    await supabase.from("orders").delete().in("id", Array.from(selected));
+    const ids = Array.from(selected);
+    await supabase.from("orders").delete().in("id", ids);
+    await Promise.all(ids.map(id => {
+      const o = orders.find(x => x.id === id);
+      return logAction(supabase, { table_name: "orders", record_id: id, action: "delete", description: o ? `Pedido de ${o.customer_name}` : undefined, user_email: userEmail });
+    }));
     setSelected(new Set()); fetchOrders();
+  };
+
+  const deleteOne = async (o: Order) => {
+    await supabase.from("orders").delete().eq("id", o.id);
+    await logAction(supabase, { table_name: "orders", record_id: o.id, action: "delete", description: `Pedido de ${o.customer_name}`, user_email: userEmail });
+    fetchOrders();
+  };
+
+  const openHistory = async (o: Order) => {
+    setHistoryOrder(o);
+    setHistoryLoading(true);
+    const { data } = await supabase.from("audit_log")
+      .select("id, action, description, user_email, created_at")
+      .eq("table_name", "orders")
+      .eq("record_id", o.id)
+      .order("created_at", { ascending: false })
+      .limit(20);
+    setHistoryLogs((data as AuditEntry[]) ?? []);
+    setHistoryLoading(false);
   };
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
@@ -114,12 +173,47 @@ export default function OrdersPage() {
             </button>
           )}
           <button
+            onClick={() => exportCsv(orders.map(o => ({ Fecha: o.order_date, Nombre: o.customer_name, Teléfono: o.phone ?? "", Descripción: o.product_description ?? "", Monto: o.total_amount, Abono: o.initial_payment, Restante: o.remaining, Proveedor: o.provider ?? "" })), "pedidos.csv")}
+            className="flex items-center gap-2 bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 font-semibold px-4 py-2.5 rounded-xl transition-colors"
+          >
+            <Download size={16} aria-hidden="true" /> Exportar
+          </button>
+          <button
             onClick={() => { setEditing(null); setForm({ customer_name: "", phone: "", product_description: "", total_amount: 0, initial_payment: 0, provider: "" }); setIsOpen(true); }}
             className="flex items-center gap-2 bg-[#07C3F8] hover:bg-[#06aad9] text-white font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-colors"
           >
             <Plus size={16} aria-hidden="true" /> Nuevo pedido
           </button>
         </div>
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-wrap items-center gap-3 mb-4">
+        <div className="relative flex-1 min-w-48">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" aria-hidden="true" />
+          <input
+            type="search"
+            placeholder="Buscar por cliente..."
+            value={search}
+            onChange={e => handleSearch(e.target.value)}
+            className="w-full pl-8 pr-8 py-2.5 text-sm border border-gray-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-[#07C3F8] focus:border-transparent transition-colors"
+          />
+          {search && (
+            <button onClick={() => handleSearch("")} aria-label="Limpiar búsqueda" className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+              <X size={13} />
+            </button>
+          )}
+        </div>
+        <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={onlyWithBalance}
+            onChange={e => handleBalanceFilter(e.target.checked)}
+            className="rounded border-gray-300 text-[#07C3F8] focus:ring-[#07C3F8]"
+          />
+          Solo con saldo pendiente
+        </label>
+        <span className="text-sm text-gray-400 ml-auto">{total} resultado{total !== 1 ? "s" : ""}</span>
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
@@ -164,6 +258,13 @@ export default function OrdersPage() {
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1">
                       <button
+                        onClick={() => openHistory(o)}
+                        aria-label={`Historial de ${o.customer_name}`}
+                        className="p-1.5 rounded-lg text-gray-400 hover:text-violet-500 hover:bg-violet-50 transition-colors"
+                      >
+                        <Clock size={14} aria-hidden="true" />
+                      </button>
+                      <button
                         onClick={() => { setEditing(o); setForm({ customer_name: o.customer_name, phone: o.phone || "", product_description: o.product_description || "", total_amount: o.total_amount, initial_payment: o.initial_payment, provider: o.provider || "" }); setIsOpen(true); }}
                         aria-label={`Editar pedido de ${o.customer_name}`}
                         className="p-1.5 rounded-lg text-gray-400 hover:text-[#07C3F8] hover:bg-[#07C3F8]/10 transition-colors"
@@ -171,7 +272,7 @@ export default function OrdersPage() {
                         <Edit size={14} aria-hidden="true" />
                       </button>
                       <button
-                        onClick={async () => { await supabase.from("orders").delete().eq("id", o.id); fetchOrders(); }}
+                        onClick={() => deleteOne(o)}
                         aria-label={`Eliminar pedido de ${o.customer_name}`}
                         className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
                       >
@@ -232,6 +333,33 @@ export default function OrdersPage() {
               <button onClick={save} className="px-5 py-2 text-sm font-semibold rounded-xl bg-[#07C3F8] hover:bg-[#06aad9] text-white transition-colors">Guardar</button>
             </div>
           </div>
+        </Modal>
+      )}
+
+      {historyOrder && (
+        <Modal isOpen={!!historyOrder} onClose={() => setHistoryOrder(null)} title={`Historial — ${historyOrder.customer_name}`}>
+          {historyLoading ? (
+            <div className="py-8 text-center text-sm text-gray-400">Cargando...</div>
+          ) : historyLogs.length === 0 ? (
+            <div className="py-8 text-center text-sm text-gray-400">Sin registros de cambios</div>
+          ) : (
+            <ul className="divide-y divide-gray-100 max-h-80 overflow-y-auto">
+              {historyLogs.map(log => (
+                <li key={log.id} className="py-3 flex items-start gap-3">
+                  <span className={`mt-0.5 shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full ${log.action === "create" ? "bg-emerald-50 text-emerald-600" : log.action === "update" ? "bg-blue-50 text-blue-600" : "bg-red-50 text-red-600"}`}>
+                    {actionLabel[log.action] ?? log.action}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-gray-700 truncate">{log.description ?? "—"}</p>
+                    <p className="text-xs text-gray-400">{log.user_email ?? "—"}</p>
+                  </div>
+                  <span className="shrink-0 text-xs text-gray-400 whitespace-nowrap">
+                    {format(new Date(log.created_at), "dd/MM/yy HH:mm", { locale: es })}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
         </Modal>
       )}
     </div>

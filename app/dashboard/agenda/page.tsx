@@ -7,6 +7,7 @@ import TaskModal from "@/components/TaskModal";
 import Modal from "@/components/Modal";
 import { addNoteToSupabase, deleteNoteFromSupabase, updateNoteInSupabase } from "../../../utils/index";
 import { createClient } from "@/utils/supabase/client";
+import { logAction } from "@/utils/auditLog";
 import { ChevronLeft, ChevronRight, Plus, Edit, Trash2, CalendarPlus, X } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
 import { format } from "date-fns";
@@ -94,7 +95,7 @@ const Agenda = () => {
   const [errorMessage, setErrorMessage] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentTask, setCurrentTask] = useState<{
-    start_time: string; end_time: string; assigned_person: string; name: string;
+    id?: string | number; start_time: string; end_time: string; assigned_person: string; name: string;
     phone: string; description: string; vehicle: string;
     status: "pending" | "active" | "done"; appointment_date: string;
   }>({ start_time: "", end_time: "", assigned_person: "", name: "", phone: "", description: "", vehicle: "", status: "pending", appointment_date: new Date().toISOString() });
@@ -108,6 +109,8 @@ const Agenda = () => {
   const fetchNotesRef = useRef<(() => Promise<void>) | null>(null);
   const userRef = useRef<string | null>(null);
   const supabase = createClient();
+
+  const [userEmail, setUserEmail] = useState<string | undefined>(undefined);
 
   // Waiting list state
   const [waitingList, setWaitingList] = useState<WaitingEntry[]>([]);
@@ -141,7 +144,7 @@ const Agenda = () => {
   useEffect(() => {
     const checkAuth = async () => {
       const { data } = await supabase.auth.getSession();
-      if (data?.session) { const decoded = jwtDecode<DecodedToken>(data.session.access_token); setUser(decoded.email); }
+      if (data?.session) { const decoded = jwtDecode<DecodedToken>(data.session.access_token); setUser(decoded.email); setUserEmail(decoded.email); }
       else setUser(null);
     };
     checkAuth();
@@ -185,10 +188,17 @@ const Agenda = () => {
   const handleSaveNote = async () => {
     if (!currentTask.name.trim() || !currentTask.phone.trim() || !currentTask.vehicle.trim()) { setErrorMessage("Nombre, teléfono y vehículo son obligatorios."); return; }
     setErrorMessage("");
-    const result = isNewTask
-      ? await addNoteToSupabase({ ...currentTask, appointment_date: selectedDate.toISOString() })
-      : await updateNoteInSupabase({ ...currentTask, appointment_date: selectedDate.toISOString() });
-    if (result.error) { setErrorMessage(`Error: ${result.error.message}`); return; }
+    const desc = `Cita de ${currentTask.name} — ${currentTask.assigned_person} ${currentTask.start_time}`;
+    if (isNewTask) {
+      const newId = uuidv4();
+      const result = await addNoteToSupabase({ ...currentTask, id: newId, appointment_date: selectedDate.toISOString() });
+      if (result.error) { setErrorMessage(`Error: ${result.error.message}`); return; }
+      await logAction(supabase, { table_name: "appointments", record_id: newId, action: "create", description: desc, user_email: userEmail });
+    } else {
+      const result = await updateNoteInSupabase({ ...currentTask, appointment_date: selectedDate.toISOString() });
+      if (result.error) { setErrorMessage(`Error: ${result.error.message}`); return; }
+      await logAction(supabase, { table_name: "appointments", record_id: String(currentTask.id ?? ""), action: "update", description: desc, user_email: userEmail });
+    }
     if (channelRef.current && currentSlotRef.current) { channelRef.current.send({ type: "broadcast", event: "slot-reserved", payload: { action: "release", slot: currentSlotRef.current, user } }); currentSlotRef.current = null; }
     channelRef.current?.send({ type: "broadcast", event: "appointments-updated", payload: {} });
     // If scheduled from waiting list, mark as scheduled
@@ -203,8 +213,10 @@ const Agenda = () => {
   };
 
   const handleDeleteNote = async (id: number | string) => {
+    const appt = notes.find(n => n.id === id);
     const { error } = await deleteNoteFromSupabase(id);
     if (error) { setErrorMessage(`Error: ${error.message}`); return; }
+    await logAction(supabase, { table_name: "appointments", record_id: String(id), action: "delete", description: appt ? `Cita de ${appt.name} — ${appt.assigned_person} ${appt.start_time}` : undefined, user_email: userEmail });
     if (channelRef.current && currentSlotRef.current) { channelRef.current.send({ type: "broadcast", event: "slot-reserved", payload: { action: "release", slot: currentSlotRef.current, user } }); currentSlotRef.current = null; }
     channelRef.current?.send({ type: "broadcast", event: "appointments-updated", payload: {} });
     setIsModalOpen(false);
@@ -380,7 +392,7 @@ const Agenda = () => {
                   const cellClass = reservingUser
                     ? "cursor-pointer border-r border-gray-200 last:border-r-0 px-2 py-1.5 bg-violet-50 transition-colors"
                     : pendingFromWaiting && !task
-                    ? "cursor-pointer border-r border-gray-200 last:border-r-0 px-2 py-1.5 bg-[#07C3F8]/5 hover:bg-[#07C3F8]/15 transition-colors"
+                    ? "cursor-pointer border-r border-dashed border-green-300 last:border-r-0 px-2 py-1.5 bg-green-50 hover:bg-green-100 transition-colors"
                     : `cursor-pointer border-r border-gray-200 last:border-r-0 px-2 py-1.5 transition-colors ${
                         status === "pending" ? "bg-sky-50 hover:bg-sky-100"
                         : status === "active" ? "bg-amber-50 hover:bg-amber-100"
@@ -391,7 +403,7 @@ const Agenda = () => {
                   return (
                     <div
                       key={`${person}-${hour}`}
-                      className={cellClass}
+                      className={`group ${cellClass}`}
                       onClick={() => task ? (setCurrentTask(task), setIsNewTask(false), setIsModalOpen(true)) : handleNewTaskClick(hour, person)}
                       style={{ minHeight: "3.25rem", borderBottom: isLastHour ? "2px solid #07C3F8" : undefined }}
                     >
@@ -403,6 +415,9 @@ const Agenda = () => {
                         </div>
                       )}
                       {reservingUser && <div className="text-xs text-[#07C3F8] font-medium">Agendando... ({reservingUser})</div>}
+                      {pendingFromWaiting && !task && !reservingUser && (
+                        <div className="hidden group-hover:block text-xs text-green-600 font-medium">Clic para agendar aquí</div>
+                      )}
                     </div>
                   );
                 })}

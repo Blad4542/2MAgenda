@@ -1,9 +1,11 @@
 "use client";
 import { memo, useEffect, useState } from "react";
-import { Plus, Edit, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Edit, Trash2, ChevronLeft, ChevronRight, Search, X, Download } from "lucide-react";
 import Modal from "@/components/Modal";
 import { createClient } from "@/utils/supabase/client";
 import { v4 as uuidv4 } from "uuid";
+import { exportCsv } from "@/utils/exportCsv";
+import { logAction } from "@/utils/auditLog";
 
 interface Task {
   id: string;
@@ -137,6 +139,8 @@ export default function TasksPage() {
   const [form, setForm] = useState<Omit<Task, "id">>({ name: "", phone: "", description: "", status: "Pending" });
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [userEmail, setUserEmail] = useState<string | undefined>(undefined);
 
   const fetchTasks = async (p = page) => {
     const from = p * PAGE_SIZE;
@@ -149,7 +153,10 @@ export default function TasksPage() {
     if (count !== null) setTotal(count);
     setIsLoading(false);
   };
-  useEffect(() => { fetchTasks(0); }, []);
+  useEffect(() => {
+    fetchTasks(0);
+    supabase.auth.getSession().then(({ data }) => { if (data.session) setUserEmail(data.session.user.email); });
+  }, []);
 
   const goToPage = (p: number) => {
     setPage(p);
@@ -158,16 +165,28 @@ export default function TasksPage() {
   };
 
   const save = async () => {
-    if (editing) await supabase.from("pending_tasks").update(form).eq("id", editing.id);
-    else         await supabase.from("pending_tasks").insert({ id: uuidv4(), ...form });
+    if (editing) {
+      await supabase.from("pending_tasks").update(form).eq("id", editing.id);
+      await logAction(supabase, { table_name: "pending_tasks", record_id: editing.id, action: "update", description: `Cotización de ${form.name}`, user_email: userEmail });
+    } else {
+      const id = uuidv4();
+      await supabase.from("pending_tasks").insert({ id, ...form });
+      await logAction(supabase, { table_name: "pending_tasks", record_id: id, action: "create", description: `Cotización de ${form.name}`, user_email: userEmail });
+    }
     setIsOpen(false); setForm({ name: "", phone: "", description: "", status: "Pending" }); setEditing(null); fetchTasks();
   };
   const del = async (id: string) => {
+    const task = tasks.find(t => t.id === id);
     await supabase.from("pending_tasks").delete().eq("id", id);
+    await logAction(supabase, { table_name: "pending_tasks", record_id: id, action: "delete", description: task ? `Cotización de ${task.name}` : undefined, user_email: userEmail });
     setSelected(p => { const n = new Set(p); n.delete(id); return n; }); fetchTasks();
   };
   const bulkDel = async (ids: string[]) => {
     await supabase.from("pending_tasks").delete().in("id", ids);
+    await Promise.all(ids.map(id => {
+      const t = tasks.find(x => x.id === id);
+      return logAction(supabase, { table_name: "pending_tasks", record_id: id, action: "delete", description: t ? `Cotización de ${t.name}` : undefined, user_email: userEmail });
+    }));
     setSelected(p => { const n = new Set(p); ids.forEach(id => n.delete(id)); return n; }); fetchTasks();
   };
   const toggle = (id: string) => setSelected(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
@@ -176,7 +195,12 @@ export default function TasksPage() {
   });
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
-
+  const visibleTasks = search.trim()
+    ? tasks.filter(t =>
+        t.name.toLowerCase().includes(search.toLowerCase()) ||
+        t.description.toLowerCase().includes(search.toLowerCase())
+      )
+    : tasks;
 
   if (isLoading) return (
     <div className="p-6 max-w-6xl mx-auto animate-pulse">
@@ -218,16 +242,41 @@ export default function TasksPage() {
           <h1 className="text-2xl font-bold text-gray-900">Cotizaciones pendientes</h1>
           <p className="text-sm text-gray-500 mt-0.5">Gestiona las cotizaciones y su estado</p>
         </div>
-        <button
-          onClick={() => { setEditing(null); setForm({ name: "", phone: "", description: "", status: "Pending" }); setIsOpen(true); }}
-          className="flex items-center gap-2 bg-[#07C3F8] hover:bg-[#06aad9] text-white font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-colors"
-        >
-          <Plus size={16} aria-hidden="true" /> Nueva tarea
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => exportCsv(visibleTasks.map(t => ({ Nombre: t.name, Teléfono: t.phone, Descripción: t.description, Estado: t.status })), "cotizaciones.csv")}
+            className="flex items-center gap-2 bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 font-semibold px-4 py-2.5 rounded-xl transition-colors"
+          >
+            <Download size={16} aria-hidden="true" /> Exportar
+          </button>
+          <button
+            onClick={() => { setEditing(null); setForm({ name: "", phone: "", description: "", status: "Pending" }); setIsOpen(true); }}
+            className="flex items-center gap-2 bg-[#07C3F8] hover:bg-[#06aad9] text-white font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-colors"
+          >
+            <Plus size={16} aria-hidden="true" /> Nueva tarea
+          </button>
+        </div>
+      </div>
+
+      {/* Search */}
+      <div className="relative mb-6 max-w-sm">
+        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" aria-hidden="true" />
+        <input
+          type="search"
+          placeholder="Buscar por nombre o descripción..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          className="w-full pl-8 pr-8 py-2.5 text-sm border border-gray-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-[#07C3F8] focus:border-transparent transition-colors"
+        />
+        {search && (
+          <button onClick={() => setSearch("")} aria-label="Limpiar búsqueda" className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+            <X size={13} />
+          </button>
+        )}
       </div>
 
       <Table
-        list={tasks.filter(t => t.status !== "Quoted")}
+        list={visibleTasks.filter(t => t.status !== "Quoted")}
         title="Pendientes / Cotizando"
         selected={selected}
         onToggle={toggle}
@@ -237,7 +286,7 @@ export default function TasksPage() {
         onDelete={del}
       />
       <Table
-        list={tasks.filter(t => t.status === "Quoted")}
+        list={visibleTasks.filter(t => t.status === "Quoted")}
         title="Cotizadas"
         selected={selected}
         onToggle={toggle}

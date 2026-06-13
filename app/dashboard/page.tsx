@@ -1,5 +1,6 @@
 import { createClient } from "@/utils/supabase/server";
 import Link from "next/link";
+import DashboardCharts from "@/components/DashboardCharts";
 
 export const dynamic = "force-dynamic";
 import { Calendar, ClipboardList, ShoppingBag, Package, AlertCircle } from "lucide-react";
@@ -11,11 +12,22 @@ export default async function DashboardHome() {
   const startOfDay = new Date(today); startOfDay.setHours(0, 0, 0, 0);
   const endOfDay   = new Date(today); endOfDay.setHours(23, 59, 59, 999);
 
+  // Chart date ranges
+  const sixMonthsAgo = new Date(today);
+  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
+  sixMonthsAgo.setDate(1);
+  sixMonthsAgo.setHours(0, 0, 0, 0);
+
+  const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+  const endOfMonth   = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59, 999);
+
   const [
     { data: appointments },
     { data: tasks },
     { data: orders },
     { data: lowStock },
+    { data: revenueData },
+    { data: techData },
   ] = await Promise.all([
     supabase
       .from("appointments")
@@ -36,12 +48,52 @@ export default async function DashboardHome() {
       .from("botaguas")
       .select("id, brand, model, year_start, quantity")
       .eq("quantity", 0),
+
+    supabase
+      .from("orders")
+      .select("order_date, total_amount")
+      .gte("order_date", sixMonthsAgo.toISOString().split("T")[0]),
+
+    supabase
+      .from("appointments")
+      .select("assigned_person")
+      .gte("appointment_date", startOfMonth.toISOString())
+      .lte("appointment_date", endOfMonth.toISOString()),
   ]);
 
   const appts      = appointments ?? [];
   const taskList   = tasks        ?? [];
   const orderList  = orders       ?? [];
   const lowList    = lowStock     ?? [];
+
+  // Build monthly revenue for last 6 months
+  const monthlyMap: Record<string, number> = {};
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+    const key = d.toLocaleDateString("es-CR", { month: "short", year: "2-digit" });
+    monthlyMap[key] = 0;
+  }
+  for (const r of revenueData ?? []) {
+    const d = new Date(r.order_date + "T12:00:00");
+    const key = d.toLocaleDateString("es-CR", { month: "short", year: "2-digit" });
+    if (key in monthlyMap) monthlyMap[key] += r.total_amount ?? 0;
+  }
+  const monthlyRevenue = Object.entries(monthlyMap).map(([month, ingresos]) => ({ month, ingresos }));
+
+  // Citas por técnico este mes
+  const techCount: Record<string, number> = {};
+  for (const a of techData ?? []) {
+    const p = a.assigned_person ?? "—";
+    techCount[p] = (techCount[p] ?? 0) + 1;
+  }
+  const techAppointments = Object.entries(techCount).map(([tecnico, citas]) => ({ tecnico, citas }));
+
+  // Estado de cotizaciones
+  const taskStatuses = [
+    { name: "Pendiente", value: taskList.filter(t => t.status === "Pending").length },
+    { name: "Cotizando", value: taskList.filter(t => t.status === "Quoting").length },
+    { name: "Cotizado",  value: taskList.filter(t => t.status === "Quoted").length },
+  ].filter(s => s.value > 0);
 
   const apptPending = appts.filter(a => a.status === "pending").length;
   const apptActive  = appts.filter(a => a.status === "active").length;
@@ -193,6 +245,8 @@ export default async function DashboardHome() {
           )}
         </div>
       </div>
+
+      <DashboardCharts monthlyRevenue={monthlyRevenue} techAppointments={techAppointments} taskStatuses={taskStatuses} />
     </div>
   );
 }

@@ -25,7 +25,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="es" className={GeistSans.className}>
+    <html lang="es" className={GeistSans.className} suppressHydrationWarning>
       <head>
         <link rel="preconnect" href="https://igzxgawkalsqyydqxbqf.supabase.co" crossOrigin="anonymous" />
       </head>

@@ -11,7 +11,6 @@ import {
 const navItems = [
   { href: "/dashboard",          icon: Home,         label: "Inicio" },
   { href: "/dashboard/agenda",   icon: Calendar,     label: "Agenda" },
-  { href: "/dashboard/payments", icon: FileText,     label: "Cuentas por pagar" },
   { href: "/dashboard/orders",   icon: ShoppingCart, label: "Pedidos" },
   { href: "/dashboard/tasks",    icon: FileText,     label: "Cotizaciones pendientes" },
   { href: "/dashboard/botaguas", icon: Droplets,     label: "Inventario Botaguas" },

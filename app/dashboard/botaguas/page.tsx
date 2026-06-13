@@ -4,7 +4,8 @@ import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/utils/supabase/client";
 import AddInventoryForm from "@/components/botaguas/AddInventoryForm";
 import InventoryTable from "@/components/botaguas/InventoryTable";
-import { Plus, Trash2, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Trash2, X, ChevronLeft, ChevronRight, Search, Download } from "lucide-react";
+import { exportCsv } from "@/utils/exportCsv";
 
 interface InventoryItem {
   id: number;
@@ -36,6 +37,7 @@ export default function InventoryPage() {
   const [selectedBrand, setSelectedBrand] = useState<string>("");
   const [selectedModel, setSelectedModel] = useState<string>("");
   const [selectedYear, setSelectedYear] = useState<number | "">("");
+  const [searchText, setSearchText] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [itemToEdit, setItemToEdit] = useState<InventoryItem | undefined>();
@@ -72,11 +74,18 @@ export default function InventoryPage() {
     loadUser();
   }, [fetchInventory, supabase]);
 
-  const filterData = (brand: string, model: string, year: number | "") => {
+  const filterData = (brand: string, model: string, year: number | "", text: string) => {
     let filtered = inventory;
     if (brand) filtered = filtered.filter((item) => item.brand === brand);
     if (model) filtered = filtered.filter((item) => item.model === model);
     if (year !== "") filtered = filtered.filter((item) => item.year_start <= year && (item.year_end === null || item.year_end >= year));
+    if (text.trim()) {
+      const q = text.toLowerCase();
+      filtered = filtered.filter((item) =>
+        item.mold_number.toLowerCase().includes(q) ||
+        item.description.toLowerCase().includes(q)
+      );
+    }
     setFilteredInventory(filtered);
     setCurrentPage(1);
   };
@@ -144,6 +153,12 @@ export default function InventoryPage() {
               <Trash2 size={16} /> Eliminar ({selected.size})
             </button>
           )}
+          <button
+            onClick={() => exportCsv(filteredInventory.map(i => ({ Marca: i.brand, Modelo: i.model, "Año inicio": i.year_start, "Año fin": i.year_end ?? "", Puertas: i.doors, Tipo: i.type, Cantidad: i.quantity, Descripción: i.description, "Nro. Molde": i.mold_number })), "botaguas.csv")}
+            className="flex items-center gap-2 bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 font-semibold px-4 py-2.5 rounded-xl transition-colors"
+          >
+            <Download size={16} /> Exportar
+          </button>
           <button onClick={() => setIsModalOpen(true)} className="flex items-center gap-2 bg-[#07C3F8] hover:bg-[#06aad9] text-white font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-colors">
             <Plus size={16} /> Agregar
           </button>
@@ -171,20 +186,30 @@ export default function InventoryPage() {
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3 mb-5">
-        <select value={selectedBrand} onChange={(e) => { setSelectedBrand(e.target.value); filterData(e.target.value, selectedModel, selectedYear); }} className={sel}>
+        <div className="relative flex-1 min-w-48">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" aria-hidden="true" />
+          <input
+            type="search"
+            placeholder="Buscar por molde o descripción..."
+            value={searchText}
+            onChange={(e) => { setSearchText(e.target.value); filterData(selectedBrand, selectedModel, selectedYear, e.target.value); }}
+            className="w-full pl-8 pr-3 py-2.5 text-sm border border-gray-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-[#07C3F8] focus:border-transparent transition-colors"
+          />
+        </div>
+        <select value={selectedBrand} onChange={(e) => { setSelectedBrand(e.target.value); filterData(e.target.value, selectedModel, selectedYear, searchText); }} className={sel}>
           <option value="">Todas las marcas</option>
           {brands.map((b) => <option key={b} value={b}>{b}</option>)}
         </select>
-        <select value={selectedModel} onChange={(e) => { setSelectedModel(e.target.value); filterData(selectedBrand, e.target.value, selectedYear); }} className={sel}>
+        <select value={selectedModel} onChange={(e) => { setSelectedModel(e.target.value); filterData(selectedBrand, e.target.value, selectedYear, searchText); }} className={sel}>
           <option value="">Todos los modelos</option>
           {models.map((m) => <option key={m} value={m}>{m}</option>)}
         </select>
-        <select value={selectedYear} onChange={(e) => { const y = e.target.value ? parseInt(e.target.value, 10) : ""; setSelectedYear(y); filterData(selectedBrand, selectedModel, y); }} className={sel}>
+        <select value={selectedYear} onChange={(e) => { const y = e.target.value ? parseInt(e.target.value, 10) : ""; setSelectedYear(y); filterData(selectedBrand, selectedModel, y, searchText); }} className={sel}>
           <option value="">Todos los años</option>
           {years.map((y) => <option key={y} value={y}>{y}</option>)}
         </select>
-        {(selectedBrand || selectedModel || selectedYear !== "") && (
-          <button onClick={() => { setSelectedBrand(""); setSelectedModel(""); setSelectedYear(""); setFilteredInventory(inventory); setCurrentPage(1); }} className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-600 text-sm transition-colors">
+        {(selectedBrand || selectedModel || selectedYear !== "" || searchText) && (
+          <button onClick={() => { setSelectedBrand(""); setSelectedModel(""); setSelectedYear(""); setSearchText(""); setFilteredInventory(inventory); setCurrentPage(1); }} className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-600 text-sm transition-colors">
             <X size={13} /> Limpiar
           </button>
         )}
