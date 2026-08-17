@@ -11,6 +11,8 @@ interface Appointment {
   vehicle: string;
   status: "pending" | "active" | "done";
   appointment_date: string;
+  customer_id?: string;
+  vehicle_id?: string;
 }
 
 interface SupabaseResponse<T = any> {
@@ -25,9 +27,12 @@ export const addNoteToSupabase = async (
   appointment: Appointment
 ): Promise<SupabaseResponse> => {
   const supabase = createClient();
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { id: _id, ...fields } = appointment;
   const { data, error } = await supabase
     .from("appointments")
-    .insert([appointment]);
+    .insert([fields])
+    .select();
 
   if (error) {
     console.error("Error al guardar la nota:", error.message);
@@ -53,6 +58,8 @@ export const updateNoteInSupabase = async (
       end_time: task.end_time,
       assigned_person: task.assigned_person,
       appointment_date: task.appointment_date,
+      customer_id: task.customer_id,
+      vehicle_id: task.vehicle_id,
     })
     .match({ id: task.id });
 

@@ -6,11 +6,15 @@ import "react-datepicker/dist/react-datepicker.css";
 import TaskModal from "@/components/TaskModal";
 import Modal from "@/components/Modal";
 import { addNoteToSupabase, deleteNoteFromSupabase, updateNoteInSupabase } from "../../../utils/index";
+import { findOrCreateCustomer, findOrCreateVehicle } from "@/utils/customers";
 import { createClient } from "@/utils/supabase/client";
 import { logAction } from "@/utils/auditLog";
-import { ChevronLeft, ChevronRight, Plus, Edit, Trash2, CalendarPlus, X } from "lucide-react";
+import { getAppSetting, setAppSetting } from "@/utils/appSettings";
+import { waUrl, WaIcon } from "@/utils/wa";
+import { inp, lbl } from "@/utils/styles";
+import { ChevronLeft, ChevronRight, Plus, Edit, Trash2, CalendarPlus, X, Settings } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
-import { format } from "date-fns";
+import { format, startOfWeek, addDays } from "date-fns";
 import { es } from "date-fns/locale/es";
 
 // ── Module-level constants (stable across renders) ──────────────────────────
@@ -64,6 +68,8 @@ interface Appointment {
   vehicle: string;
   status: "pending" | "active" | "done";
   appointment_date: string;
+  customer_id?: string;
+  vehicle_id?: string;
 }
 
 interface WaitingEntry {
@@ -87,8 +93,6 @@ const waitingStatusLabel: Record<WaitingEntry["status"], string> = {
   scheduled: "Agendado",
 };
 
-const inp = "w-full border border-gray-300 bg-white text-gray-900 placeholder-gray-400 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#07C3F8] focus:border-transparent transition-colors";
-const lbl = "block text-sm font-medium text-gray-700 mb-1.5";
 
 const Agenda = () => {
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -98,6 +102,7 @@ const Agenda = () => {
     id?: string | number; start_time: string; end_time: string; assigned_person: string; name: string;
     phone: string; description: string; vehicle: string;
     status: "pending" | "active" | "done"; appointment_date: string;
+    customer_id?: string; vehicle_id?: string;
   }>({ start_time: "", end_time: "", assigned_person: "", name: "", phone: "", description: "", vehicle: "", status: "pending", appointment_date: new Date().toISOString() });
   const [notes, setNotes] = useState<Appointment[]>([]);
   const [isNewTask, setIsNewTask] = useState(true);
@@ -108,7 +113,7 @@ const Agenda = () => {
   const currentSlotRef = useRef<string | null>(null);
   const fetchNotesRef = useRef<(() => Promise<void>) | null>(null);
   const userRef = useRef<string | null>(null);
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
 
   const [userEmail, setUserEmail] = useState<string | undefined>(undefined);
 
@@ -120,6 +125,16 @@ const Agenda = () => {
   const [pendingFromWaiting, setPendingFromWaiting] = useState<WaitingEntry | null>(null);
   const pendingWaitingIdRef = useRef<string | null>(null);
 
+  // Week view state
+  const [weekView, setWeekView] = useState(false);
+  const [weekData, setWeekData] = useState<Record<string, Record<string, number>>>({});
+  const [weekLoading, setWeekLoading] = useState(false);
+
+  // Settings
+  const [businessPhone, setBusinessPhone] = useState("");
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsPhone, setSettingsPhone] = useState("");
+
   const fetchNotesForSelectedDate = async () => {
     const startOfDay = new Date(selectedDate); startOfDay.setHours(0, 0, 0, 0);
     const endOfDay = new Date(selectedDate); endOfDay.setHours(23, 59, 59, 999);
@@ -128,7 +143,7 @@ const Agenda = () => {
       .lt("appointment_date", endOfDay.toISOString())
       .order("start_time", { ascending: true });
     if (error) setErrorMessage(`Error: ${error.message}`);
-    else setNotes(data);
+    else setNotes(data ?? []);
     setIsLoading(false);
   };
 
@@ -137,6 +152,29 @@ const Agenda = () => {
       .neq("status", "scheduled")
       .order("created_at", { ascending: true });
     if (data) setWaitingList(data as WaitingEntry[]);
+  };
+
+  const fetchWeekData = async (date: Date) => {
+    setWeekLoading(true);
+    const mon = startOfWeek(date, { weekStartsOn: 1 });
+    const sun = addDays(mon, 6);
+    sun.setHours(23, 59, 59, 999);
+    const { data } = await supabase
+      .from("appointments")
+      .select("assigned_person, appointment_date")
+      .gte("appointment_date", mon.toISOString())
+      .lte("appointment_date", sun.toISOString());
+    const result: Record<string, Record<string, number>> = {};
+    if (data) {
+      for (const row of data) {
+        const person = row.assigned_person as string;
+        const dayKey = new Date(row.appointment_date).toISOString().split("T")[0];
+        if (!result[person]) result[person] = {};
+        result[person][dayKey] = (result[person][dayKey] ?? 0) + 1;
+      }
+    }
+    setWeekData(result);
+    setWeekLoading(false);
   };
 
   useEffect(() => { fetchNotesRef.current = fetchNotesForSelectedDate; userRef.current = user; });
@@ -153,7 +191,12 @@ const Agenda = () => {
 
   useEffect(() => {
     fetchWaitingList();
+    getAppSetting("business_phone").then(v => { if (v) { setBusinessPhone(v); setSettingsPhone(v); } });
   }, []);
+
+  useEffect(() => {
+    if (weekView) fetchWeekData(selectedDate);
+  }, [weekView, selectedDate]);
 
   useEffect(() => {
     const channel = supabase.channel("agenda-reservations");
@@ -185,17 +228,38 @@ const Agenda = () => {
     return index;
   }, [notes]);
 
+  const dailyLoad = useMemo(() =>
+    PEOPLE.map(person => {
+      const occupied = HOURS.filter(h => notesIndex.has(`${person}-${h}`)).length;
+      return { person, occupied, total: HOURS.length };
+    }),
+    [notesIndex]
+  );
+
+  const weekDays = useMemo(() => {
+    const mon = startOfWeek(selectedDate, { weekStartsOn: 1 });
+    return Array.from({ length: 7 }, (_, i) => addDays(mon, i));
+  }, [selectedDate]);
+
   const handleSaveNote = async () => {
     if (!currentTask.name.trim() || !currentTask.phone.trim() || !currentTask.vehicle.trim()) { setErrorMessage("Nombre, teléfono y vehículo son obligatorios."); return; }
     setErrorMessage("");
     const desc = `Cita de ${currentTask.name} — ${currentTask.assigned_person} ${currentTask.start_time}`;
+    let customerId = currentTask.customer_id;
+    let vehicleId = currentTask.vehicle_id;
+    try {
+      customerId = await findOrCreateCustomer(supabase, currentTask.phone, currentTask.name);
+      vehicleId = await findOrCreateVehicle(supabase, customerId, currentTask.vehicle);
+    } catch {
+      // Non-fatal: appointment still saves without customer link
+    }
     if (isNewTask) {
-      const newId = uuidv4();
-      const result = await addNoteToSupabase({ ...currentTask, id: newId, appointment_date: selectedDate.toISOString() });
+      const result = await addNoteToSupabase({ ...currentTask, appointment_date: selectedDate.toISOString(), customer_id: customerId, vehicle_id: vehicleId });
       if (result.error) { setErrorMessage(`Error: ${result.error.message}`); return; }
-      await logAction(supabase, { table_name: "appointments", record_id: newId, action: "create", description: desc, user_email: userEmail });
+      const insertedId = String(result.data?.[0]?.id ?? "");
+      await logAction(supabase, { table_name: "appointments", record_id: insertedId, action: "create", description: desc, user_email: userEmail });
     } else {
-      const result = await updateNoteInSupabase({ ...currentTask, appointment_date: selectedDate.toISOString() });
+      const result = await updateNoteInSupabase({ ...currentTask, appointment_date: selectedDate.toISOString(), customer_id: customerId, vehicle_id: vehicleId });
       if (result.error) { setErrorMessage(`Error: ${result.error.message}`); return; }
       await logAction(supabase, { table_name: "appointments", record_id: String(currentTask.id ?? ""), action: "update", description: desc, user_email: userEmail });
     }
@@ -209,7 +273,7 @@ const Agenda = () => {
     }
     setIsModalOpen(false);
     await fetchNotesForSelectedDate();
-    setCurrentTask({ start_time: "", end_time: "", assigned_person: "", name: "", phone: "", description: "", vehicle: "", status: "pending", appointment_date: new Date().toISOString() });
+    setCurrentTask({ start_time: "", end_time: "", assigned_person: "", name: "", phone: "", description: "", vehicle: "", status: "pending", appointment_date: new Date().toISOString(), customer_id: undefined, vehicle_id: undefined });
   };
 
   const handleDeleteNote = async (id: number | string) => {
@@ -315,15 +379,38 @@ const Agenda = () => {
         <h1 className="text-sm md:text-base font-semibold text-gray-900 capitalize">
           {selectedDate.toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
         </h1>
-        <div className="flex items-center gap-1.5">
-          <button onClick={prevDay} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 hover:text-gray-900 transition-colors">
-            <ChevronLeft size={16} />
-          </button>
-          <button onClick={() => setSelectedDate(new Date())} className="px-3 py-1 text-sm font-medium bg-[#07C3F8]/10 text-[#07C3F8] rounded-lg hover:bg-[#07C3F8]/20 transition-colors">
-            Hoy
-          </button>
-          <button onClick={nextDay} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 hover:text-gray-900 transition-colors">
-            <ChevronRight size={16} />
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
+            <button onClick={prevDay} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 hover:text-gray-900 transition-colors">
+              <ChevronLeft size={16} />
+            </button>
+            <button onClick={() => setSelectedDate(new Date())} className="px-3 py-1 text-sm font-medium bg-[#07C3F8]/10 text-[#07C3F8] rounded-lg hover:bg-[#07C3F8]/20 transition-colors">
+              Hoy
+            </button>
+            <button onClick={nextDay} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 hover:text-gray-900 transition-colors">
+              <ChevronRight size={16} />
+            </button>
+          </div>
+          <div className="flex items-center gap-0.5 bg-gray-100 rounded-lg p-0.5 ml-1">
+            <button
+              onClick={() => setWeekView(false)}
+              className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${!weekView ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-700"}`}
+            >
+              Día
+            </button>
+            <button
+              onClick={() => setWeekView(true)}
+              className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${weekView ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-700"}`}
+            >
+              Semana
+            </button>
+          </div>
+          <button
+            onClick={() => { setSettingsPhone(businessPhone); setSettingsOpen(true); }}
+            title="Configurar número del negocio"
+            className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors ml-1"
+          >
+            <Settings size={16} />
           </button>
         </div>
       </div>
@@ -350,6 +437,26 @@ const Agenda = () => {
               </div>
             ))}
           </div>
+          {!weekView && (
+            <div className="mt-5 w-full space-y-2.5 px-1">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Carga del día</p>
+              {dailyLoad.map(({ person, occupied, total }) => {
+                const pct = total > 0 ? occupied / total : 0;
+                const barColor = pct < 0.4 ? "bg-emerald-400" : pct < 0.7 ? "bg-amber-400" : "bg-red-400";
+                return (
+                  <div key={person}>
+                    <div className="flex justify-between items-center mb-0.5">
+                      <span className="text-xs font-medium text-gray-700">{person}</span>
+                      <span className="text-xs text-gray-400">{occupied}/{total}</span>
+                    </div>
+                    <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                      <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${Math.round(pct * 100)}%` }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* Schedule grid + waiting list */}
@@ -367,63 +474,111 @@ const Agenda = () => {
             </div>
           )}
 
-          {/* Schedule grid */}
-          <div className="min-w-max rounded-xl border border-gray-200 overflow-hidden shadow-sm mb-8">
-            {/* Grid header */}
-            <div className="grid grid-cols-[72px_repeat(6,minmax(120px,1fr))] sticky top-0 z-[50] bg-gray-50 border-b border-gray-200">
-              <div className="text-center py-3 border-r border-gray-200 sticky left-0 z-[60] bg-gray-50 text-xs font-semibold text-gray-400 uppercase tracking-wider">Hora</div>
-              {PEOPLE.map((person) => (
-                <div key={person} className="text-center py-3 border-r border-gray-200 last:border-r-0 text-xs font-semibold text-gray-700 uppercase tracking-wider">{person}</div>
+          {/* Schedule grid (day view) or Week table */}
+          {weekView ? (
+            <div className="rounded-xl border border-gray-200 overflow-hidden shadow-sm mb-8">
+              {weekLoading ? (
+                <div className="p-8 text-center text-sm text-gray-400 animate-pulse">Cargando semana...</div>
+              ) : (
+                <table className="min-w-full">
+                  <thead>
+                    <tr className="bg-gray-50 border-b border-gray-200">
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-28">Técnico</th>
+                      {weekDays.map(day => (
+                        <th key={day.toISOString()} className="px-3 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                          {format(day, "EEE d", { locale: es })}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {PEOPLE.map(person => (
+                      <tr key={person} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-4 py-3 text-sm font-medium text-gray-900">{person}</td>
+                        {weekDays.map(day => {
+                          const dayKey = day.toISOString().split("T")[0];
+                          const count = weekData[person]?.[dayKey] ?? 0;
+                          const cellStyle = count === 0
+                            ? "bg-gray-100 text-gray-400"
+                            : count <= 3 ? "bg-emerald-100 text-emerald-700"
+                            : count <= 6 ? "bg-amber-100 text-amber-700"
+                            : "bg-red-100 text-red-700";
+                          return (
+                            <td
+                              key={dayKey}
+                              className="px-3 py-3 text-center cursor-pointer hover:opacity-75 transition-opacity"
+                              onClick={() => { setSelectedDate(day); setWeekView(false); }}
+                            >
+                              <span className={`inline-flex items-center justify-center w-8 h-8 rounded-lg text-sm font-semibold ${cellStyle}`}>
+                                {count || "—"}
+                              </span>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          ) : (
+            <div className="min-w-max rounded-xl border border-gray-200 overflow-hidden shadow-sm mb-8">
+              {/* Grid header */}
+              <div className="grid grid-cols-[72px_repeat(6,minmax(120px,1fr))] sticky top-0 z-[50] bg-gray-50 border-b border-gray-200">
+                <div className="text-center py-3 border-r border-gray-200 sticky left-0 z-[60] bg-gray-50 text-xs font-semibold text-gray-400 uppercase tracking-wider">Hora</div>
+                {PEOPLE.map((person) => (
+                  <div key={person} className="text-center py-3 border-r border-gray-200 last:border-r-0 text-xs font-semibold text-gray-700 uppercase tracking-wider">{person}</div>
+                ))}
+              </div>
+
+              {/* Hour rows */}
+              {HOURS.map((hour, hourIndex) => (
+                <div key={hour} className={`grid grid-cols-[72px_repeat(6,minmax(120px,1fr))] border-b border-gray-100 last:border-b-0 ${hourIndex % 2 ? "bg-white" : "bg-gray-50/30"}`}>
+                  <div className="text-center text-xs py-3 border-r border-gray-200 sticky left-0 z-[40] bg-inherit text-gray-400 font-mono">{hour}</div>
+                  {PEOPLE.map((person) => {
+                    const task = notesIndex.get(`${person}-${hour}`);
+                    const isFirstHour = task && getFirstHourIndex(task.start_time) === hourIndex;
+                    const isLastHour  = task && getLastHourIndex(task.end_time) === hourIndex;
+                    const status = task?.status;
+                    const slotKey = `${person}-${hour}-${dateStr}`;
+                    const reservingUser = !task && reservingSlots[slotKey] && reservingSlots[slotKey] !== user ? reservingSlots[slotKey] : null;
+
+                    const cellClass = reservingUser
+                      ? "cursor-pointer border-r border-gray-200 last:border-r-0 px-2 py-1.5 bg-violet-50 transition-colors"
+                      : pendingFromWaiting && !task
+                      ? "cursor-pointer border-r border-dashed border-green-300 last:border-r-0 px-2 py-1.5 bg-green-50 hover:bg-green-100 transition-colors"
+                      : `cursor-pointer border-r border-gray-200 last:border-r-0 px-2 py-1.5 transition-colors ${
+                          status === "pending" ? "bg-sky-50 hover:bg-sky-100"
+                          : status === "active" ? "bg-amber-50 hover:bg-amber-100"
+                          : status === "done"   ? "bg-emerald-50 hover:bg-emerald-100"
+                          : "hover:bg-[#07C3F8]/5"
+                        }`;
+
+                    return (
+                      <div
+                        key={`${person}-${hour}`}
+                        className={`group ${cellClass}`}
+                        onClick={() => task ? (setCurrentTask(task), setIsNewTask(false), setIsModalOpen(true)) : handleNewTaskClick(hour, person)}
+                        style={{ minHeight: "3.25rem", borderBottom: isLastHour ? "2px solid #07C3F8" : undefined }}
+                      >
+                        {isFirstHour && (
+                          <div className="text-xs space-y-0.5">
+                            <p className="font-semibold text-gray-800 leading-tight">{task.name || "—"}</p>
+                            <p className="text-gray-500">{task.phone || "—"}</p>
+                            <p className="text-gray-400 truncate">{task.vehicle || "—"}</p>
+                          </div>
+                        )}
+                        {reservingUser && <div className="text-xs text-[#07C3F8] font-medium">Agendando... ({reservingUser})</div>}
+                        {pendingFromWaiting && !task && !reservingUser && (
+                          <div className="hidden group-hover:block text-xs text-green-600 font-medium">Clic para agendar aquí</div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               ))}
             </div>
-
-            {/* Hour rows */}
-            {HOURS.map((hour, hourIndex) => (
-              <div key={hour} className={`grid grid-cols-[72px_repeat(6,minmax(120px,1fr))] border-b border-gray-100 last:border-b-0 ${hourIndex % 2 ? "bg-white" : "bg-gray-50/30"}`}>
-                <div className="text-center text-xs py-3 border-r border-gray-200 sticky left-0 z-[40] bg-inherit text-gray-400 font-mono">{hour}</div>
-                {PEOPLE.map((person) => {
-                  const task = notesIndex.get(`${person}-${hour}`);
-                  const isFirstHour = task && getFirstHourIndex(task.start_time) === hourIndex;
-                  const isLastHour  = task && getLastHourIndex(task.end_time) === hourIndex;
-                  const status = task?.status;
-                  const slotKey = `${person}-${hour}-${dateStr}`;
-                  const reservingUser = !task && reservingSlots[slotKey] && reservingSlots[slotKey] !== user ? reservingSlots[slotKey] : null;
-
-                  const cellClass = reservingUser
-                    ? "cursor-pointer border-r border-gray-200 last:border-r-0 px-2 py-1.5 bg-violet-50 transition-colors"
-                    : pendingFromWaiting && !task
-                    ? "cursor-pointer border-r border-dashed border-green-300 last:border-r-0 px-2 py-1.5 bg-green-50 hover:bg-green-100 transition-colors"
-                    : `cursor-pointer border-r border-gray-200 last:border-r-0 px-2 py-1.5 transition-colors ${
-                        status === "pending" ? "bg-sky-50 hover:bg-sky-100"
-                        : status === "active" ? "bg-amber-50 hover:bg-amber-100"
-                        : status === "done"   ? "bg-emerald-50 hover:bg-emerald-100"
-                        : "hover:bg-[#07C3F8]/5"
-                      }`;
-
-                  return (
-                    <div
-                      key={`${person}-${hour}`}
-                      className={`group ${cellClass}`}
-                      onClick={() => task ? (setCurrentTask(task), setIsNewTask(false), setIsModalOpen(true)) : handleNewTaskClick(hour, person)}
-                      style={{ minHeight: "3.25rem", borderBottom: isLastHour ? "2px solid #07C3F8" : undefined }}
-                    >
-                      {isFirstHour && (
-                        <div className="text-xs space-y-0.5">
-                          <p className="font-semibold text-gray-800 leading-tight">{task.name || "—"}</p>
-                          <p className="text-gray-500">{task.phone || "—"}</p>
-                          <p className="text-gray-400 truncate">{task.vehicle || "—"}</p>
-                        </div>
-                      )}
-                      {reservingUser && <div className="text-xs text-[#07C3F8] font-medium">Agendando... ({reservingUser})</div>}
-                      {pendingFromWaiting && !task && !reservingUser && (
-                        <div className="hidden group-hover:block text-xs text-green-600 font-medium">Clic para agendar aquí</div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            ))}
-          </div>
+          )}
 
           {/* Waiting list */}
           <div>
@@ -461,7 +616,16 @@ const Agenda = () => {
                         <tr key={entry.id} className={`transition-colors ${pendingFromWaiting?.id === entry.id ? "bg-[#07C3F8]/5" : "hover:bg-gray-50"}`}>
                           <td className="px-4 py-3 text-sm text-gray-400 font-mono">{idx + 1}</td>
                           <td className="px-4 py-3 text-sm font-medium text-gray-900">{entry.name}</td>
-                          <td className="px-4 py-3 text-sm text-gray-500">{entry.phone}</td>
+                          <td className="px-4 py-3 text-sm text-gray-500">
+                            <div className="flex items-center gap-1.5">
+                              <span>{entry.phone}</span>
+                              {entry.phone && (
+                                <a href={waUrl(entry.phone)} target="_blank" rel="noopener noreferrer" aria-label={`WhatsApp a ${entry.name}`} className="shrink-0 opacity-60 hover:opacity-100 transition-opacity">
+                                  <WaIcon />
+                                </a>
+                              )}
+                            </div>
+                          </td>
                           <td className="px-4 py-3 text-sm text-gray-500">{entry.vehicle}</td>
                           <td className="px-4 py-3 text-sm text-gray-500 max-w-xs truncate">{entry.description}</td>
                           <td className="px-4 py-3 text-sm text-gray-400 whitespace-nowrap">
@@ -508,7 +672,37 @@ const Agenda = () => {
       </div>
 
       {isModalOpen && (
-        <TaskModal isOpen={isModalOpen} onClose={handleModalClose} onSave={handleSaveNote} task={currentTask} setTask={setCurrentTask} isNewTask={isNewTask} onDelete={handleDeleteNote} errorMessage={errorMessage} />
+        <TaskModal isOpen={isModalOpen} onClose={handleModalClose} onSave={handleSaveNote} task={currentTask} setTask={setCurrentTask} isNewTask={isNewTask} onDelete={handleDeleteNote} errorMessage={errorMessage} businessPhone={businessPhone} appointmentDate={selectedDate} supabase={supabase} />
+      )}
+
+      {/* Settings modal */}
+      {settingsOpen && (
+        <Modal isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} title="Configuración">
+          <div className="space-y-4">
+            <div>
+              <label className={lbl}>Número del negocio (WhatsApp)</label>
+              <input
+                className={inp}
+                placeholder="Ej: 88001122 o 50688001122"
+                value={settingsPhone}
+                onChange={e => setSettingsPhone(e.target.value)}
+              />
+              <p className="text-xs text-gray-400 mt-1.5">Se incluye en el mensaje de confirmación de citas.</p>
+            </div>
+            <div className="flex justify-end pt-2">
+              <button
+                onClick={async () => {
+                  await setAppSetting("business_phone", settingsPhone);
+                  setBusinessPhone(settingsPhone);
+                  setSettingsOpen(false);
+                }}
+                className="px-5 py-2 text-sm font-semibold rounded-xl bg-[#07C3F8] hover:bg-[#06aad9] text-white transition-colors"
+              >
+                Guardar
+              </button>
+            </div>
+          </div>
+        </Modal>
       )}
 
       {/* Waiting list add/edit modal */}

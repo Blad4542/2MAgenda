@@ -5,15 +5,16 @@ import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/utils/supabase/client";
 import {
-  Home, Calendar, FileText, ShoppingCart, LogOut, Droplets, Menu, X,
+  Home, Calendar, FileText, ShoppingCart, LogOut, Droplets, Menu, X, Users,
 } from "lucide-react";
 
 const navItems = [
-  { href: "/dashboard",          icon: Home,         label: "Inicio" },
-  { href: "/dashboard/agenda",   icon: Calendar,     label: "Agenda" },
-  { href: "/dashboard/orders",   icon: ShoppingCart, label: "Pedidos" },
-  { href: "/dashboard/tasks",    icon: FileText,     label: "Cotizaciones pendientes" },
-  { href: "/dashboard/botaguas", icon: Droplets,     label: "Inventario Botaguas" },
+  { href: "/dashboard",           icon: Home,         label: "Inicio" },
+  { href: "/dashboard/agenda",    icon: Calendar,     label: "Agenda" },
+  { href: "/dashboard/orders",    icon: ShoppingCart, label: "Pedidos" },
+  { href: "/dashboard/tasks",     icon: FileText,     label: "Cotizaciones pendientes" },
+  { href: "/dashboard/botaguas",  icon: Droplets,     label: "Inventario Botaguas" },
+  { href: "/dashboard/clientes",  icon: Users,        label: "Clientes" },
 ];
 
 const SidebarNav = memo(function SidebarNav({ pathname, onNav }: { pathname: string; onNav?: () => void }) {

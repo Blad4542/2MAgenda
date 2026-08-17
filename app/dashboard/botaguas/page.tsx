@@ -1,6 +1,6 @@
 "use client";
 import { jwtDecode } from "jwt-decode";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { createClient } from "@/utils/supabase/client";
 import AddInventoryForm from "@/components/botaguas/AddInventoryForm";
 import InventoryTable from "@/components/botaguas/InventoryTable";
@@ -28,7 +28,7 @@ const ITEMS_PER_PAGE = 25;
 const sel = "border border-gray-300 text-gray-900 bg-white rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#07C3F8] focus:border-transparent transition-colors w-full sm:w-auto";
 
 export default function InventoryPage() {
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [filteredInventory, setFilteredInventory] = useState<InventoryItem[]>([]);
   const [brands, setBrands] = useState<string[]>([]);
@@ -72,7 +72,7 @@ export default function InventoryPage() {
       setLoading(false);
     };
     loadUser();
-  }, [fetchInventory, supabase]);
+  }, [fetchInventory]);
 
   const filterData = (brand: string, model: string, year: number | "", text: string) => {
     let filtered = inventory;
@@ -90,8 +90,7 @@ export default function InventoryPage() {
     setCurrentPage(1);
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const handleAddOrUpdateItem: any = async (item: Omit<InventoryItem, "id"> | InventoryItem) => {
+  const handleAddOrUpdateItem = async (item: Omit<InventoryItem, "id" | "user_name"> & { id?: number }) => {
     let error;
     if ("id" in item && item.id) {
       const { error: e } = await supabase.from("botaguas").update({ ...item, user_name: user || null }).eq("id", item.id);

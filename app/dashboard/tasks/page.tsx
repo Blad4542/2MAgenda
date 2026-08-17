@@ -1,11 +1,13 @@
 "use client";
-import { memo, useEffect, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { Plus, Edit, Trash2, ChevronLeft, ChevronRight, Search, X, Download } from "lucide-react";
 import Modal from "@/components/Modal";
 import { createClient } from "@/utils/supabase/client";
 import { v4 as uuidv4 } from "uuid";
 import { exportCsv } from "@/utils/exportCsv";
 import { logAction } from "@/utils/auditLog";
+import { waUrl, WaIcon } from "@/utils/wa";
+import { inp, lbl } from "@/utils/styles";
 
 interface Task {
   id: string;
@@ -16,9 +18,6 @@ interface Task {
 }
 
 const PAGE_SIZE = 50;
-
-const inp = "w-full border border-gray-300 bg-white text-gray-900 placeholder-gray-400 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#07C3F8] focus:border-transparent transition-colors";
-const lbl = "block text-sm font-medium text-gray-700 mb-1.5";
 
 const statusStyle: Record<Task["status"], string> = {
   Pending: "bg-amber-50 text-amber-700 border border-amber-200",
@@ -94,7 +93,16 @@ const Table = memo(function Table({ list, title, selected, onToggle, onToggleAll
                     />
                   </td>
                   <td className="p-3 text-sm font-medium text-gray-900">{task.name}</td>
-                  <td className="p-3 text-sm text-gray-500">{task.phone}</td>
+                  <td className="p-3 text-sm text-gray-500">
+                    <div className="flex items-center gap-1.5">
+                      <span>{task.phone}</span>
+                      {task.phone && (
+                        <a href={waUrl(task.phone)} target="_blank" rel="noopener noreferrer" aria-label={`WhatsApp a ${task.name}`} className="shrink-0 opacity-60 hover:opacity-100 transition-opacity">
+                          <WaIcon />
+                        </a>
+                      )}
+                    </div>
+                  </td>
                   <td className="p-3 text-sm text-gray-500 max-w-xs truncate">{task.description}</td>
                   <td className="p-3">
                     <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold ${statusStyle[task.status]}`}>
@@ -130,7 +138,7 @@ const Table = memo(function Table({ list, title, selected, onToggle, onToggleAll
 });
 
 export default function TasksPage() {
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
@@ -142,26 +150,36 @@ export default function TasksPage() {
   const [search, setSearch] = useState("");
   const [userEmail, setUserEmail] = useState<string | undefined>(undefined);
 
-  const fetchTasks = async (p = page) => {
+  const fetchTasks = useCallback(async (p = 0, s = "") => {
     const from = p * PAGE_SIZE;
     const to = from + PAGE_SIZE - 1;
-    const { data, count } = await supabase
+    let q = supabase
       .from("pending_tasks")
       .select("*", { count: "exact" })
       .range(from, to);
+    if (s.trim()) q = q.or(`name.ilike.%${s.trim()}%,description.ilike.%${s.trim()}%`);
+    const { data, count } = await q;
     if (data) setTasks(data as Task[]);
     if (count !== null) setTotal(count);
     setIsLoading(false);
+  }, [supabase]);
+
+  const handleSearch = (value: string) => {
+    setSearch(value);
+    setPage(0);
+    setSelected(new Set());
+    fetchTasks(0, value);
   };
+
   useEffect(() => {
     fetchTasks(0);
     supabase.auth.getSession().then(({ data }) => { if (data.session) setUserEmail(data.session.user.email); });
-  }, []);
+  }, [fetchTasks, supabase]);
 
   const goToPage = (p: number) => {
     setPage(p);
     setSelected(new Set());
-    fetchTasks(p);
+    fetchTasks(p, search);
   };
 
   const save = async () => {
@@ -173,13 +191,13 @@ export default function TasksPage() {
       await supabase.from("pending_tasks").insert({ id, ...form });
       await logAction(supabase, { table_name: "pending_tasks", record_id: id, action: "create", description: `Cotización de ${form.name}`, user_email: userEmail });
     }
-    setIsOpen(false); setForm({ name: "", phone: "", description: "", status: "Pending" }); setEditing(null); fetchTasks();
+    setIsOpen(false); setForm({ name: "", phone: "", description: "", status: "Pending" }); setEditing(null); fetchTasks(page, search);
   };
   const del = async (id: string) => {
     const task = tasks.find(t => t.id === id);
     await supabase.from("pending_tasks").delete().eq("id", id);
     await logAction(supabase, { table_name: "pending_tasks", record_id: id, action: "delete", description: task ? `Cotización de ${task.name}` : undefined, user_email: userEmail });
-    setSelected(p => { const n = new Set(p); n.delete(id); return n; }); fetchTasks();
+    setSelected(p => { const n = new Set(p); n.delete(id); return n; }); fetchTasks(page, search);
   };
   const bulkDel = async (ids: string[]) => {
     await supabase.from("pending_tasks").delete().in("id", ids);
@@ -187,7 +205,7 @@ export default function TasksPage() {
       const t = tasks.find(x => x.id === id);
       return logAction(supabase, { table_name: "pending_tasks", record_id: id, action: "delete", description: t ? `Cotización de ${t.name}` : undefined, user_email: userEmail });
     }));
-    setSelected(p => { const n = new Set(p); ids.forEach(id => n.delete(id)); return n; }); fetchTasks();
+    setSelected(p => { const n = new Set(p); ids.forEach(id => n.delete(id)); return n; }); fetchTasks(page, search);
   };
   const toggle = (id: string) => setSelected(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const toggleAll = (list: Task[], all: boolean) => setSelected(p => {
@@ -195,12 +213,6 @@ export default function TasksPage() {
   });
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
-  const visibleTasks = search.trim()
-    ? tasks.filter(t =>
-        t.name.toLowerCase().includes(search.toLowerCase()) ||
-        t.description.toLowerCase().includes(search.toLowerCase())
-      )
-    : tasks;
 
   if (isLoading) return (
     <div className="p-6 max-w-6xl mx-auto animate-pulse">
@@ -244,7 +256,7 @@ export default function TasksPage() {
         </div>
         <div className="flex items-center gap-3">
           <button
-            onClick={() => exportCsv(visibleTasks.map(t => ({ Nombre: t.name, Teléfono: t.phone, Descripción: t.description, Estado: t.status })), "cotizaciones.csv")}
+            onClick={() => exportCsv(tasks.map(t => ({ Nombre: t.name, Teléfono: t.phone, Descripción: t.description, Estado: t.status })), "cotizaciones.csv")}
             className="flex items-center gap-2 bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 font-semibold px-4 py-2.5 rounded-xl transition-colors"
           >
             <Download size={16} aria-hidden="true" /> Exportar
@@ -265,18 +277,18 @@ export default function TasksPage() {
           type="search"
           placeholder="Buscar por nombre o descripción..."
           value={search}
-          onChange={e => setSearch(e.target.value)}
+          onChange={e => handleSearch(e.target.value)}
           className="w-full pl-8 pr-8 py-2.5 text-sm border border-gray-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-[#07C3F8] focus:border-transparent transition-colors"
         />
         {search && (
-          <button onClick={() => setSearch("")} aria-label="Limpiar búsqueda" className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+          <button onClick={() => handleSearch("")} aria-label="Limpiar búsqueda" className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
             <X size={13} />
           </button>
         )}
       </div>
 
       <Table
-        list={visibleTasks.filter(t => t.status !== "Quoted")}
+        list={tasks.filter(t => t.status !== "Quoted")}
         title="Pendientes / Cotizando"
         selected={selected}
         onToggle={toggle}
@@ -286,7 +298,7 @@ export default function TasksPage() {
         onDelete={del}
       />
       <Table
-        list={visibleTasks.filter(t => t.status === "Quoted")}
+        list={tasks.filter(t => t.status === "Quoted")}
         title="Cotizadas"
         selected={selected}
         onToggle={toggle}

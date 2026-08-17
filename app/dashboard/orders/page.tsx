@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale/es";
 import { createClient } from "@/utils/supabase/client";
@@ -8,6 +8,8 @@ import { exportCsv } from "@/utils/exportCsv";
 import { logAction } from "@/utils/auditLog";
 import Modal from "@/components/Modal";
 import { v4 as uuidv4 } from "uuid";
+import { waUrl, WaIcon } from "@/utils/wa";
+import { inp, lbl } from "@/utils/styles";
 
 interface Order {
   id: string; order_date: string; customer_name: string; phone?: string;
@@ -21,13 +23,10 @@ interface AuditEntry {
 
 const PAGE_SIZE = 20;
 
-const inp = "w-full border border-gray-300 bg-white text-gray-900 placeholder-gray-400 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#07C3F8] focus:border-transparent transition-colors";
-const lbl = "block text-sm font-medium text-gray-700 mb-1.5";
-
 const actionLabel: Record<string, string> = { create: "Creado", update: "Editado", delete: "Eliminado" };
 
 export default function OrdersPage() {
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
   const [orders, setOrders] = useState<Order[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
@@ -249,7 +248,16 @@ export default function OrdersPage() {
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-500 whitespace-nowrap">{format(new Date(o.order_date), "dd/MM/yyyy", { locale: es })}</td>
                   <td className="px-4 py-3 text-sm font-medium text-gray-900">{o.customer_name}</td>
-                  <td className="px-4 py-3 text-sm text-gray-500">{o.phone}</td>
+                  <td className="px-4 py-3 text-sm text-gray-500">
+                    <div className="flex items-center gap-1.5">
+                      <span>{o.phone}</span>
+                      {o.phone && (
+                        <a href={waUrl(o.phone)} target="_blank" rel="noopener noreferrer" aria-label={`WhatsApp a ${o.customer_name}`} className="shrink-0 opacity-60 hover:opacity-100 transition-opacity">
+                          <WaIcon />
+                        </a>
+                      )}
+                    </div>
+                  </td>
                   <td className="px-4 py-3 text-sm text-gray-500 max-w-xs truncate">{o.product_description}</td>
                   <td className="px-4 py-3 text-sm text-gray-900 font-mono whitespace-nowrap">₡{o.total_amount.toFixed(2)}</td>
                   <td className="px-4 py-3 text-sm text-gray-900 font-mono whitespace-nowrap">₡{o.initial_payment.toFixed(2)}</td>
