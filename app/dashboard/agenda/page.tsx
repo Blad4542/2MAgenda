@@ -25,7 +25,7 @@ for (let h = 8; h <= 17; h++) {
 }
 HOURS.push("17:30");
 
-const PEOPLE = ["Botaguas", "Keilor", "Andrey", "Dylan A", "Dylan S", "Bicri"];
+const PEOPLE = ["Botaguas", "Andrey", "Dylan A", "Bicri"];
 
 function isTaskActiveDuringHour(start: string, end: string, hour: string): boolean {
   const [sh, sm] = start.split(":").map(Number);
