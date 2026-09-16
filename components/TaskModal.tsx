@@ -276,9 +276,12 @@ const TaskModal = ({
               </p>
             )}
 
-            {/* Task checklist — only for existing appointments */}
-            {!isNewTask && (
-              <div className="mt-4 border-t border-gray-100 pt-4">
+            {/* Task checklist */}
+            <div className="mt-4 border-t border-gray-100 pt-4">
+              {isNewTask ? (
+                <p className="text-xs text-gray-400 text-center py-2">Guarda la cita para agregar tareas.</p>
+              ) : (
+                <>
                 <div className="flex items-center gap-2 mb-3">
                   <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 flex-1">Tareas</span>
                   <input
@@ -365,8 +368,9 @@ const TaskModal = ({
                     ))}
                   </ul>
                 )}
-              </div>
-            )}
+                </>
+              )}
+            </div>
           </div>
 
           {/* Footer */}

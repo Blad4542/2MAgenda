@@ -545,34 +545,43 @@ const Agenda = () => {
                     const slotKey = `${person}-${hour}-${dateStr}`;
                     const reservingUser = !task && reservingSlots[slotKey] && reservingSlots[slotKey] !== user ? reservingSlots[slotKey] : null;
 
-                    const cellClass = reservingUser
-                      ? "cursor-pointer border-r border-gray-200 last:border-r-0 px-2 py-1.5 bg-violet-50 transition-colors"
+                    const accentColor =
+                      status === "pending" ? "#38bdf8"
+                      : status === "active" ? "#fbbf24"
+                      : status === "done"   ? "#34d399"
+                      : "transparent";
+
+                    const cellBase = "cursor-pointer border-r border-gray-100 last:border-r-0 transition-colors overflow-hidden";
+                    const cellBg = reservingUser
+                      ? "bg-violet-50 hover:bg-violet-100"
                       : pendingFromWaiting && !task
-                      ? "cursor-pointer border-r border-dashed border-green-300 last:border-r-0 px-2 py-1.5 bg-green-50 hover:bg-green-100 transition-colors"
-                      : `cursor-pointer border-r border-gray-200 last:border-r-0 px-2 py-1.5 transition-colors ${
-                          status === "pending" ? "bg-sky-50 hover:bg-sky-100"
-                          : status === "active" ? "bg-amber-50 hover:bg-amber-100"
-                          : status === "done"   ? "bg-emerald-50 hover:bg-emerald-100"
-                          : "hover:bg-[#07C3F8]/5"
-                        }`;
+                      ? "bg-green-50 hover:bg-green-100 border-dashed border-green-300"
+                      : status === "pending" ? "bg-sky-50 hover:bg-sky-100"
+                      : status === "active"  ? "bg-amber-50 hover:bg-amber-100"
+                      : status === "done"    ? "bg-emerald-50 hover:bg-emerald-100"
+                      : "hover:bg-[#07C3F8]/5";
 
                     return (
                       <div
                         key={`${person}-${hour}`}
-                        className={`group ${cellClass}`}
+                        className={`group ${cellBase} ${cellBg}`}
                         onClick={() => task ? (setCurrentTask(task), setIsNewTask(false), setIsModalOpen(true)) : handleNewTaskClick(hour, person)}
-                        style={{ minHeight: "3.25rem", borderBottom: isLastHour ? "2px solid #07C3F8" : undefined }}
+                        style={{
+                          minHeight: "3.25rem",
+                          borderBottom: isLastHour ? `2px solid ${accentColor}` : undefined,
+                          borderLeft: task ? `3px solid ${accentColor}` : undefined,
+                        }}
                       >
                         {isFirstHour && (
-                          <div className="text-xs space-y-0.5">
-                            <p className="font-semibold text-gray-800 leading-tight">{task.name || "—"}</p>
-                            <p className="text-gray-500">{task.phone || "—"}</p>
-                            <p className="text-gray-400 truncate">{task.vehicle || "—"}</p>
+                          <div className="px-2 pt-1.5 pb-1 flex flex-col gap-0.5 min-w-0">
+                            <p className="text-[11px] font-bold text-gray-800 truncate leading-tight">{task.name || "—"}</p>
+                            <p className="text-[10px] font-mono text-gray-500 leading-none">{task.start_time}–{task.end_time}</p>
+                            <p className="text-[10px] text-gray-400 truncate leading-tight">{task.vehicle || "—"}</p>
                           </div>
                         )}
-                        {reservingUser && <div className="text-xs text-[#07C3F8] font-medium">Agendando... ({reservingUser})</div>}
+                        {reservingUser && <div className="px-2 py-1.5 text-[11px] text-violet-500 font-medium truncate">Agendando… ({reservingUser})</div>}
                         {pendingFromWaiting && !task && !reservingUser && (
-                          <div className="hidden group-hover:block text-xs text-green-600 font-medium">Clic para agendar aquí</div>
+                          <div className="hidden group-hover:flex px-2 py-1.5 items-center justify-center text-[11px] text-green-600 font-medium h-full">+ Agendar aquí</div>
                         )}
                       </div>
                     );
