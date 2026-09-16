@@ -52,6 +52,7 @@ const TaskModal = ({
 }) => {
   const [customerVehicles, setCustomerVehicles] = useState<{ id: string; description: string }[]>([]);
   const [isNewVehicle, setIsNewVehicle] = useState(true);
+  const [phoneError, setPhoneError] = useState("");
 
   // Task checklist state
   const [apptTasks, setApptTasks] = useState<AppointmentTask[]>([]);
@@ -63,7 +64,13 @@ const TaskModal = ({
     setTask({ ...task, [e.target.name]: e.target.value } as TaskFormState);
 
   const onPhoneBlur = useCallback(async () => {
-    if (!supabase || !isNewTask || task.phone.replace(/\D/g, "").length < 6) return;
+    const digits = task.phone.replace(/\D/g, "");
+    if (digits.length > 0 && digits.length < 8) {
+      setPhoneError("El teléfono debe tener al menos 8 dígitos.");
+      return;
+    }
+    setPhoneError("");
+    if (!supabase || !isNewTask || digits.length < 6) return;
     const match = await lookupCustomer(supabase, task.phone);
     if (!match) {
       setCustomerVehicles([]);
@@ -205,14 +212,13 @@ const TaskModal = ({
                   </a>
                 )}
               </div>
+              {phoneError && (
+                <span className="text-xs text-red-500 mt-1 block">{phoneError}</span>
+              )}
             </div>
             <div className="mb-3">
               <label htmlFor="task-name" className={lbl}>Nombre</label>
               <input id="task-name" type="text" name="name" placeholder="Nombre" className={inp} value={task.name} onChange={onChange} />
-            </div>
-            <div className="mb-3">
-              <label htmlFor="task-description" className={lbl}>Descripción</label>
-              <textarea id="task-description" name="description" placeholder="Descripción" className={inp} value={task.description} onChange={onChange} />
             </div>
             <div className="mb-3">
               <label htmlFor="task-vehicle" className={lbl}>Vehículo</label>
@@ -258,6 +264,10 @@ const TaskModal = ({
                 <option value="active">Activo</option>
                 <option value="done">Hecho</option>
               </select>
+            </div>
+            <div className="mb-3">
+              <label htmlFor="task-description" className={lbl}>Notas</label>
+              <textarea id="task-description" name="description" placeholder="Notas" className={inp} value={task.description} onChange={onChange} />
             </div>
 
             {errorMessage && (
