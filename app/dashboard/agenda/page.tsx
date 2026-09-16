@@ -573,10 +573,12 @@ const Agenda = () => {
                         }}
                       >
                         {isFirstHour && (
-                          <div className="px-2 pt-1.5 pb-1 flex flex-col gap-0.5 min-w-0">
-                            <p className="text-[11px] font-bold text-gray-800 truncate leading-tight">{task.name || "—"}</p>
-                            <p className="text-[10px] font-mono text-gray-500 leading-none">{task.start_time}–{task.end_time}</p>
-                            <p className="text-[10px] text-gray-400 truncate leading-tight">{task.vehicle || "—"}</p>
+                          <div className="px-2 pt-1.5 pb-1.5 flex flex-col gap-1 min-w-0">
+                            <p className="text-xs font-semibold text-gray-900 truncate leading-tight">{task.name || "—"}</p>
+                            <div className="flex items-center gap-1 flex-wrap">
+                              <span className="text-[10px] font-mono text-gray-500 whitespace-nowrap">{task.start_time.slice(0,5)}–{task.end_time.slice(0,5)}</span>
+                              {task.vehicle && <span className="text-[10px] text-gray-400 truncate">· {task.vehicle}</span>}
+                            </div>
                           </div>
                         )}
                         {reservingUser && <div className="px-2 py-1.5 text-[11px] text-violet-500 font-medium truncate">Agendando… ({reservingUser})</div>}
