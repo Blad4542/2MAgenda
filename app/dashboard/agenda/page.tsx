@@ -25,7 +25,8 @@ for (let h = 8; h <= 17; h++) {
 }
 HOURS.push("17:30");
 
-const PEOPLE = ["Botaguas", "Andrey", "Dylan A", "Bicri"];
+const PEOPLE = ["Botaguas", "Andrey", "Dylan A", "Bicri", "Julian"];
+const GRID_COLS = `72px repeat(${PEOPLE.length}, minmax(120px, 1fr))`;
 
 function isTaskActiveDuringHour(start: string, end: string, hour: string): boolean {
   const [sh, sm] = start.split(":").map(Number);
@@ -356,14 +357,14 @@ const Agenda = () => {
         </div>
         <div className="flex-1 overflow-auto p-4">
           <div className="min-w-max rounded-xl border border-gray-200 overflow-hidden shadow-sm">
-            <div className="grid grid-cols-[72px_repeat(6,minmax(120px,1fr))] bg-gray-50 border-b border-gray-200">
+            <div className="grid bg-gray-50 border-b border-gray-200" style={{ gridTemplateColumns: GRID_COLS }}>
               <div className="py-3 px-2 flex justify-center"><div className="h-3 w-8 bg-gray-200 rounded" /></div>
-              {[...Array(6)].map((_, i) => <div key={i} className="py-3 px-2 flex justify-center border-l border-gray-200"><div className="h-3 w-16 bg-gray-200 rounded" /></div>)}
+              {PEOPLE.map((_, i) => <div key={i} className="py-3 px-2 flex justify-center border-l border-gray-200"><div className="h-3 w-16 bg-gray-200 rounded" /></div>)}
             </div>
             {[...Array(12)].map((_, r) => (
-              <div key={r} className={`grid grid-cols-[72px_repeat(6,minmax(120px,1fr))] border-b border-gray-100 ${r % 2 ? "bg-white" : "bg-gray-50/30"}`}>
+              <div key={r} className={`grid border-b border-gray-100 ${r % 2 ? "bg-white" : "bg-gray-50/30"}`} style={{ gridTemplateColumns: GRID_COLS }}>
                 <div className="py-3 px-2 flex justify-center"><div className="h-3 w-10 bg-gray-100 rounded" /></div>
-                {[...Array(6)].map((_, c) => <div key={c} className="border-l border-gray-100" style={{ minHeight: "3.25rem" }} />)}
+                {PEOPLE.map((_, c) => <div key={c} className="border-l border-gray-100" style={{ minHeight: "3.25rem" }} />)}
               </div>
             ))}
           </div>
@@ -524,7 +525,7 @@ const Agenda = () => {
           ) : (
             <div className="min-w-max rounded-xl border border-gray-200 overflow-hidden shadow-sm mb-8">
               {/* Grid header */}
-              <div className="grid grid-cols-[72px_repeat(6,minmax(120px,1fr))] sticky top-0 z-[50] bg-gray-50 border-b border-gray-200">
+              <div className="grid sticky top-0 z-[50] bg-gray-50 border-b border-gray-200" style={{ gridTemplateColumns: GRID_COLS }}>
                 <div className="text-center py-3 border-r border-gray-200 sticky left-0 z-[60] bg-gray-50 text-xs font-semibold text-gray-400 uppercase tracking-wider">Hora</div>
                 {PEOPLE.map((person) => (
                   <div key={person} className="text-center py-3 border-r border-gray-200 last:border-r-0 text-xs font-semibold text-gray-700 uppercase tracking-wider">{person}</div>
@@ -533,7 +534,7 @@ const Agenda = () => {
 
               {/* Hour rows */}
               {HOURS.map((hour, hourIndex) => (
-                <div key={hour} className={`grid grid-cols-[72px_repeat(6,minmax(120px,1fr))] border-b border-gray-100 last:border-b-0 ${hourIndex % 2 ? "bg-white" : "bg-gray-50/30"}`}>
+                <div key={hour} className={`grid border-b border-gray-100 last:border-b-0 ${hourIndex % 2 ? "bg-white" : "bg-gray-50/30"}`} style={{ gridTemplateColumns: GRID_COLS }}>
                   <div className="text-center text-xs py-3 border-r border-gray-200 sticky left-0 z-[40] bg-inherit text-gray-400 font-mono">{hour}</div>
                   {PEOPLE.map((person) => {
                     const task = notesIndex.get(`${person}-${hour}`);
