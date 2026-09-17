@@ -87,6 +87,7 @@ interface WaitingEntry {
   description: string;
   created_at: string;
   status: "waiting" | "contacted" | "scheduled";
+  pending_tasks?: string[];
 }
 
 const waitingStatusStyle: Record<WaitingEntry["status"], string> = {
@@ -129,6 +130,9 @@ const Agenda = () => {
   const [isWaitingModalOpen, setIsWaitingModalOpen] = useState(false);
   const [editingWaiting, setEditingWaiting] = useState<WaitingEntry | null>(null);
   const [waitingForm, setWaitingForm] = useState({ name: "", phone: "", vehicle: "", description: "", status: "waiting" as WaitingEntry["status"] });
+  const [waitingTasks, setWaitingTasks] = useState<string[]>([]);
+  const [newWaitingTaskText, setNewWaitingTaskText] = useState("");
+  const [pendingTasksForModal, setPendingTasksForModal] = useState<string[]>([]);
   const [pendingFromWaiting, setPendingFromWaiting] = useState<WaitingEntry | null>(null);
   const pendingWaitingIdRef = useRef<string | null>(null);
 
@@ -311,6 +315,9 @@ const Agenda = () => {
     if (prefill) {
       pendingWaitingIdRef.current = prefill.id;
       setPendingFromWaiting(null);
+      setPendingTasksForModal(prefill.pending_tasks ?? []);
+    } else {
+      setPendingTasksForModal([]);
     }
     setCurrentTask({
       ...currentTask,
@@ -329,20 +336,25 @@ const Agenda = () => {
   const handleModalClose = () => {
     setErrorMessage("");
     pendingWaitingIdRef.current = null;
+    setPendingTasksForModal([]);
     if (channelRef.current && currentSlotRef.current) { channelRef.current.send({ type: "broadcast", event: "slot-reserved", payload: { action: "release", slot: currentSlotRef.current, user } }); currentSlotRef.current = null; }
     setIsModalOpen(false);
   };
 
   // Waiting list handlers
   const saveWaiting = async () => {
+    const entryId = editingWaiting ? editingWaiting.id : uuidv4();
+    const payload = { ...waitingForm, pending_tasks: waitingTasks };
     if (editingWaiting) {
-      await supabase.from("waiting_list").update(waitingForm).eq("id", editingWaiting.id);
+      await supabase.from("waiting_list").update(payload).eq("id", entryId);
     } else {
-      await supabase.from("waiting_list").insert({ id: uuidv4(), ...waitingForm });
+      await supabase.from("waiting_list").insert({ id: entryId, ...payload });
     }
     setIsWaitingModalOpen(false);
     setEditingWaiting(null);
     setWaitingForm({ name: "", phone: "", vehicle: "", description: "", status: "waiting" });
+    setWaitingTasks([]);
+    setNewWaitingTaskText("");
     fetchWaitingList();
   };
 
@@ -626,7 +638,7 @@ const Agenda = () => {
                 <span className="bg-gray-100 text-gray-500 text-xs font-semibold px-2 py-0.5 rounded-full">{waitingList.length}</span>
               </div>
               <button
-                onClick={() => { setEditingWaiting(null); setWaitingForm({ name: "", phone: "", vehicle: "", description: "", status: "waiting" }); setIsWaitingModalOpen(true); }}
+                onClick={() => { setEditingWaiting(null); setWaitingForm({ name: "", phone: "", vehicle: "", description: "", status: "waiting" }); setWaitingTasks([]); setNewWaitingTaskText(""); setIsWaitingModalOpen(true); }}
                 className="flex items-center gap-2 bg-[#07C3F8] hover:bg-[#06aad9] text-white font-semibold px-3 py-2 text-sm rounded-xl shadow-sm transition-colors"
               >
                 <Plus size={14} /> Agregar
@@ -644,7 +656,7 @@ const Agenda = () => {
                     <thead>
                       <tr className="bg-gray-50 border-b border-gray-200">
                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-8">#</th>
-                        {["Nombre", "Teléfono", "Vehículo", "Descripción", "Registrado", "Estado", ""].map(h => (
+                        {["Nombre", "Teléfono", "Vehículo", "Tareas", "Notas", "Registrado", "Estado", ""].map(h => (
                           <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
                         ))}
                       </tr>
@@ -665,6 +677,20 @@ const Agenda = () => {
                             </div>
                           </td>
                           <td className="px-4 py-3 text-sm text-gray-500">{entry.vehicle}</td>
+                          <td className="px-4 py-3">
+                            {(entry.pending_tasks ?? []).length === 0 ? (
+                              <span className="text-xs text-gray-300">—</span>
+                            ) : (
+                              <ul className="space-y-0.5">
+                                {(entry.pending_tasks ?? []).map((t, i) => (
+                                  <li key={i} className="flex items-center gap-1.5">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-gray-300 shrink-0" />
+                                    <span className="text-xs text-gray-600 whitespace-nowrap">{t}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </td>
                           <td className="px-4 py-3 text-sm text-gray-500 max-w-xs truncate">{entry.description}</td>
                           <td className="px-4 py-3 text-sm text-gray-400 whitespace-nowrap">
                             {format(new Date(entry.created_at), "dd/MM/yyyy", { locale: es })}
@@ -684,7 +710,7 @@ const Agenda = () => {
                                 <CalendarPlus size={14} />
                               </button>
                               <button
-                                onClick={() => { setEditingWaiting(entry); setWaitingForm({ name: entry.name, phone: entry.phone, vehicle: entry.vehicle, description: entry.description, status: entry.status }); setIsWaitingModalOpen(true); }}
+                                onClick={() => { setEditingWaiting(entry); setWaitingForm({ name: entry.name, phone: entry.phone, vehicle: entry.vehicle, description: entry.description, status: entry.status }); setWaitingTasks(entry.pending_tasks ?? []); setNewWaitingTaskText(""); setIsWaitingModalOpen(true); }}
                                 className="p-1.5 rounded-lg text-gray-400 hover:text-[#07C3F8] hover:bg-[#07C3F8]/10 transition-colors"
                               >
                                 <Edit size={14} />
@@ -710,7 +736,7 @@ const Agenda = () => {
       </div>
 
       {isModalOpen && (
-        <TaskModal isOpen={isModalOpen} onClose={handleModalClose} onSave={handleSaveNote} task={currentTask} setTask={setCurrentTask} isNewTask={isNewTask} onDelete={handleDeleteNote} errorMessage={errorMessage} businessPhone={businessPhone} appointmentDate={selectedDate} supabase={supabase} />
+        <TaskModal isOpen={isModalOpen} onClose={handleModalClose} onSave={handleSaveNote} task={currentTask} setTask={setCurrentTask} isNewTask={isNewTask} onDelete={handleDeleteNote} errorMessage={errorMessage} businessPhone={businessPhone} appointmentDate={selectedDate} supabase={supabase} initialPendingTasks={pendingTasksForModal} />
       )}
 
       {/* Settings modal */}
@@ -745,12 +771,78 @@ const Agenda = () => {
 
       {/* Waiting list add/edit modal */}
       {isWaitingModalOpen && (
-        <Modal isOpen={isWaitingModalOpen} onClose={() => { setIsWaitingModalOpen(false); setEditingWaiting(null); }} title={editingWaiting ? "Editar cliente" : "Agregar a lista de espera"}>
-          <div className="space-y-4">
+        <Modal isOpen={isWaitingModalOpen} onClose={() => { setIsWaitingModalOpen(false); setEditingWaiting(null); setWaitingTasks([]); setNewWaitingTaskText(""); }} title={editingWaiting ? "Editar cliente" : "Agregar a lista de espera"}>
+          <div className="space-y-3">
+            {/* Teléfono + WA */}
+            <div>
+              <label className={lbl}>Teléfono</label>
+              <div className="flex items-center gap-2">
+                <input className={inp} value={waitingForm.phone} onChange={e => setWaitingForm({ ...waitingForm, phone: e.target.value })} />
+                {waitingForm.phone && (
+                  <a
+                    href={waUrl(waitingForm.phone)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label="WhatsApp"
+                    className="shrink-0 flex items-center justify-center w-9 h-9 rounded-xl bg-[#25D366]/10 hover:bg-[#25D366]/20 transition-colors"
+                  >
+                    <WaIcon />
+                  </a>
+                )}
+              </div>
+            </div>
+            {/* Nombre */}
             <div><label className={lbl}>Nombre</label><input className={inp} value={waitingForm.name} onChange={e => setWaitingForm({ ...waitingForm, name: e.target.value })} /></div>
-            <div><label className={lbl}>Teléfono</label><input className={inp} value={waitingForm.phone} onChange={e => setWaitingForm({ ...waitingForm, phone: e.target.value })} /></div>
+            {/* Vehículo */}
             <div><label className={lbl}>Vehículo</label><input className={inp} value={waitingForm.vehicle} onChange={e => setWaitingForm({ ...waitingForm, vehicle: e.target.value })} /></div>
-            <div><label className={lbl}>Descripción del servicio</label><input className={inp} value={waitingForm.description} onChange={e => setWaitingForm({ ...waitingForm, description: e.target.value })} /></div>
+            {/* Tareas */}
+            <div className="border-t border-gray-100 pt-3">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 flex-1">Tareas</span>
+                <input
+                  type="text"
+                  value={newWaitingTaskText}
+                  onChange={e => setNewWaitingTaskText(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key !== "Enter") return;
+                    const text = newWaitingTaskText.trim();
+                    if (text) { setWaitingTasks(prev => [...prev, text]); setNewWaitingTaskText(""); }
+                  }}
+                  placeholder="Nueva tarea…"
+                  className="flex-1 text-sm border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-[#07C3F8]"
+                />
+                <button
+                  onClick={() => {
+                    const text = newWaitingTaskText.trim();
+                    if (text) { setWaitingTasks(prev => [...prev, text]); setNewWaitingTaskText(""); }
+                  }}
+                  disabled={!newWaitingTaskText.trim()}
+                  className="p-1.5 rounded-lg bg-[#07C3F8] text-white hover:bg-[#06aad9] disabled:opacity-40 transition-colors"
+                  aria-label="Agregar tarea"
+                >
+                  <Plus size={16} />
+                </button>
+              </div>
+              {waitingTasks.length === 0 ? (
+                <p className="text-xs text-gray-400 text-center py-2">Sin tareas aún</p>
+              ) : (
+                <ul className="space-y-2">
+                  {waitingTasks.map((text, idx) => (
+                    <li key={idx} className="flex items-center gap-2">
+                      <span className="flex-1 text-sm text-gray-700">{text}</span>
+                      <button
+                        onClick={() => setWaitingTasks(prev => prev.filter((_, i) => i !== idx))}
+                        className="shrink-0 p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors"
+                        aria-label="Eliminar tarea"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            {/* Estado */}
             <div>
               <label className={lbl}>Estado</label>
               <select className={inp} value={waitingForm.status} onChange={e => setWaitingForm({ ...waitingForm, status: e.target.value as WaitingEntry["status"] })}>
@@ -758,9 +850,12 @@ const Agenda = () => {
                 <option value="contacted">Contactado</option>
               </select>
             </div>
+            {/* Notas */}
+            <div><label className={lbl}>Notas</label><textarea className={inp} value={waitingForm.description} onChange={e => setWaitingForm({ ...waitingForm, description: e.target.value })} /></div>
+            {/* Footer */}
             <div className="flex justify-end gap-2 pt-2">
               {editingWaiting && (
-                <button onClick={() => { deleteWaiting(editingWaiting.id); setIsWaitingModalOpen(false); setEditingWaiting(null); }} className="px-4 py-2 text-sm font-medium rounded-xl bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 transition-colors">
+                <button onClick={() => { deleteWaiting(editingWaiting.id); setIsWaitingModalOpen(false); setEditingWaiting(null); setWaitingTasks([]); }} className="px-4 py-2 text-sm font-medium rounded-xl bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 transition-colors">
                   Eliminar
                 </button>
               )}

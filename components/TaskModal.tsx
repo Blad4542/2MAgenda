@@ -29,6 +29,7 @@ interface AppointmentTask {
   description: string;
   completed: boolean;
   photo_url: string | null;
+  photo_urls: string[];
   uploading?: boolean;
 }
 
@@ -42,13 +43,14 @@ const buildWaHref = (task: TaskFormState, appointmentDate: Date, businessPhone: 
 
 const TaskModal = ({
   isOpen, onClose, onSave, onDelete, task, setTask, isNewTask, errorMessage,
-  businessPhone = "", appointmentDate, supabase,
+  businessPhone = "", appointmentDate, supabase, initialPendingTasks = [],
 }: {
   isOpen: boolean; onClose: () => void; onSave: (pendingTasks?: string[]) => void;
   onDelete: (id: number | string) => void; task: TaskFormState; setTask: (t: TaskFormState) => void;
   isNewTask: boolean; errorMessage?: string;
   businessPhone?: string; appointmentDate?: Date;
   supabase?: SupabaseClient;
+  initialPendingTasks?: string[];
 }) => {
   const [customerVehicles, setCustomerVehicles] = useState<{ id: string; description: string }[]>([]);
   const [isNewVehicle, setIsNewVehicle] = useState(true);
@@ -58,7 +60,12 @@ const TaskModal = ({
   const [apptTasks, setApptTasks] = useState<AppointmentTask[]>([]);
   const [tasksLoading, setTasksLoading] = useState(false);
   const [newTaskText, setNewTaskText] = useState("");
-  const [pendingTasks, setPendingTasks] = useState<string[]>([]);
+  const [pendingTasks, setPendingTasks] = useState<string[]>(initialPendingTasks);
+
+  useEffect(() => {
+    if (isOpen && isNewTask) setPendingTasks(initialPendingTasks);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, isNewTask]);
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   const onChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
@@ -112,12 +119,12 @@ const TaskModal = ({
     setTasksLoading(true);
     supabase
       .from("appointment_tasks")
-      .select("id, description, completed, photo_url")
+      .select("id, description, completed, photo_url, photo_urls")
       .eq("appointment_id", task.id)
       .order("created_at", { ascending: true })
       .then(({ data, error }) => {
         if (error) console.error("appointment_tasks query failed:", error.message);
-        setApptTasks((data ?? []) as AppointmentTask[]);
+        setApptTasks((data ?? []).map(t => ({ ...t, photo_urls: t.photo_urls ?? [] })) as AppointmentTask[]);
         setTasksLoading(false);
       });
   }, [isOpen, isNewTask, task.id, supabase]);
@@ -129,10 +136,10 @@ const TaskModal = ({
     const { data, error } = await supabase
       .from("appointment_tasks")
       .insert({ appointment_id: task.id, description: text })
-      .select("id, description, completed, photo_url")
+      .select("id, description, completed, photo_url, photo_urls")
       .single();
     if (!error && data) {
-      setApptTasks(prev => [...prev, data as AppointmentTask]);
+      setApptTasks(prev => [...prev, { ...data, photo_urls: data.photo_urls ?? [] } as AppointmentTask]);
     }
   };
 
@@ -146,21 +153,29 @@ const TaskModal = ({
     await supabase?.from("appointment_tasks").delete().eq("id", taskId);
   };
 
-  const uploadPhoto = async (taskId: string, file: File) => {
-    if (!supabase || !task.id) return;
+  const uploadPhotos = async (taskId: string, files: File[]) => {
+    if (!supabase || !task.id || files.length === 0) return;
     setApptTasks(prev => prev.map(t => t.id === taskId ? { ...t, uploading: true } : t));
-    const path = `${task.id}/${taskId}`;
-    const { error: uploadError } = await supabase.storage
-      .from("appointment-photos")
-      .upload(path, file, { upsert: true });
-    if (uploadError) {
-      setApptTasks(prev => prev.map(t => t.id === taskId ? { ...t, uploading: false } : t));
-      return;
-    }
-    const { data: urlData } = supabase.storage.from("appointment-photos").getPublicUrl(path);
-    const photo_url = urlData.publicUrl;
-    await supabase.from("appointment_tasks").update({ photo_url }).eq("id", taskId);
-    setApptTasks(prev => prev.map(t => t.id === taskId ? { ...t, photo_url, uploading: false } : t));
+    const urls = await Promise.all(
+      files.map(async file => {
+        const path = `${task.id}/${taskId}/${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        const { error } = await supabase.storage.from("appointment-photos").upload(path, file, { upsert: false });
+        if (error) return null;
+        return supabase.storage.from("appointment-photos").getPublicUrl(path).data.publicUrl;
+      })
+    );
+    const uploaded = urls.filter((u): u is string => u !== null);
+    const current = apptTasks.find(t => t.id === taskId);
+    const allUrls = [...(current?.photo_urls ?? []), ...uploaded];
+    await supabase.from("appointment_tasks").update({ photo_urls: allUrls }).eq("id", taskId);
+    setApptTasks(prev => prev.map(t => t.id === taskId ? { ...t, photo_urls: allUrls, uploading: false } : t));
+  };
+
+  const deletePhoto = async (taskId: string, url: string) => {
+    const current = apptTasks.find(t => t.id === taskId);
+    const newUrls = (current?.photo_urls ?? []).filter(u => u !== url);
+    await supabase?.from("appointment_tasks").update({ photo_urls: newUrls }).eq("id", taskId);
+    setApptTasks(prev => prev.map(t => t.id === taskId ? { ...t, photo_urls: newUrls } : t));
   };
 
   const waHref = task.phone ? buildWaHref(task, appointmentDate ?? new Date(), businessPhone) : "";
@@ -314,45 +329,59 @@ const TaskModal = ({
               ) : (
                 <ul className="space-y-2">
                   {apptTasks.map(t => (
-                    <li key={t.id} className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={t.completed}
-                        onChange={e => toggleTask(t.id, e.target.checked)}
-                        className="w-4 h-4 rounded accent-[#07C3F8] cursor-pointer shrink-0"
-                      />
-                      <span className={`flex-1 text-sm truncate ${t.completed ? "line-through text-gray-400" : "text-gray-700"}`}>
-                        {t.description}
-                      </span>
-                      {t.uploading ? (
-                        <Loader2 className="w-4 h-4 animate-spin text-gray-400 shrink-0" />
-                      ) : t.photo_url ? (
-                        <a href={t.photo_url} target="_blank" rel="noopener noreferrer" className="shrink-0">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={t.photo_url} alt="evidencia" className="w-12 h-12 rounded-lg object-cover border border-gray-200 hover:opacity-80 transition-opacity" />
-                        </a>
-                      ) : (
+                    <React.Fragment key={t.id}>
+                      <li className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={t.completed}
+                          onChange={e => toggleTask(t.id, e.target.checked)}
+                          className="w-4 h-4 rounded accent-[#07C3F8] cursor-pointer shrink-0"
+                        />
+                        <span className={`flex-1 text-sm truncate ${t.completed ? "line-through text-gray-400" : "text-gray-700"}`}>
+                          {t.description}
+                        </span>
+                        {t.uploading && <Loader2 className="w-4 h-4 animate-spin text-gray-400 shrink-0" />}
+                        <input
+                          type="file" accept="image/*" multiple className="hidden"
+                          ref={el => { fileInputRefs.current[t.id] = el; }}
+                          onChange={e => { const files = Array.from(e.target.files ?? []); if (files.length) uploadPhotos(t.id, files); e.target.value = ""; }}
+                        />
                         <button
                           onClick={() => fileInputRefs.current[t.id]?.click()}
                           className="shrink-0 p-1.5 rounded-lg text-gray-400 hover:text-[#07C3F8] hover:bg-gray-100 transition-colors"
-                          aria-label="Subir foto"
+                          aria-label="Agregar foto"
+                          disabled={t.uploading}
                         >
                           <Camera className="w-4 h-4" />
                         </button>
+                        <button
+                          onClick={() => deleteTask(t.id)}
+                          className="shrink-0 p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors"
+                          aria-label="Eliminar tarea"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </li>
+                      {t.photo_urls && t.photo_urls.length > 0 && (
+                        <li className="flex flex-wrap gap-2 pl-5 pb-1">
+                          {t.photo_urls.map((url, idx) => (
+                            <div key={idx} className="relative group/photo">
+                              <a href={url} target="_blank" rel="noopener noreferrer">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src={url} alt={`foto ${idx + 1}`} className="w-16 h-16 rounded-lg object-cover border border-gray-200 hover:opacity-80 transition-opacity" />
+                              </a>
+                              <button
+                                onClick={() => deletePhoto(t.id, url)}
+                                className="absolute -top-1.5 -right-1.5 hidden group-hover/photo:flex w-5 h-5 bg-red-500 text-white rounded-full items-center justify-center shadow"
+                                aria-label="Eliminar foto"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ))}
+                        </li>
                       )}
-                      <input
-                        type="file" accept="image/*" capture="environment" className="hidden"
-                        ref={el => { fileInputRefs.current[t.id] = el; }}
-                        onChange={e => { const file = e.target.files?.[0]; if (file) uploadPhoto(t.id, file); e.target.value = ""; }}
-                      />
-                      <button
-                        onClick={() => deleteTask(t.id)}
-                        className="shrink-0 p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors"
-                        aria-label="Eliminar tarea"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </li>
+                    </React.Fragment>
                   ))}
                 </ul>
               )}
