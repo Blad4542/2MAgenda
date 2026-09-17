@@ -223,7 +223,7 @@ export default function InstaladoresPage() {
         .from("user_roles")
         .select("role")
         .eq("id", data.user.id)
-        .single()
+        .maybeSingle()
         .then(({ data: roleData }) => {
           if (roleData?.role !== "admin") router.replace("/dashboard");
         });

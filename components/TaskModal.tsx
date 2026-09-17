@@ -34,11 +34,31 @@ interface AppointmentTask {
   uploading?: boolean;
 }
 
-const buildWaHref = (task: TaskFormState, appointmentDate: Date, businessPhone: string) => {
+function fmtTime12(time: string): string {
+  const [h, m] = time.slice(0, 5).split(":").map(Number);
+  const suffix = h >= 12 ? "pm" : "am";
+  const h12 = h % 12 || 12;
+  return `${h12}:${String(m).padStart(2, "0")}${suffix}`;
+}
+
+const buildWaHref = (task: TaskFormState, appointmentDate: Date, _businessPhone: string) => {
   if (!task.phone) return "";
   const dateStr = format(appointmentDate, "EEEE d 'de' MMMM", { locale: es });
-  let msg = `Hola ${task.name}, le confirmamos su cita programada para el ${dateStr} a las ${task.start_time}.`;
-  if (businessPhone) msg += ` Para cualquier consulta contáctenos al ${businessPhone}.`;
+  const dateCapitalized = dateStr.charAt(0).toUpperCase() + dateStr.slice(1);
+  const hora = task.start_time ? fmtTime12(task.start_time) : "";
+  const trabajo = task.description?.trim() || "—";
+
+  const msg =
+`☀️Buenas tardes de parte de Autodecoracion 2M es un gusto saludarle, para confirmar su cita el día de mañana
+
+📅Día: ${dateCapitalized}
+🕜Hora: ${hora}
+✅Trabajo a realizar:
+ ${trabajo}
+🚗Vehiculo: ${task.vehicle || "—"}
+
+Quedo atenta a su confirmación`;
+
   return `${waUrl(task.phone)}?text=${encodeURIComponent(msg)}`;
 };
 

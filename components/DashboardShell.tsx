@@ -70,7 +70,7 @@ export default function DashboardShell({ children }: { children: React.ReactNode
         .from("user_roles")
         .select("role")
         .eq("id", data.user.id)
-        .single()
+        .maybeSingle()
         .then(({ data: roleData }) => {
           setIsAdmin(roleData?.role === "admin");
         });
