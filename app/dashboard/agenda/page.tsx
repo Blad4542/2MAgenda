@@ -30,6 +30,11 @@ function fmtTime(t: string): string {
   return `${parseInt(h)}:${m}`;
 }
 
+function timesOverlap(s1: string, e1: string, s2: string, e2: string): boolean {
+  const toMin = (t: string) => { const [h, m] = t.slice(0, 5).split(":").map(Number); return h * 60 + m; };
+  return toMin(s1) < toMin(e2) && toMin(e1) > toMin(s2);
+}
+
 function isTaskActiveDuringHour(start: string, end: string, hour: string): boolean {
   const [sh, sm] = start.split(":").map(Number);
   const [eh, em] = end.split(":").map(Number);
@@ -148,6 +153,8 @@ const Agenda = () => {
   const [businessPhone, setBusinessPhone] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsPhone, setSettingsPhone] = useState("");
+  const [dragging, setDragging] = useState<Appointment | null>(null);
+  const [dropTarget, setDropTarget] = useState<string | null>(null);
 
   const fetchNotesForSelectedDate = async () => {
     const startOfDay = new Date(selectedDate); startOfDay.setHours(0, 0, 0, 0);
@@ -257,6 +264,26 @@ const Agenda = () => {
     const mon = startOfWeek(selectedDate, { weekStartsOn: 1 });
     return Array.from({ length: 7 }, (_, i) => addDays(mon, i));
   }, [selectedDate]);
+
+  const handleDrop = async (targetPerson: string) => {
+    if (!dragging || dragging.assigned_person === targetPerson) { setDragging(null); setDropTarget(null); return; }
+    const conflict = notes.some(n =>
+      n.id !== dragging.id &&
+      n.assigned_person === targetPerson &&
+      timesOverlap(n.start_time, n.end_time, dragging.start_time, dragging.end_time)
+    );
+    if (conflict) {
+      setErrorMessage(`${targetPerson} ya tiene una cita en ese horario.`);
+      setDragging(null); setDropTarget(null); return;
+    }
+    const staffMember = staff.find(s => s.name === targetPerson);
+    await supabase.from("appointments").update({
+      assigned_person: targetPerson,
+      staff_id: staffMember?.id ?? null,
+    }).eq("id", dragging.id);
+    setDragging(null); setDropTarget(null);
+    await fetchNotesForSelectedDate();
+  };
 
   const handleSaveNote = async (pendingTasks?: string[]) => {
     if (!currentTask.name.trim() || !currentTask.phone.trim() || (!currentTask.vehicle.trim() && !currentTask.vehicle_id)) { setErrorMessage("Nombre, teléfono y vehículo son obligatorios."); return; }
@@ -583,8 +610,18 @@ const Agenda = () => {
                       : status === "done"   ? "#34d399"
                       : "transparent";
 
-                    const cellBase = "cursor-pointer border-r border-gray-100 last:border-r-0 transition-colors overflow-hidden";
-                    const cellBg = reservingUser
+                    const isDropping = dragging && dropTarget === person && person !== dragging.assigned_person;
+                    const isDropConflict = isDropping && notes.some(n =>
+                      n.id !== dragging!.id && n.assigned_person === person &&
+                      timesOverlap(n.start_time, n.end_time, dragging!.start_time, dragging!.end_time)
+                    );
+
+                    const cellBase = "cursor-pointer border-r border-gray-100 last:border-r-0 transition-colors overflow-hidden min-w-0";
+                    const cellBg = isDropConflict
+                      ? "bg-red-50 border-2 border-red-300"
+                      : isDropping
+                      ? "bg-green-50 border-2 border-green-300"
+                      : reservingUser
                       ? "bg-violet-50 hover:bg-violet-100"
                       : pendingFromWaiting && !task
                       ? "bg-green-50 hover:bg-green-100 border-dashed border-green-300"
@@ -596,8 +633,14 @@ const Agenda = () => {
                     return (
                       <div
                         key={`${person}-${hour}`}
+                        draggable={!!task}
                         className={`group ${cellBase} ${cellBg}`}
-                        onClick={() => task ? (setCurrentTask(task), setIsNewTask(false), setIsModalOpen(true)) : handleNewTaskClick(hour, person)}
+                        onDragStart={(e) => { if (task) { e.dataTransfer.effectAllowed = "move"; setDragging(task); } }}
+                        onDragEnd={() => { setDragging(null); setDropTarget(null); }}
+                        onDragOver={(e) => { if (dragging && person !== dragging.assigned_person) { e.preventDefault(); setDropTarget(person); } }}
+                        onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDropTarget(null); }}
+                        onDrop={(e) => { e.preventDefault(); handleDrop(person); }}
+                        onClick={() => !dragging && (task ? (setCurrentTask(task), setIsNewTask(false), setIsModalOpen(true)) : handleNewTaskClick(hour, person))}
                         style={{
                           minHeight: "3.25rem",
                           borderBottom: isLastHour ? `2px solid ${accentColor}` : undefined,
