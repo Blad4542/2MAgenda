@@ -19,7 +19,7 @@ interface TaskFormState {
   phone: string;
   description: string;
   vehicle: string;
-  status: "pending" | "active" | "done";
+  status: "pending" | "confirmed" | "active" | "done";
   appointment_date: string;
   customer_id?: string;
   vehicle_id?: string;

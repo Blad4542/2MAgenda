@@ -77,7 +77,7 @@ interface Appointment {
   phone: string;
   description: string;
   vehicle: string;
-  status: "pending" | "active" | "done";
+  status: "pending" | "confirmed" | "active" | "done";
   appointment_date: string;
   customer_id?: string;
   vehicle_id?: string;
@@ -114,7 +114,7 @@ const Agenda = () => {
   const [currentTask, setCurrentTask] = useState<{
     id?: string | number; start_time: string; end_time: string; assigned_person: string; staff_id?: string; name: string;
     phone: string; description: string; vehicle: string;
-    status: "pending" | "active" | "done"; appointment_date: string;
+    status: "pending" | "confirmed" | "active" | "done"; appointment_date: string;
     customer_id?: string; vehicle_id?: string;
   }>({ start_time: "", end_time: "", assigned_person: "", staff_id: undefined, name: "", phone: "", description: "", vehicle: "", status: "pending", appointment_date: new Date().toISOString() });
   const [notes, setNotes] = useState<Appointment[]>([]);
