@@ -265,6 +265,11 @@ const Agenda = () => {
     return Array.from({ length: 7 }, (_, i) => addDays(mon, i));
   }, [selectedDate]);
 
+  const confirmAppt = async (id: string | number) => {
+    await supabase.from("appointments").update({ status: "confirmed" }).eq("id", id);
+    await fetchNotesForSelectedDate();
+  };
+
   const handleDrop = async (targetPerson: string) => {
     if (!dragging || dragging.assigned_person === targetPerson) { setDragging(null); setDropTarget(null); return; }
     const conflict = notes.some(n =>
@@ -484,9 +489,10 @@ const Agenda = () => {
           <div className="mt-4 w-full space-y-1.5 px-1">
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Estados</p>
             {[
-              { bg: "bg-sky-200",     label: "Pendiente",   desc: "Agendado, sin iniciar" },
-              { bg: "bg-amber-200",   label: "Activo",      desc: "En proceso" },
-              { bg: "bg-emerald-200", label: "Completado",  desc: "Trabajo finalizado" },
+              { bg: "bg-sky-200",     label: "Pendiente",   desc: "Sin confirmar" },
+              { bg: "bg-indigo-200",  label: "Confirmada",  desc: "Cliente confirmó" },
+              { bg: "bg-amber-200",   label: "En proceso",  desc: "Trabajo iniciado" },
+              { bg: "bg-emerald-200", label: "Completada",  desc: "Trabajo finalizado" },
               { bg: "bg-violet-200",  label: "Reservando",  desc: "Otro usuario agendando" },
             ].map(({ bg, label, desc }) => (
               <div key={label} className="flex items-center gap-2">
@@ -605,9 +611,10 @@ const Agenda = () => {
                     const reservingUser = !task && reservingSlots[slotKey] && reservingSlots[slotKey] !== user ? reservingSlots[slotKey] : null;
 
                     const accentColor =
-                      status === "pending" ? "#38bdf8"
-                      : status === "active" ? "#fbbf24"
-                      : status === "done"   ? "#34d399"
+                      status === "pending"   ? "#38bdf8"
+                      : status === "confirmed" ? "#818cf8"
+                      : status === "active"  ? "#fbbf24"
+                      : status === "done"    ? "#34d399"
                       : "transparent";
 
                     const isDropping = dragging && dropTarget === person && person !== dragging.assigned_person;
@@ -625,9 +632,10 @@ const Agenda = () => {
                       ? "bg-violet-50 hover:bg-violet-100"
                       : pendingFromWaiting && !task
                       ? "bg-green-50 hover:bg-green-100 border-dashed border-green-300"
-                      : status === "pending" ? "bg-sky-50 hover:bg-sky-100"
-                      : status === "active"  ? "bg-amber-50 hover:bg-amber-100"
-                      : status === "done"    ? "bg-emerald-50 hover:bg-emerald-100"
+                      : status === "pending"   ? "bg-sky-50 hover:bg-sky-100"
+                      : status === "confirmed" ? "bg-indigo-50 hover:bg-indigo-100"
+                      : status === "active"    ? "bg-amber-50 hover:bg-amber-100"
+                      : status === "done"      ? "bg-emerald-50 hover:bg-emerald-100"
                       : "hover:bg-[#07C3F8]/5";
 
                     return (
@@ -649,7 +657,18 @@ const Agenda = () => {
                       >
                         {isFirstHour && (
                           <div className="px-2 pt-2 pb-2 flex flex-col gap-1 min-w-0 overflow-hidden">
-                            <p className="text-xs font-bold text-gray-900 truncate leading-tight">{task.name || "—"}</p>
+                            <div className="flex items-start justify-between gap-1 min-w-0">
+                              <p className="text-xs font-bold text-gray-900 truncate leading-tight">{task.name || "—"}</p>
+                              {status === "pending" && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); task.id != null && confirmAppt(task.id); }}
+                                  title="Confirmar cita"
+                                  className="shrink-0 w-5 h-5 rounded-full bg-indigo-100 hover:bg-indigo-200 flex items-center justify-center transition-colors"
+                                >
+                                  <svg viewBox="0 0 10 10" width="10" height="10" fill="none" stroke="#6366f1" strokeWidth="1.5"><path d="M2 5l2 2 4-4"/></svg>
+                                </button>
+                              )}
+                            </div>
                             <div className="flex items-center gap-1 min-w-0">
                               <span className="text-[11px] font-mono text-gray-500 whitespace-nowrap">{fmtTime(task.start_time)}–{fmtTime(task.end_time)}</span>
                               {task.vehicle && <span className="text-[11px] text-gray-400 truncate">· {task.vehicle}</span>}

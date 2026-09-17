@@ -428,8 +428,9 @@ const TaskModal = ({
               <label htmlFor="task-status" className={lbl}>Estado</label>
               <select id="task-status" name="status" className={inp} value={task.status} onChange={onChange}>
                 <option value="pending">Pendiente</option>
-                <option value="active">Activo</option>
-                <option value="done">Hecho</option>
+                <option value="confirmed">Confirmada</option>
+                <option value="active">En proceso</option>
+                <option value="done">Completada</option>
               </select>
             </div>
             <div className="mb-3">
