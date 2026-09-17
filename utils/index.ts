@@ -65,6 +65,13 @@ export const updateNoteInSupabase = async (
     })
     .match({ id: task.id });
 
+  if (!error && task.customer_id) {
+    await supabase
+      .from("customers")
+      .update({ name: task.name, phone: task.phone })
+      .eq("id", task.customer_id);
+  }
+
   return { data, error };
 };
 

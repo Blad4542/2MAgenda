@@ -155,6 +155,7 @@ const Agenda = () => {
   const [settingsPhone, setSettingsPhone] = useState("");
   const [dragging, setDragging] = useState<Appointment | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
+  const [holidays, setHolidays] = useState<{ date: string; name: string }[]>([]);
 
   const fetchNotesForSelectedDate = async () => {
     const startOfDay = new Date(selectedDate); startOfDay.setHours(0, 0, 0, 0);
@@ -216,6 +217,8 @@ const Agenda = () => {
     getAppSetting("business_phone").then(v => { if (v) { setBusinessPhone(v); setSettingsPhone(v); } });
     supabase.from("staff").select("id, name").eq("active", true).order("created_at", { ascending: true })
       .then(({ data }) => { if (data) setStaff(data as StaffMember[]); });
+    supabase.from("holidays").select("date,name")
+      .then(({ data }) => { if (data) setHolidays(data as { date: string; name: string }[]); });
   }, []);
 
   useEffect(() => {
@@ -343,7 +346,11 @@ const Agenda = () => {
     fetchNotesForSelectedDate();
   };
 
+  const selectedDateStr = format(selectedDate, "yyyy-MM-dd");
+  const todayHoliday = holidays.find(h => h.date === selectedDateStr);
+
   const handleNewTaskClick = async (hour: string, person: string) => {
+    if (todayHoliday) { setErrorMessage(`Día feriado: ${todayHoliday.name}. No se pueden agendar citas.`); return; }
     if (user && channelRef.current) {
       const slot = `${person}-${hour}-${selectedDate.toISOString().split("T")[0]}`;
       currentSlotRef.current = slot;
@@ -485,7 +492,14 @@ const Agenda = () => {
       <div className="flex flex-1 overflow-hidden">
         {/* Calendar sidebar — desktop only */}
         <div className="hidden lg:flex flex-col items-center p-4 bg-gray-50 border-r border-gray-200 shrink-0">
-          <DatePicker selected={selectedDate} onChange={(date) => setSelectedDate(date || new Date())} inline />
+          <DatePicker
+            selected={selectedDate}
+            onChange={(date) => setSelectedDate(date || new Date())}
+            inline
+            highlightDates={[{
+              "react-datepicker__day--holiday": holidays.map(h => new Date(h.date + "T12:00:00"))
+            }]}
+          />
           <div className="mt-4 w-full space-y-1.5 px-1">
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Estados</p>
             {[
@@ -528,6 +542,14 @@ const Agenda = () => {
 
         {/* Schedule grid + waiting list */}
         <div className="flex-1 overflow-auto p-4">
+
+          {/* Holiday banner */}
+          {todayHoliday && (
+            <div className="mb-4 flex items-center gap-3 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+              <span className="text-lg">🎉</span>
+              <p className="text-sm font-medium text-red-700">Feriado: <span className="font-bold">{todayHoliday.name}</span> — No se pueden agendar citas este día.</p>
+            </div>
+          )}
 
           {/* Pending-from-waiting banner */}
           {pendingFromWaiting && (

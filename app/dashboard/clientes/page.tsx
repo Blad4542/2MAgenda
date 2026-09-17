@@ -2,7 +2,7 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
-import { Search, Plus, Phone, Calendar, ChevronRight } from "lucide-react";
+import { Search, Plus, Phone, Calendar, ChevronRight, ChevronLeft } from "lucide-react";
 import { inp, lbl } from "@/utils/styles";
 
 interface Customer {
@@ -21,6 +21,7 @@ export default function ClientesPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(0);
   const [newModalOpen, setNewModalOpen] = useState(false);
   const [newForm, setNewForm] = useState({ name: "", phone: "", notes: "" });
   const [saving, setSaving] = useState(false);
@@ -52,14 +53,19 @@ export default function ClientesPage() {
   useEffect(() => { fetchCustomers(); }, [fetchCustomers]);
 
   const filtered = useMemo(() => {
-    const q = search.toLowerCase().replace(/\D/g, "").trim();
-    if (!q && !search.trim()) return customers;
+    const term = search.trim().toLowerCase();
+    if (!term) return customers;
+    const digits = term.replace(/\D/g, "");
     return customers.filter(c => {
-      const nameMatch = c.name.toLowerCase().includes(search.toLowerCase());
-      const phoneMatch = c.phone.replace(/\D/g, "").includes(q);
+      const nameMatch = c.name.toLowerCase().includes(term);
+      const phoneMatch = digits.length > 0 && c.phone.replace(/\D/g, "").includes(digits);
       return nameMatch || phoneMatch;
     });
   }, [customers, search]);
+
+  const PAGE_SIZE = 20;
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+  const paginated = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
   const saveNewCustomer = async () => {
     if (!newForm.name.trim() || !newForm.phone.trim()) return;
@@ -101,7 +107,7 @@ export default function ClientesPage() {
           type="text"
           placeholder="Buscar por nombre o teléfono..."
           value={search}
-          onChange={e => setSearch(e.target.value)}
+          onChange={e => { setSearch(e.target.value); setPage(0); }}
           className="w-full pl-8 pr-3 py-2.5 text-sm border border-gray-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-[#07C3F8] focus:border-transparent transition-colors"
         />
       </div>
@@ -125,7 +131,7 @@ export default function ClientesPage() {
       {!loading && filtered.length > 0 && (
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
           <ul className="divide-y divide-gray-100">
-            {filtered.map(c => (
+            {paginated.map(c => (
               <li key={c.id}>
                 <button
                   onClick={() => router.push(`/dashboard/clientes/${c.id}`)}
@@ -153,6 +159,29 @@ export default function ClientesPage() {
               </li>
             ))}
           </ul>
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 bg-gray-50">
+              <span className="text-xs text-gray-400">
+                {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, filtered.length)} de {filtered.length}
+              </span>
+              <div className="flex gap-1">
+                <button
+                  onClick={() => setPage(p => Math.max(0, p - 1))}
+                  disabled={page === 0}
+                  className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-200 disabled:opacity-30 transition-colors"
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                <button
+                  onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
+                  disabled={page >= totalPages - 1}
+                  className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-200 disabled:opacity-30 transition-colors"
+                >
+                  <ChevronRight size={16} />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
