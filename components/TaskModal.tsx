@@ -93,7 +93,8 @@ const TaskModal = ({
       ...task,
       name: task.name || match.name,
       customer_id: match.id,
-      vehicle_id: undefined,
+      vehicle_id: vehicles[0]?.id ?? undefined,
+      vehicle: vehicles[0]?.description ?? task.vehicle,
     });
   }, [supabase, isNewTask, task, setTask]);
 
@@ -408,7 +409,7 @@ const TaskModal = ({
             </div>
             <div className="mb-3">
               <label htmlFor="task-description" className={lbl}>Notas</label>
-              <textarea id="task-description" name="description" placeholder="Notas" className={inp} value={task.description} onChange={onChange} />
+              <textarea id="task-description" name="description" placeholder="Notas" rows={3} className={`${inp} resize-none`} value={task.description} onChange={onChange} />
             </div>
 
             {errorMessage && (

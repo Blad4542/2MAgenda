@@ -153,7 +153,7 @@ const Agenda = () => {
     const startOfDay = new Date(selectedDate); startOfDay.setHours(0, 0, 0, 0);
     const endOfDay = new Date(selectedDate); endOfDay.setHours(23, 59, 59, 999);
     const { data, error } = await supabase.from("appointments")
-      .select("*, appointment_tasks!fk_appointment_tasks_appointment(id,description,completed)")
+      .select("*, appointment_tasks(id,description,completed)")
       .gte("appointment_date", startOfDay.toISOString())
       .lt("appointment_date", endOfDay.toISOString())
       .order("start_time", { ascending: true });
@@ -259,7 +259,7 @@ const Agenda = () => {
   }, [selectedDate]);
 
   const handleSaveNote = async (pendingTasks?: string[]) => {
-    if (!currentTask.name.trim() || !currentTask.phone.trim() || !currentTask.vehicle.trim()) { setErrorMessage("Nombre, teléfono y vehículo son obligatorios."); return; }
+    if (!currentTask.name.trim() || !currentTask.phone.trim() || (!currentTask.vehicle.trim() && !currentTask.vehicle_id)) { setErrorMessage("Nombre, teléfono y vehículo son obligatorios."); return; }
     if (currentTask.phone.replace(/\D/g, "").length < 8) { setErrorMessage("El teléfono debe tener al menos 8 dígitos."); return; }
     setErrorMessage("");
     const desc = `Cita de ${currentTask.name} — ${currentTask.assigned_person} ${currentTask.start_time}`;
@@ -555,7 +555,7 @@ const Agenda = () => {
               )}
             </div>
           ) : (
-            <div className="min-w-max rounded-xl border border-gray-200 overflow-hidden shadow-sm mb-8">
+            <div className="min-w-max rounded-xl border border-gray-200 overflow-clip shadow-sm mb-8">
               {/* Grid header */}
               <div className="grid sticky top-0 z-[50] bg-gray-50 border-b border-gray-200" style={{ gridTemplateColumns: GRID_COLS }}>
                 <div className="text-center py-3 border-r border-gray-200 sticky left-0 z-[60] bg-gray-50 text-xs font-semibold text-gray-400 uppercase tracking-wider">Hora</div>
@@ -604,7 +604,7 @@ const Agenda = () => {
                         }}
                       >
                         {isFirstHour && (
-                          <div className="px-2 pt-2 pb-2 flex flex-col gap-1 min-w-0">
+                          <div className="px-2 pt-2 pb-2 flex flex-col gap-1 min-w-0 overflow-hidden">
                             <p className="text-xs font-bold text-gray-900 truncate leading-tight">{task.name || "—"}</p>
                             <div className="flex items-center gap-1 min-w-0">
                               <span className="text-[11px] font-mono text-gray-500 whitespace-nowrap">{fmtTime(task.start_time)}–{fmtTime(task.end_time)}</span>

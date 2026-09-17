@@ -183,11 +183,11 @@ function StaffCard({
                     const statusInfo = STATUS_LABEL[a.status ?? ""] ?? { label: a.status ?? "—", color: "bg-gray-100 text-gray-500" };
                     return (
                       <tr key={a.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-2 text-gray-700 whitespace-nowrap">{a.appointment_date}</td>
+                        <td className="px-4 py-2 text-gray-700 whitespace-nowrap">{a.appointment_date.slice(0, 10)}</td>
                         <td className="px-4 py-2 text-gray-900 font-medium">{a.name}</td>
                         <td className="px-4 py-2 text-gray-500 hidden sm:table-cell">{a.vehicle ?? "—"}</td>
                         <td className="px-4 py-2 text-gray-500 hidden sm:table-cell whitespace-nowrap">
-                          {a.start_time && a.end_time ? `${a.start_time}–${a.end_time}` : a.start_time ?? "—"}
+                          {a.start_time && a.end_time ? `${a.start_time.slice(0,5)}–${a.end_time.slice(0,5)}` : a.start_time?.slice(0,5) ?? "—"}
                         </td>
                         <td className="px-4 py-2">
                           <span className={`px-2 py-0.5 rounded-full font-semibold ${statusInfo.color}`}>
