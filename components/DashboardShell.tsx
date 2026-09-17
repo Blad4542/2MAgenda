@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useState } from "react";
+import { memo, useState, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/utils/supabase/client";
@@ -8,20 +8,29 @@ import {
   Home, Calendar, FileText, ShoppingCart, LogOut, Droplets, Menu, X, Users, HardHat,
 } from "lucide-react";
 
-const navItems = [
-  { href: "/dashboard",           icon: Home,         label: "Inicio" },
-  { href: "/dashboard/agenda",    icon: Calendar,     label: "Agenda" },
-  { href: "/dashboard/orders",    icon: ShoppingCart, label: "Pedidos" },
-  { href: "/dashboard/tasks",     icon: FileText,     label: "Cotizaciones pendientes" },
-  { href: "/dashboard/botaguas",  icon: Droplets,     label: "Inventario Botaguas" },
-  { href: "/dashboard/clientes",      icon: Users,    label: "Clientes" },
-  { href: "/dashboard/instaladores",  icon: HardHat,  label: "Instaladores" },
+const baseNavItems = [
+  { href: "/dashboard",              icon: Home,         label: "Inicio",                   adminOnly: false },
+  { href: "/dashboard/agenda",       icon: Calendar,     label: "Agenda",                   adminOnly: false },
+  { href: "/dashboard/orders",       icon: ShoppingCart, label: "Pedidos",                  adminOnly: false },
+  { href: "/dashboard/tasks",        icon: FileText,     label: "Cotizaciones pendientes",   adminOnly: false },
+  { href: "/dashboard/botaguas",     icon: Droplets,     label: "Inventario Botaguas",      adminOnly: false },
+  { href: "/dashboard/clientes",     icon: Users,        label: "Clientes",                 adminOnly: false },
+  { href: "/dashboard/instaladores", icon: HardHat,      label: "Instaladores",             adminOnly: true  },
 ];
 
-const SidebarNav = memo(function SidebarNav({ pathname, onNav }: { pathname: string; onNav?: () => void }) {
+const SidebarNav = memo(function SidebarNav({
+  pathname,
+  isAdmin,
+  onNav,
+}: {
+  pathname: string;
+  isAdmin: boolean;
+  onNav?: () => void;
+}) {
+  const items = baseNavItems.filter(item => !item.adminOnly || isAdmin);
   return (
     <nav aria-label="Navegación principal" className="flex flex-col gap-0.5 p-3 flex-1">
-      {navItems.map(({ href, icon: Icon, label }) => {
+      {items.map(({ href, icon: Icon, label }) => {
         const active = pathname === href;
         return (
           <Link
@@ -46,9 +55,27 @@ const SidebarNav = memo(function SidebarNav({ pathname, onNav }: { pathname: str
 
 export default function DashboardShell({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [displayName, setDisplayName] = useState("");
   const router   = useRouter();
   const pathname = usePathname();
   const supabase = createClient();
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      if (!data.user) return;
+      const meta = data.user.user_metadata;
+      setDisplayName(meta?.full_name ?? meta?.name ?? data.user.email?.split("@")[0] ?? "");
+      supabase
+        .from("user_roles")
+        .select("role")
+        .eq("id", data.user.id)
+        .single()
+        .then(({ data: roleData }) => {
+          setIsAdmin(roleData?.role === "admin");
+        });
+    });
+  }, []);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -80,21 +107,26 @@ export default function DashboardShell({ children }: { children: React.ReactNode
           </div>
         </div>
 
-        <button
-          onClick={handleLogout}
-          aria-label="Cerrar sesión"
-          className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-900 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors"
-        >
-          <LogOut className="w-4 h-4" aria-hidden="true" />
-          <span className="hidden sm:inline font-medium">Cerrar sesión</span>
-        </button>
+        <div className="flex items-center gap-3">
+          {displayName && (
+            <span className="hidden sm:block text-sm font-medium text-gray-700">Hola, {displayName}!</span>
+          )}
+          <button
+            onClick={handleLogout}
+            aria-label="Cerrar sesión"
+            className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-900 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+          >
+            <LogOut className="w-4 h-4" aria-hidden="true" />
+            <span className="hidden sm:inline font-medium">Cerrar sesión</span>
+          </button>
+        </div>
       </header>
 
       <div className="flex flex-1 overflow-hidden">
 
         {/* ── Desktop sidebar — always visible with labels ── */}
         <aside className="hidden md:flex flex-col w-56 bg-white border-r border-gray-200 shrink-0">
-          <SidebarNav pathname={pathname} />
+          <SidebarNav pathname={pathname} isAdmin={isAdmin} />
         </aside>
 
         {/* ── Mobile sidebar overlay ── */}
@@ -121,7 +153,7 @@ export default function DashboardShell({ children }: { children: React.ReactNode
                   <X className="w-5 h-5" aria-hidden="true" />
                 </button>
               </div>
-              <SidebarNav pathname={pathname} onNav={() => setMobileOpen(false)} />
+              <SidebarNav pathname={pathname} isAdmin={isAdmin} onNav={() => setMobileOpen(false)} />
             </div>
           </>
         )}

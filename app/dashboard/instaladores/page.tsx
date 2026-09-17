@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import { Plus, Phone, ChevronDown, ChevronUp, Pencil } from "lucide-react";
 import { waUrl, WaIcon } from "@/utils/wa";
@@ -22,6 +23,31 @@ const STATUS_LABEL: Record<string, { label: string; color: string }> = {
   cancelled:  { label: "Cancelada",  color: "bg-red-100 text-red-700" },
 };
 
+function PhotoLightbox({ url, name, onClose }: { url: string; name: string; onClose: () => void }) {
+  return (
+    <div
+      className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <img
+        src={url}
+        alt={name}
+        className="max-w-[90vw] max-h-[90vh] rounded-2xl shadow-2xl object-contain"
+        onClick={e => e.stopPropagation()}
+      />
+      <button
+        onClick={onClose}
+        aria-label="Cerrar"
+        className="absolute top-4 right-4 text-white/70 hover:text-white bg-black/30 hover:bg-black/50 p-2 rounded-full transition-colors"
+      >
+        <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" fill="none" strokeWidth="2">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+  );
+}
+
 function StaffCard({
   s,
   onEdit,
@@ -33,6 +59,7 @@ function StaffCard({
   const [expanded, setExpanded] = useState(false);
   const [appts, setAppts] = useState<Appointment[]>([]);
   const [loadingAppts, setLoadingAppts] = useState(false);
+  const [lightbox, setLightbox] = useState(false);
 
   const fetchAppts = useCallback(async () => {
     setLoadingAppts(true);
@@ -62,13 +89,19 @@ function StaffCard({
       {/* Card header */}
       <div className="p-5 flex items-start gap-4">
         {/* Avatar */}
-        <div className="w-14 h-14 rounded-xl bg-[#07C3F8]/10 flex items-center justify-center shrink-0 overflow-hidden">
+        <div
+          className={`w-14 h-14 rounded-xl bg-[#07C3F8]/10 flex items-center justify-center shrink-0 overflow-hidden ${s.photo_url ? "cursor-zoom-in" : ""}`}
+          onClick={() => s.photo_url && setLightbox(true)}
+        >
           {s.photo_url ? (
             <img src={s.photo_url} alt={s.name} className="w-full h-full object-cover" />
           ) : (
             <span className="text-lg font-bold text-[#07C3F8]">{initials || "?"}</span>
           )}
         </div>
+        {lightbox && s.photo_url && (
+          <PhotoLightbox url={s.photo_url} name={s.name} onClose={() => setLightbox(false)} />
+        )}
 
         {/* Info */}
         <div className="flex-1 min-w-0">
@@ -176,10 +209,26 @@ function StaffCard({
 
 export default function InstaladoresPage() {
   const supabase = useMemo(() => createClient(), []);
+  const router = useRouter();
   const [staff, setStaff] = useState<StaffRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<StaffRecord | null>(null);
+
+  // Guard: redirect non-admins
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      if (!data.user) { router.replace("/dashboard"); return; }
+      supabase
+        .from("user_roles")
+        .select("role")
+        .eq("id", data.user.id)
+        .single()
+        .then(({ data: roleData }) => {
+          if (roleData?.role !== "admin") router.replace("/dashboard");
+        });
+    });
+  }, []);
 
   const fetchStaff = useCallback(async () => {
     setLoading(true);
