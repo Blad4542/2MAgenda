@@ -41,12 +41,14 @@ function fmtTime12(time: string): string {
   return `${h12}:${String(m).padStart(2, "0")}${suffix}`;
 }
 
-const buildWaHref = (task: TaskFormState, appointmentDate: Date, _businessPhone: string) => {
+const buildWaHref = (task: TaskFormState, appointmentDate: Date, tasksList: string[]) => {
   if (!task.phone) return "";
   const dateStr = format(appointmentDate, "EEEE d 'de' MMMM", { locale: es });
   const dateCapitalized = dateStr.charAt(0).toUpperCase() + dateStr.slice(1);
   const hora = task.start_time ? fmtTime12(task.start_time) : "";
-  const trabajo = task.description?.trim() || "—";
+  const trabajo = tasksList.length > 0
+    ? tasksList.map(t => ` ${t}`).join("\n")
+    : task.description?.trim() || "—";
 
   const msg =
 `☀️Buenas tardes de parte de Autodecoracion 2M es un gusto saludarle, para confirmar su cita el día de mañana
@@ -54,7 +56,7 @@ const buildWaHref = (task: TaskFormState, appointmentDate: Date, _businessPhone:
 📅Día: ${dateCapitalized}
 🕜Hora: ${hora}
 ✅Trabajo a realizar:
- ${trabajo}
+${trabajo}
 🚗Vehiculo: ${task.vehicle || "—"}
 
 Quedo atenta a su confirmación`;
@@ -200,7 +202,10 @@ const TaskModal = ({
     setApptTasks(prev => prev.map(t => t.id === taskId ? { ...t, photo_urls: newUrls } : t));
   };
 
-  const waHref = task.phone ? buildWaHref(task, appointmentDate ?? new Date(), businessPhone) : "";
+  const taskLabels = isNewTask
+    ? pendingTasks
+    : apptTasks.map(t => t.description);
+  const waHref = buildWaHref(task, appointmentDate ?? new Date(), taskLabels);
 
   return (
     <Dialog open={isOpen} onClose={onClose} className="relative z-[100]">
