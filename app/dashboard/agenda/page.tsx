@@ -160,7 +160,7 @@ const Agenda = () => {
     const startOfDay = new Date(selectedDate); startOfDay.setHours(0, 0, 0, 0);
     const endOfDay = new Date(selectedDate); endOfDay.setHours(23, 59, 59, 999);
     const { data, error } = await supabase.from("appointments")
-      .select("*, appointment_tasks(id,description,completed)")
+      .select("*, appointment_tasks!appointment_id(id,description,completed)")
       .gte("appointment_date", startOfDay.toISOString())
       .lt("appointment_date", endOfDay.toISOString())
       .order("start_time", { ascending: true });
