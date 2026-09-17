@@ -25,9 +25,6 @@ for (let h = 8; h <= 17; h++) {
 }
 HOURS.push("17:30");
 
-const PEOPLE = ["Botaguas", "Andrey", "Dylan A", "Bicri", "Julian"];
-const GRID_COLS = `72px repeat(${PEOPLE.length}, minmax(120px, 1fr))`;
-
 function fmtTime(t: string): string {
   const [h, m] = t.slice(0, 5).split(":");
   return `${parseInt(h)}:${m}`;
@@ -63,11 +60,14 @@ function getLastHourIndex(endTime: string): number {
 
 interface DecodedToken { email: string; }
 
+interface StaffMember { id: string; name: string; }
+
 interface Appointment {
   id: string | number;
   start_time: string;
   end_time: string;
   assigned_person: string;
+  staff_id?: string;
   name: string;
   phone: string;
   description: string;
@@ -107,11 +107,11 @@ const Agenda = () => {
   const [errorMessage, setErrorMessage] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentTask, setCurrentTask] = useState<{
-    id?: string | number; start_time: string; end_time: string; assigned_person: string; name: string;
+    id?: string | number; start_time: string; end_time: string; assigned_person: string; staff_id?: string; name: string;
     phone: string; description: string; vehicle: string;
     status: "pending" | "active" | "done"; appointment_date: string;
     customer_id?: string; vehicle_id?: string;
-  }>({ start_time: "", end_time: "", assigned_person: "", name: "", phone: "", description: "", vehicle: "", status: "pending", appointment_date: new Date().toISOString() });
+  }>({ start_time: "", end_time: "", assigned_person: "", staff_id: undefined, name: "", phone: "", description: "", vehicle: "", status: "pending", appointment_date: new Date().toISOString() });
   const [notes, setNotes] = useState<Appointment[]>([]);
   const [isNewTask, setIsNewTask] = useState(true);
   const [user, setUser] = useState<string | null>(null);
@@ -122,6 +122,9 @@ const Agenda = () => {
   const fetchNotesRef = useRef<(() => Promise<void>) | null>(null);
   const userRef = useRef<string | null>(null);
   const supabase = useMemo(() => createClient(), []);
+  const [staff, setStaff] = useState<StaffMember[]>([]);
+  const PEOPLE = useMemo(() => staff.map(s => s.name), [staff]);
+  const GRID_COLS = useMemo(() => `72px repeat(${PEOPLE.length}, minmax(120px, 1fr))`, [PEOPLE]);
 
   const [userEmail, setUserEmail] = useState<string | undefined>(undefined);
 
@@ -204,6 +207,8 @@ const Agenda = () => {
   useEffect(() => {
     fetchWaitingList();
     getAppSetting("business_phone").then(v => { if (v) { setBusinessPhone(v); setSettingsPhone(v); } });
+    supabase.from("staff").select("id, name").eq("active", true).order("created_at", { ascending: true })
+      .then(({ data }) => { if (data) setStaff(data as StaffMember[]); });
   }, []);
 
   useEffect(() => {
@@ -291,7 +296,7 @@ const Agenda = () => {
     }
     setIsModalOpen(false);
     await fetchNotesForSelectedDate();
-    setCurrentTask({ start_time: "", end_time: "", assigned_person: "", name: "", phone: "", description: "", vehicle: "", status: "pending", appointment_date: new Date().toISOString(), customer_id: undefined, vehicle_id: undefined });
+    setCurrentTask({ start_time: "", end_time: "", assigned_person: "", staff_id: undefined, name: "", phone: "", description: "", vehicle: "", status: "pending", appointment_date: new Date().toISOString(), customer_id: undefined, vehicle_id: undefined });
   };
 
   const handleDeleteNote = async (id: number | string) => {
@@ -319,10 +324,12 @@ const Agenda = () => {
     } else {
       setPendingTasksForModal([]);
     }
+    const staffMember = staff.find(s => s.name === person);
     setCurrentTask({
       ...currentTask,
       start_time: hour,
       assigned_person: person,
+      staff_id: staffMember?.id,
       name: prefill?.name ?? "",
       phone: prefill?.phone ?? "",
       description: prefill?.description ?? "",

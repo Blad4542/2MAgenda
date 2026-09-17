@@ -14,6 +14,7 @@ interface TaskFormState {
   start_time: string;
   end_time: string;
   assigned_person: string;
+  staff_id?: string;
   name: string;
   phone: string;
   description: string;

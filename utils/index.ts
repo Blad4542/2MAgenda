@@ -5,6 +5,7 @@ interface Appointment {
   start_time: string;
   end_time: string;
   assigned_person: string;
+  staff_id?: string;
   name: string;
   phone: string;
   description: string;
@@ -57,6 +58,7 @@ export const updateNoteInSupabase = async (
       start_time: task.start_time,
       end_time: task.end_time,
       assigned_person: task.assigned_person,
+      staff_id: task.staff_id ?? null,
       appointment_date: task.appointment_date,
       customer_id: task.customer_id,
       vehicle_id: task.vehicle_id,
