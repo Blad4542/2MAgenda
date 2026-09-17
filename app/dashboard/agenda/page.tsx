@@ -28,6 +28,11 @@ HOURS.push("17:30");
 const PEOPLE = ["Botaguas", "Andrey", "Dylan A", "Bicri", "Julian"];
 const GRID_COLS = `72px repeat(${PEOPLE.length}, minmax(120px, 1fr))`;
 
+function fmtTime(t: string): string {
+  const [h, m] = t.slice(0, 5).split(":");
+  return `${parseInt(h)}:${m}`;
+}
+
 function isTaskActiveDuringHour(start: string, end: string, hour: string): boolean {
   const [sh, sm] = start.split(":").map(Number);
   const [eh, em] = end.split(":").map(Number);
@@ -71,6 +76,7 @@ interface Appointment {
   appointment_date: string;
   customer_id?: string;
   vehicle_id?: string;
+  appointment_tasks?: { id: string; description: string; completed: boolean }[];
 }
 
 interface WaitingEntry {
@@ -139,7 +145,8 @@ const Agenda = () => {
   const fetchNotesForSelectedDate = async () => {
     const startOfDay = new Date(selectedDate); startOfDay.setHours(0, 0, 0, 0);
     const endOfDay = new Date(selectedDate); endOfDay.setHours(23, 59, 59, 999);
-    const { data, error } = await supabase.from("appointments").select("*")
+    const { data, error } = await supabase.from("appointments")
+      .select("*, appointment_tasks!fk_appointment_tasks_appointment(id,description,completed)")
       .gte("appointment_date", startOfDay.toISOString())
       .lt("appointment_date", endOfDay.toISOString())
       .order("start_time", { ascending: true });
@@ -242,7 +249,7 @@ const Agenda = () => {
     return Array.from({ length: 7 }, (_, i) => addDays(mon, i));
   }, [selectedDate]);
 
-  const handleSaveNote = async () => {
+  const handleSaveNote = async (pendingTasks?: string[]) => {
     if (!currentTask.name.trim() || !currentTask.phone.trim() || !currentTask.vehicle.trim()) { setErrorMessage("Nombre, teléfono y vehículo son obligatorios."); return; }
     if (currentTask.phone.replace(/\D/g, "").length < 8) { setErrorMessage("El teléfono debe tener al menos 8 dígitos."); return; }
     setErrorMessage("");
@@ -260,6 +267,11 @@ const Agenda = () => {
       if (result.error) { setErrorMessage(`Error: ${result.error.message}`); return; }
       const insertedId = String(result.data?.[0]?.id ?? "");
       await logAction(supabase, { table_name: "appointments", record_id: insertedId, action: "create", description: desc, user_email: userEmail });
+      if (pendingTasks && pendingTasks.length > 0 && insertedId) {
+        await supabase.from("appointment_tasks").insert(
+          pendingTasks.map(t => ({ appointment_id: Number(insertedId), description: t }))
+        );
+      }
     } else {
       const result = await updateNoteInSupabase({ ...currentTask, appointment_date: selectedDate.toISOString(), customer_id: customerId, vehicle_id: vehicleId });
       if (result.error) { setErrorMessage(`Error: ${result.error.message}`); return; }
@@ -573,12 +585,25 @@ const Agenda = () => {
                         }}
                       >
                         {isFirstHour && (
-                          <div className="px-2 pt-1.5 pb-1.5 flex flex-col gap-1 min-w-0">
-                            <p className="text-xs font-semibold text-gray-900 truncate leading-tight">{task.name || "—"}</p>
-                            <div className="flex items-center gap-1 flex-wrap">
-                              <span className="text-[10px] font-mono text-gray-500 whitespace-nowrap">{task.start_time.slice(0,5)}–{task.end_time.slice(0,5)}</span>
-                              {task.vehicle && <span className="text-[10px] text-gray-400 truncate">· {task.vehicle}</span>}
+                          <div className="px-2 pt-2 pb-2 flex flex-col gap-1 min-w-0">
+                            <p className="text-xs font-bold text-gray-900 truncate leading-tight">{task.name || "—"}</p>
+                            <div className="flex items-center gap-1 min-w-0">
+                              <span className="text-[11px] font-mono text-gray-500 whitespace-nowrap">{fmtTime(task.start_time)}–{fmtTime(task.end_time)}</span>
+                              {task.vehicle && <span className="text-[11px] text-gray-400 truncate">· {task.vehicle}</span>}
                             </div>
+                            {task.appointment_tasks && task.appointment_tasks.length > 0 && (
+                              <ul className="space-y-0.5">
+                                {task.appointment_tasks.map(t => (
+                                  <li key={t.id} className="flex items-start gap-1">
+                                    <span className={`mt-px shrink-0 w-2.5 h-2.5 rounded-sm border flex items-center justify-center ${t.completed ? "bg-emerald-400 border-emerald-400" : "border-gray-300 bg-white"}`}>
+                                      {t.completed && <svg viewBox="0 0 8 8" width="6" height="6" fill="white"><path d="M1 4l2 2 4-4"/></svg>}
+                                    </span>
+                                    <span className={`text-[11px] leading-tight truncate ${t.completed ? "line-through text-gray-300" : "text-gray-600"}`}>{t.description}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                            {task.description && <p className="text-[11px] text-gray-400 truncate leading-tight italic">{task.description}</p>}
                           </div>
                         )}
                         {reservingUser && <div className="px-2 py-1.5 text-[11px] text-violet-500 font-medium truncate">Agendando… ({reservingUser})</div>}

@@ -44,7 +44,7 @@ const TaskModal = ({
   isOpen, onClose, onSave, onDelete, task, setTask, isNewTask, errorMessage,
   businessPhone = "", appointmentDate, supabase,
 }: {
-  isOpen: boolean; onClose: () => void; onSave: () => void;
+  isOpen: boolean; onClose: () => void; onSave: (pendingTasks?: string[]) => void;
   onDelete: (id: number | string) => void; task: TaskFormState; setTask: (t: TaskFormState) => void;
   isNewTask: boolean; errorMessage?: string;
   businessPhone?: string; appointmentDate?: Date;
@@ -58,6 +58,7 @@ const TaskModal = ({
   const [apptTasks, setApptTasks] = useState<AppointmentTask[]>([]);
   const [tasksLoading, setTasksLoading] = useState(false);
   const [newTaskText, setNewTaskText] = useState("");
+  const [pendingTasks, setPendingTasks] = useState<string[]>([]);
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   const onChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
@@ -114,7 +115,8 @@ const TaskModal = ({
       .select("id, description, completed, photo_url")
       .eq("appointment_id", task.id)
       .order("created_at", { ascending: true })
-      .then(({ data }) => {
+      .then(({ data, error }) => {
+        if (error) console.error("appointment_tasks query failed:", error.message);
         setApptTasks((data ?? []) as AppointmentTask[]);
         setTasksLoading(false);
       });
@@ -247,6 +249,115 @@ const TaskModal = ({
                 />
               )}
             </div>
+            {/* Task checklist */}
+            <div className="mb-3 border-t border-gray-100 pt-3">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 flex-1">Tareas</span>
+                <input
+                  type="text"
+                  value={newTaskText}
+                  onChange={e => setNewTaskText(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key !== "Enter") return;
+                    if (isNewTask) {
+                      const text = newTaskText.trim();
+                      if (text) { setPendingTasks(prev => [...prev, text]); setNewTaskText(""); }
+                    } else {
+                      addTask();
+                    }
+                  }}
+                  placeholder="Nueva tarea…"
+                  className="flex-1 text-sm border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-[#07C3F8]"
+                />
+                <button
+                  onClick={() => {
+                    if (isNewTask) {
+                      const text = newTaskText.trim();
+                      if (text) { setPendingTasks(prev => [...prev, text]); setNewTaskText(""); }
+                    } else {
+                      addTask();
+                    }
+                  }}
+                  disabled={!newTaskText.trim()}
+                  className="p-1.5 rounded-lg bg-[#07C3F8] text-white hover:bg-[#06aad9] disabled:opacity-40 transition-colors"
+                  aria-label="Agregar tarea"
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
+              </div>
+
+              {isNewTask ? (
+                pendingTasks.length === 0 ? (
+                  <p className="text-xs text-gray-400 text-center py-2">Sin tareas aún</p>
+                ) : (
+                  <ul className="space-y-2">
+                    {pendingTasks.map((text, idx) => (
+                      <li key={idx} className="flex items-center gap-2">
+                        <span className="flex-1 text-sm text-gray-700">{text}</span>
+                        <button
+                          onClick={() => setPendingTasks(prev => prev.filter((_, i) => i !== idx))}
+                          className="shrink-0 p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors"
+                          aria-label="Eliminar tarea"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )
+              ) : tasksLoading ? (
+                <div className="flex justify-center py-3">
+                  <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+                </div>
+              ) : apptTasks.length === 0 ? (
+                <p className="text-xs text-gray-400 text-center py-2">Sin tareas aún</p>
+              ) : (
+                <ul className="space-y-2">
+                  {apptTasks.map(t => (
+                    <li key={t.id} className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={t.completed}
+                        onChange={e => toggleTask(t.id, e.target.checked)}
+                        className="w-4 h-4 rounded accent-[#07C3F8] cursor-pointer shrink-0"
+                      />
+                      <span className={`flex-1 text-sm truncate ${t.completed ? "line-through text-gray-400" : "text-gray-700"}`}>
+                        {t.description}
+                      </span>
+                      {t.uploading ? (
+                        <Loader2 className="w-4 h-4 animate-spin text-gray-400 shrink-0" />
+                      ) : t.photo_url ? (
+                        <a href={t.photo_url} target="_blank" rel="noopener noreferrer" className="shrink-0">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={t.photo_url} alt="evidencia" className="w-12 h-12 rounded-lg object-cover border border-gray-200 hover:opacity-80 transition-opacity" />
+                        </a>
+                      ) : (
+                        <button
+                          onClick={() => fileInputRefs.current[t.id]?.click()}
+                          className="shrink-0 p-1.5 rounded-lg text-gray-400 hover:text-[#07C3F8] hover:bg-gray-100 transition-colors"
+                          aria-label="Subir foto"
+                        >
+                          <Camera className="w-4 h-4" />
+                        </button>
+                      )}
+                      <input
+                        type="file" accept="image/*" capture="environment" className="hidden"
+                        ref={el => { fileInputRefs.current[t.id] = el; }}
+                        onChange={e => { const file = e.target.files?.[0]; if (file) uploadPhoto(t.id, file); e.target.value = ""; }}
+                      />
+                      <button
+                        onClick={() => deleteTask(t.id)}
+                        className="shrink-0 p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors"
+                        aria-label="Eliminar tarea"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
             <div className="grid grid-cols-2 gap-2 mb-3">
               <div>
                 <label htmlFor="task-start" className={lbl}>Hora inicio</label>
@@ -275,102 +386,6 @@ const TaskModal = ({
                 {errorMessage}
               </p>
             )}
-
-            {/* Task checklist */}
-            <div className="mt-4 border-t border-gray-100 pt-4">
-              {isNewTask ? (
-                <p className="text-xs text-gray-400 text-center py-2">Guarda la cita para agregar tareas.</p>
-              ) : (
-                <>
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 flex-1">Tareas</span>
-                  <input
-                    type="text"
-                    value={newTaskText}
-                    onChange={e => setNewTaskText(e.target.value)}
-                    onKeyDown={e => e.key === "Enter" && addTask()}
-                    placeholder="Nueva tarea…"
-                    className="flex-1 text-sm border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-[#07C3F8]"
-                  />
-                  <button
-                    onClick={addTask}
-                    disabled={!newTaskText.trim()}
-                    className="p-1.5 rounded-lg bg-[#07C3F8] text-white hover:bg-[#06aad9] disabled:opacity-40 transition-colors"
-                    aria-label="Agregar tarea"
-                  >
-                    <Plus className="w-4 h-4" />
-                  </button>
-                </div>
-
-                {tasksLoading ? (
-                  <div className="flex justify-center py-3">
-                    <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
-                  </div>
-                ) : apptTasks.length === 0 ? (
-                  <p className="text-xs text-gray-400 text-center py-2">Sin tareas aún</p>
-                ) : (
-                  <ul className="space-y-2">
-                    {apptTasks.map(t => (
-                      <li key={t.id} className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={t.completed}
-                          onChange={e => toggleTask(t.id, e.target.checked)}
-                          className="w-4 h-4 rounded accent-[#07C3F8] cursor-pointer shrink-0"
-                        />
-                        <span className={`flex-1 text-sm truncate ${t.completed ? "line-through text-gray-400" : "text-gray-700"}`}>
-                          {t.description}
-                        </span>
-
-                        {/* Photo area */}
-                        {t.uploading ? (
-                          <Loader2 className="w-4 h-4 animate-spin text-gray-400 shrink-0" />
-                        ) : t.photo_url ? (
-                          <a href={t.photo_url} target="_blank" rel="noopener noreferrer" className="shrink-0">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                              src={t.photo_url}
-                              alt="evidencia"
-                              className="w-12 h-12 rounded-lg object-cover border border-gray-200 hover:opacity-80 transition-opacity"
-                            />
-                          </a>
-                        ) : (
-                          <button
-                            onClick={() => fileInputRefs.current[t.id]?.click()}
-                            className="shrink-0 p-1.5 rounded-lg text-gray-400 hover:text-[#07C3F8] hover:bg-gray-100 transition-colors"
-                            aria-label="Subir foto"
-                          >
-                            <Camera className="w-4 h-4" />
-                          </button>
-                        )}
-
-                        <input
-                          type="file"
-                          accept="image/*"
-                          capture="environment"
-                          className="hidden"
-                          ref={el => { fileInputRefs.current[t.id] = el; }}
-                          onChange={e => {
-                            const file = e.target.files?.[0];
-                            if (file) uploadPhoto(t.id, file);
-                            e.target.value = "";
-                          }}
-                        />
-
-                        <button
-                          onClick={() => deleteTask(t.id)}
-                          className="shrink-0 p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors"
-                          aria-label="Eliminar tarea"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                </>
-              )}
-            </div>
           </div>
 
           {/* Footer */}
@@ -380,7 +395,7 @@ const TaskModal = ({
                 Eliminar
               </button>
             )}
-            <button onClick={onSave} className="px-4 py-2 text-sm font-semibold rounded-xl bg-[#07C3F8] hover:bg-[#06aad9] text-white transition-colors">
+            <button onClick={() => onSave(isNewTask ? pendingTasks : undefined)} className="px-4 py-2 text-sm font-semibold rounded-xl bg-[#07C3F8] hover:bg-[#06aad9] text-white transition-colors">
               Guardar
             </button>
           </div>
