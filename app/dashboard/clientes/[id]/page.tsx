@@ -31,7 +31,10 @@ interface Appointment {
   assigned_person: string;
   vehicle: string;
   description: string;
-  status: "pending" | "confirmed" | "active" | "done" | "no_show" | "delivered" | "cancelled";
+  status: "pending" | "confirmed" | "active" | "done" | "delivered" | "cancelled";
+  placa?: string;
+  abono?: number;
+  cancel_reason?: string;
 }
 
 interface ApptTask {
@@ -48,6 +51,13 @@ interface Order {
   product_description?: string;
   total_amount: number;
   remaining: number;
+}
+
+function fmtTime(t: string): string {
+  const [h, m] = t.slice(0, 5).split(":").map(Number);
+  const suffix = h >= 12 ? "pm" : "am";
+  const h12 = h % 12 || 12;
+  return `${h12}:${String(m).padStart(2, "0")}${suffix}`;
 }
 
 const statusStyle: Record<string, string> = {
@@ -335,7 +345,8 @@ export default function CustomerProfilePage() {
                             <Car size={10} aria-hidden="true" /> {a.vehicle}
                           </span>
                         )}
-                        <span className="text-xs text-gray-400 font-mono">{a.start_time?.slice(0,5)}–{a.end_time?.slice(0,5)}</span>
+                        <span className="text-xs text-gray-400 font-mono">{fmtTime(a.start_time)}–{fmtTime(a.end_time)}</span>
+                        {a.placa && <span className="text-xs text-gray-400 font-mono">{a.placa}</span>}
                       </div>
                       {a.description && <p className="text-xs text-gray-500 mt-0.5 truncate">{a.description}</p>}
                     </div>
@@ -350,7 +361,12 @@ export default function CustomerProfilePage() {
                   {isExpanded && (
                     <div className="px-5 pb-4 bg-gray-50 border-t border-gray-100">
                       {tasks.length === 0 ? (
-                        <p className="text-xs text-gray-400 py-3 text-center">Sin tareas registradas</p>
+                        <div className="py-3 text-center space-y-1">
+                          <p className="text-xs text-gray-400">Sin tareas registradas</p>
+                          {a.cancel_reason && (
+                            <p className="text-xs text-red-500">Razón de cancelación: {a.cancel_reason}</p>
+                          )}
+                        </div>
                       ) : (
                         <>
                           <ul className="space-y-2 pt-3">
@@ -365,8 +381,19 @@ export default function CustomerProfilePage() {
                             ))}
                           </ul>
                           {total > 0 && (
-                            <p className="text-right text-sm font-bold text-gray-800 mt-3 pt-2 border-t border-gray-200">
-                              Total: ₡{total.toLocaleString("es-CR")}
+                            <div className="mt-3 pt-2 border-t border-gray-200 space-y-0.5 text-right">
+                              <p className="text-sm font-bold text-gray-800">Total: ₡{total.toLocaleString("es-CR")}</p>
+                              {(a.abono ?? 0) > 0 && (
+                                <>
+                                  <p className="text-xs text-gray-500">Abono: ₡{(a.abono!).toLocaleString("es-CR")}</p>
+                                  <p className="text-xs font-semibold text-amber-600">Saldo: ₡{(total - a.abono!).toLocaleString("es-CR")}</p>
+                                </>
+                              )}
+                            </div>
+                          )}
+                          {a.cancel_reason && (
+                            <p className="text-xs text-red-500 mt-2 pt-2 border-t border-gray-100">
+                              Razón de cancelación: {a.cancel_reason}
                             </p>
                           )}
                           {tasks.some(t => t.photo_urls && t.photo_urls.length > 0) && (

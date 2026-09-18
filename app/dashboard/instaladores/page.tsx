@@ -394,7 +394,7 @@ export default function InstaladoresPage() {
     setLoading(true);
     const { data } = await supabase
       .from("staff")
-      .select("id,name,phone,specialty,photo_url,active")
+      .select("id,name,phone,specialty,photo_url,active,lunch_start,lunch_end")
       .order("name");
     setStaff((data as StaffRecord[]) ?? []);
     setLoading(false);
