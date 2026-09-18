@@ -89,6 +89,7 @@ const TaskModal = ({
   const [phoneError, setPhoneError] = useState("");
   const [cancelMode, setCancelMode] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
 
   // Task checklist state
   const [apptTasks, setApptTasks] = useState<AppointmentTask[]>([]);
@@ -98,7 +99,7 @@ const TaskModal = ({
   const [pendingTasks, setPendingTasks] = useState<PendingTask[]>(initialPendingTasks ?? []);
 
   useEffect(() => {
-    if (isOpen) { setCancelMode(false); setCancelReason(""); }
+    if (isOpen) { setCancelMode(false); setCancelReason(""); setDeleteConfirm(false); }
     if (isOpen && isNewTask) { setPendingTasks(initialPendingTasks ?? []); setNewTaskText(""); setNewTaskPrice(""); }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, isNewTask]);
@@ -611,9 +612,9 @@ const TaskModal = ({
 
           {/* Footer */}
           <div className="flex justify-end gap-2 px-5 py-4 border-t border-gray-100 bg-gray-50">
-            {!isNewTask && !cancelMode && (
+            {!isNewTask && !cancelMode && !deleteConfirm && (
               <>
-                <button onClick={() => task.id != null && onDelete(task.id)} className="px-4 py-2 text-sm font-medium rounded-xl bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 transition-colors">
+                <button onClick={() => setDeleteConfirm(true)} className="px-4 py-2 text-sm font-medium rounded-xl bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 transition-colors">
                   Eliminar
                 </button>
                 {onMoveToWaiting && (
@@ -628,6 +629,17 @@ const TaskModal = ({
                 )}
               </>
             )}
+            {deleteConfirm && (
+              <>
+                <span className="text-sm text-gray-600 mr-auto">¿Eliminar esta cita?</span>
+                <button onClick={() => setDeleteConfirm(false)} className="px-4 py-2 text-sm font-medium rounded-xl bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200 transition-colors">
+                  Volver
+                </button>
+                <button onClick={() => task.id != null && onDelete(task.id)} className="px-4 py-2 text-sm font-semibold rounded-xl bg-red-500 hover:bg-red-600 text-white transition-colors">
+                  Sí, eliminar
+                </button>
+              </>
+            )}
             {cancelMode && (
               <>
                 <button onClick={() => { setCancelMode(false); setCancelReason(""); }} className="px-4 py-2 text-sm font-medium rounded-xl bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200 transition-colors">
@@ -638,7 +650,7 @@ const TaskModal = ({
                 </button>
               </>
             )}
-            {!cancelMode && (
+            {!cancelMode && !deleteConfirm && (
               <button onClick={() => onSave(isNewTask ? pendingTasks : undefined)} className="px-4 py-2 text-sm font-semibold rounded-xl bg-[#07C3F8] hover:bg-[#06aad9] text-white transition-colors">
                 Guardar
               </button>

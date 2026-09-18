@@ -32,9 +32,14 @@ function fmtTime(t: string): string {
   return `${h12}:${String(m).padStart(2, "0")}${suffix}`;
 }
 
+const toMin = (t: string) => { const [h, m] = t.slice(0, 5).split(":").map(Number); return h * 60 + m; };
+
 function timesOverlap(s1: string, e1: string, s2: string, e2: string): boolean {
-  const toMin = (t: string) => { const [h, m] = t.slice(0, 5).split(":").map(Number); return h * 60 + m; };
   return toMin(s1) < toMin(e2) && toMin(e1) > toMin(s2);
+}
+
+function isSaturdayAfternoon(date: Date, hour: string): boolean {
+  return date.getDay() === 6 && toMin(hour) >= 720;
 }
 
 function isTaskActiveDuringHour(start: string, end: string, hour: string): boolean {
@@ -164,6 +169,7 @@ const Agenda = () => {
   const [holidays, setHolidays] = useState<{ date: string; name: string }[]>([]);
 
   const fetchNotesForSelectedDate = async () => {
+    setIsLoading(true);
     const startOfDay = new Date(selectedDate); startOfDay.setHours(0, 0, 0, 0);
     const endOfDay = new Date(selectedDate); endOfDay.setHours(23, 59, 59, 999);
     const { data, error } = await supabase.from("appointments")
@@ -319,6 +325,11 @@ const Agenda = () => {
     if (!currentTask.name.trim() || !currentTask.phone.trim() || (!currentTask.vehicle.trim() && !currentTask.vehicle_id)) { setErrorMessage("Nombre, teléfono y vehículo son obligatorios."); return; }
     if (currentTask.phone.replace(/\D/g, "").length < 8) { setErrorMessage("El teléfono debe tener al menos 8 dígitos."); return; }
     if (isNewTask && (!pendingTasks || pendingTasks.length === 0)) { setErrorMessage("Agrega al menos una tarea."); return; }
+    const apptDate = isNewTask ? selectedDate : new Date(currentTask.appointment_date);
+    if (currentTask.start_time && isSaturdayAfternoon(apptDate, currentTask.start_time)) {
+      setErrorMessage("Los sábados cerramos a las 12:00 pm. No se pueden agendar citas después del mediodía.");
+      return;
+    }
     setErrorMessage("");
     // Overlap check
     if (currentTask.start_time && currentTask.end_time && currentTask.assigned_person) {
@@ -425,6 +436,7 @@ const Agenda = () => {
 
   const handleNewTaskClick = async (hour: string, person: string) => {
     if (todayHoliday) { setErrorMessage(`Día feriado: ${todayHoliday.name}. No se pueden agendar citas.`); return; }
+    if (isSaturdayAfternoon(selectedDate, hour)) { setErrorMessage("Los sábados cerramos a las 12:00 pm. No se pueden agendar citas después del mediodía."); return; }
     if (user && channelRef.current) {
       const slot = `${person}-${hour}-${selectedDate.toISOString().split("T")[0]}`;
       currentSlotRef.current = slot;
@@ -491,32 +503,15 @@ const Agenda = () => {
   const nextDay = () => setSelectedDate((d) => { const n = new Date(d); n.setDate(n.getDate() + 1); return n; });
 
   if (isLoading) return (
-    <div className="flex flex-col h-full overflow-hidden animate-pulse">
-      <div className="flex items-center justify-between px-5 py-3 bg-white border-b border-gray-200 shrink-0">
-        <div className="h-5 w-56 bg-gray-200 rounded-lg" />
-        <div className="flex items-center gap-1.5">
-          <div className="w-7 h-7 bg-gray-100 rounded-lg" /><div className="w-14 h-7 bg-gray-100 rounded-lg" /><div className="w-7 h-7 bg-gray-100 rounded-lg" />
+    <div className="flex flex-1 flex-col items-center justify-center gap-4 h-full bg-white">
+      <div className="relative flex items-center justify-center w-16 h-16">
+        <div className="absolute w-16 h-16 rounded-full border-4 border-[#07C3F8]/20" />
+        <div className="absolute w-16 h-16 rounded-full border-4 border-transparent border-t-[#07C3F8] animate-spin" />
+        <div className="w-6 h-6 rounded-full bg-[#07C3F8]/10 flex items-center justify-center">
+          <div className="w-2.5 h-2.5 rounded-full bg-[#07C3F8]" />
         </div>
       </div>
-      <div className="flex flex-1 overflow-hidden">
-        <div className="hidden lg:flex flex-col items-center p-4 bg-gray-50 border-r border-gray-200 shrink-0">
-          <div className="w-[270px] h-[280px] bg-gray-200 rounded-xl" />
-        </div>
-        <div className="flex-1 overflow-auto p-4">
-          <div className="min-w-max rounded-xl border border-gray-200 overflow-hidden shadow-sm">
-            <div className="grid bg-gray-50 border-b border-gray-200" style={{ gridTemplateColumns: GRID_COLS }}>
-              <div className="py-3 px-2 flex justify-center"><div className="h-3 w-8 bg-gray-200 rounded" /></div>
-              {PEOPLE.map((_, i) => <div key={i} className="py-3 px-2 flex justify-center border-l border-gray-200"><div className="h-3 w-16 bg-gray-200 rounded" /></div>)}
-            </div>
-            {[...Array(12)].map((_, r) => (
-              <div key={r} className={`grid border-b border-gray-100 ${r % 2 ? "bg-white" : "bg-gray-50/30"}`} style={{ gridTemplateColumns: GRID_COLS }}>
-                <div className="py-3 px-2 flex justify-center"><div className="h-3 w-10 bg-gray-100 rounded" /></div>
-                {PEOPLE.map((_, c) => <div key={c} className="border-l border-gray-100" style={{ minHeight: "3.25rem" }} />)}
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
+      <p className="text-sm text-gray-400 font-medium">Cargando agenda…</p>
     </div>
   );
 
@@ -584,7 +579,6 @@ const Agenda = () => {
               { bg: "bg-amber-200",   label: "En proceso",  desc: "Trabajo iniciado" },
               { bg: "bg-emerald-200", label: "Completada",  desc: "Trabajo finalizado" },
               { bg: "bg-rose-200",    label: "Entregado",   desc: "Vehículo entregado al cliente" },
-              { bg: "bg-red-200",     label: "Cancelada",   desc: "Cita cancelada" },
               { bg: "bg-violet-200",  label: "Reservando",  desc: "Otro usuario agendando" },
             ].map(({ bg, label, desc }) => (
               <div key={label} className="flex items-center gap-2">
@@ -699,9 +693,15 @@ const Agenda = () => {
               </div>
 
               {/* Hour rows */}
-              {HOURS.map((hour, hourIndex) => (
-                <div key={hour} className={`grid border-b border-gray-100 last:border-b-0 ${hourIndex % 2 ? "bg-white" : "bg-gray-50/30"}`} style={{ gridTemplateColumns: GRID_COLS }}>
-                  <div className="text-center text-xs py-3 border-r border-gray-200 sticky left-0 z-[40] bg-inherit text-gray-400 font-mono">{fmtTime(hour)}</div>
+              {HOURS.map((hour, hourIndex) => {
+                if (selectedDate.getDay() === 6 && toMin(hour) > 720) return null;
+                const isSatNoon = selectedDate.getDay() === 6 && hour === "12:00";
+                return (
+                <div key={hour} className={`grid last:border-b-0 ${isSatNoon ? "border-t-2 border-t-gray-400 bg-gray-100" : `border-b border-gray-100 ${hourIndex % 2 ? "bg-white" : "bg-gray-50/30"}`}`} style={{ gridTemplateColumns: GRID_COLS }}>
+                  <div className="text-center text-xs py-3 border-r border-gray-200 sticky left-0 z-[40] bg-inherit font-mono flex flex-col items-center justify-center gap-0.5">
+                    <span className={isSatNoon ? "text-gray-600 font-semibold" : "text-gray-400"}>{fmtTime(hour)}</span>
+                    {isSatNoon && <span className="text-[9px] text-gray-400 uppercase tracking-wide">cierre</span>}
+                  </div>
                   {PEOPLE.map((person) => {
                     const task = notesIndex.get(`${person}-${hour}`);
                     const isFirstHour = task && getFirstHourIndex(task.start_time) === hourIndex;
@@ -711,7 +711,7 @@ const Agenda = () => {
                     const reservingUser = !task && reservingSlots[slotKey] && reservingSlots[slotKey] !== user ? reservingSlots[slotKey] : null;
                     const sm = staffMap.get(person);
                     const nextHalf = HOURS[hourIndex + 1] ?? "24:00";
-                    const isLunch = !!sm?.lunch_start && !!sm?.lunch_end
+                    const isLunch = !isSatNoon && !!sm?.lunch_start && !!sm?.lunch_end
                       ? timesOverlap(hour, nextHalf, sm.lunch_start, sm.lunch_end)
                       : false;
 
@@ -746,6 +746,7 @@ const Agenda = () => {
                       : status === "delivered" ? "bg-rose-50 hover:bg-rose-100"
                       : status === "cancelled" ? "bg-red-50 hover:bg-red-100"
                       : isLunch ? ""
+                      : isSatNoon && !task ? "cursor-not-allowed"
                       : "hover:bg-[#07C3F8]/5";
 
                     return (
@@ -758,7 +759,7 @@ const Agenda = () => {
                         onDragOver={(e) => { if (dragging && person !== dragging.assigned_person) { e.preventDefault(); setDropTarget(person); } }}
                         onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDropTarget(null); }}
                         onDrop={(e) => { e.preventDefault(); handleDrop(person); }}
-                        onClick={() => !dragging && (task ? (setCurrentTask(task), setIsNewTask(false), setIsModalOpen(true)) : handleNewTaskClick(hour, person))}
+                        onClick={() => !dragging && !isSatNoon && (task ? (setCurrentTask(task), setIsNewTask(false), setIsModalOpen(true)) : handleNewTaskClick(hour, person))}
                         style={{
                           minHeight: "3.25rem",
                           borderBottom: isLastHour ? `2px solid ${accentColor}` : undefined,
@@ -847,7 +848,8 @@ const Agenda = () => {
                     );
                   })}
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
 
