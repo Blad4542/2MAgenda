@@ -375,7 +375,7 @@ const Agenda = () => {
     if (prefill) {
       pendingWaitingIdRef.current = prefill.id;
       setPendingFromWaiting(null);
-      setPendingTasksForModal(prefill.pending_tasks ?? []);
+      setPendingTasksForModal((prefill.pending_tasks ?? []).map(t => ({ text: t })));
     } else {
       setPendingTasksForModal([]);
     }
