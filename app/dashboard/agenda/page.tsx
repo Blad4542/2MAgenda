@@ -314,6 +314,24 @@ const Agenda = () => {
     if (currentTask.phone.replace(/\D/g, "").length < 8) { setErrorMessage("El teléfono debe tener al menos 8 dígitos."); return; }
     if (isNewTask && (!pendingTasks || pendingTasks.length === 0)) { setErrorMessage("Agrega al menos una tarea."); return; }
     setErrorMessage("");
+    // Overlap check
+    if (currentTask.start_time && currentTask.end_time && currentTask.assigned_person) {
+      const apptDate = isNewTask ? selectedDate : new Date(currentTask.appointment_date);
+      const dayStart = new Date(apptDate); dayStart.setHours(0, 0, 0, 0);
+      const dayEnd = new Date(apptDate); dayEnd.setHours(23, 59, 59, 999);
+      const { data: conflicts } = await supabase
+        .from("appointments")
+        .select("id, start_time, end_time")
+        .eq("assigned_person", currentTask.assigned_person)
+        .gte("appointment_date", dayStart.toISOString())
+        .lte("appointment_date", dayEnd.toISOString())
+        .neq("status", "cancelled");
+      const filtered = (conflicts ?? []).filter(a => isNewTask || a.id !== currentTask.id);
+      if (filtered.some(a => timesOverlap(currentTask.start_time, currentTask.end_time, a.start_time, a.end_time))) {
+        setErrorMessage(`${currentTask.assigned_person} ya tiene una cita en ese horario.`);
+        return;
+      }
+    }
     const desc = `Cita de ${currentTask.name} — ${currentTask.assigned_person} ${currentTask.start_time}`;
     let customerId = currentTask.customer_id;
     let vehicleId = currentTask.vehicle_id;
@@ -546,7 +564,7 @@ const Agenda = () => {
               { bg: "bg-indigo-200",  label: "Confirmada",  desc: "Cliente confirmó" },
               { bg: "bg-amber-200",   label: "En proceso",  desc: "Trabajo iniciado" },
               { bg: "bg-emerald-200", label: "Completada",  desc: "Trabajo finalizado" },
-              { bg: "bg-cyan-200",    label: "Entregado",   desc: "Vehículo entregado al cliente" },
+              { bg: "bg-orange-200",  label: "Entregado",   desc: "Vehículo entregado al cliente" },
               { bg: "bg-gray-300",    label: "No llegó",    desc: "Cliente no se presentó" },
               { bg: "bg-red-200",     label: "Cancelada",   desc: "Cita cancelada" },
               { bg: "bg-violet-200",  label: "Reservando",  desc: "Otro usuario agendando" },
@@ -677,10 +695,11 @@ const Agenda = () => {
                     const accentColor =
                       status === "pending"   ? "#38bdf8"
                       : status === "confirmed" ? "#818cf8"
-                      : status === "active"  ? "#fbbf24"
+                      : status === "active"    ? "#fbbf24"
                       : status === "done"      ? "#34d399"
-                      : status === "delivered" ? "#22d3ee"
-                      : status === "no_show"  ? "#9ca3af"
+                      : status === "delivered" ? "#f97316"
+                      : status === "no_show"   ? "#9ca3af"
+                      : status === "cancelled" ? "#ef4444"
                       : "transparent";
 
                     const isDropping = dragging && dropTarget === person && person !== dragging.assigned_person;
@@ -702,8 +721,9 @@ const Agenda = () => {
                       : status === "confirmed" ? "bg-indigo-50 hover:bg-indigo-100"
                       : status === "active"    ? "bg-amber-50 hover:bg-amber-100"
                       : status === "done"      ? "bg-emerald-50 hover:bg-emerald-100"
-                      : status === "delivered" ? "bg-cyan-50 hover:bg-cyan-100"
+                      : status === "delivered" ? "bg-orange-50 hover:bg-orange-100"
                       : status === "no_show"   ? "bg-gray-100 hover:bg-gray-200"
+                      : status === "cancelled" ? "bg-red-50 hover:bg-red-100"
                       : "hover:bg-[#07C3F8]/5";
 
                     return (
@@ -891,7 +911,7 @@ const Agenda = () => {
       </div>
 
       {isModalOpen && (
-        <TaskModal isOpen={isModalOpen} onClose={handleModalClose} onSave={handleSaveNote} task={currentTask} setTask={setCurrentTask} isNewTask={isNewTask} onDelete={handleDeleteNote} errorMessage={errorMessage} businessPhone={businessPhone} appointmentDate={selectedDate} supabase={supabase} initialPendingTasks={pendingTasksForModal} onMoveToWaiting={!isNewTask ? handleMoveToWaiting : undefined} />
+        <TaskModal isOpen={isModalOpen} onClose={handleModalClose} onSave={handleSaveNote} task={currentTask} setTask={setCurrentTask} isNewTask={isNewTask} onDelete={handleDeleteNote} errorMessage={errorMessage} businessPhone={businessPhone} appointmentDate={selectedDate} supabase={supabase} initialPendingTasks={pendingTasksForModal} onMoveToWaiting={!isNewTask ? handleMoveToWaiting : undefined} staffList={PEOPLE} />
       )}
 
       {/* Settings modal */}

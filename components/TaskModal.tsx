@@ -69,7 +69,7 @@ Quedo atenta a su confirmación`;
 
 const TaskModal = ({
   isOpen, onClose, onSave, onDelete, task, setTask, isNewTask, errorMessage,
-  businessPhone = "", appointmentDate, supabase, initialPendingTasks = [], onMoveToWaiting,
+  businessPhone = "", appointmentDate, supabase, initialPendingTasks = [], onMoveToWaiting, staffList = [],
 }: {
   isOpen: boolean; onClose: () => void; onSave: (pendingTasks?: PendingTask[]) => void;
   onDelete: (id: number | string) => void; task: TaskFormState; setTask: (t: TaskFormState) => void;
@@ -78,6 +78,7 @@ const TaskModal = ({
   supabase?: SupabaseClient;
   initialPendingTasks?: PendingTask[];
   onMoveToWaiting?: () => void;
+  staffList?: string[];
 }) => {
   const [customerVehicles, setCustomerVehicles] = useState<{ id: string; description: string }[]>([]);
   const [isNewVehicle, setIsNewVehicle] = useState(true);
@@ -467,20 +468,37 @@ const TaskModal = ({
             </div>
 
             {!isNewTask && (
-              <div className="mb-3">
-                <label htmlFor="task-date" className={lbl}>Fecha de la cita</label>
-                <input
-                  id="task-date"
-                  type="date"
-                  className={inp}
-                  value={task.appointment_date ? format(new Date(task.appointment_date), "yyyy-MM-dd") : ""}
-                  onChange={e => {
-                    if (!e.target.value) return;
-                    const d = new Date(e.target.value + "T12:00:00");
-                    setTask({ ...task, appointment_date: d.toISOString() });
-                  }}
-                />
-              </div>
+              <>
+                <div className="mb-3">
+                  <label htmlFor="task-date" className={lbl}>Fecha de la cita</label>
+                  <input
+                    id="task-date"
+                    type="date"
+                    className={inp}
+                    value={task.appointment_date ? format(new Date(task.appointment_date), "yyyy-MM-dd") : ""}
+                    onChange={e => {
+                      if (!e.target.value) return;
+                      const d = new Date(e.target.value + "T12:00:00");
+                      setTask({ ...task, appointment_date: d.toISOString() });
+                    }}
+                  />
+                </div>
+                {staffList.length > 0 && (
+                  <div className="mb-3">
+                    <label htmlFor="task-technician" className={lbl}>Técnico</label>
+                    <select
+                      id="task-technician"
+                      className={inp}
+                      value={task.assigned_person}
+                      onChange={e => setTask({ ...task, assigned_person: e.target.value })}
+                    >
+                      {staffList.map(name => (
+                        <option key={name} value={name}>{name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </>
             )}
             <div className="grid grid-cols-2 gap-2 mb-3">
               <div>
