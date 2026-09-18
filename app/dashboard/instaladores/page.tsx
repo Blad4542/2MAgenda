@@ -34,7 +34,6 @@ const STATUS_LABEL: Record<string, { label: string; color: string }> = {
   cancelled: { label: "Cancelada",   color: "bg-red-100 text-red-700" },
   delivered: { label: "Entregado",   color: "bg-teal-100 text-teal-700" },
   no_show:   { label: "No llegó",    color: "bg-gray-100 text-gray-500" },
-  cancelled: { label: "Cancelada",   color: "bg-red-100 text-red-500" },
 };
 
 const PAGE_SIZE = 10;

@@ -334,7 +334,7 @@ const Agenda = () => {
         );
       }
     } else {
-      const result = await updateNoteInSupabase({ ...currentTask, appointment_date: selectedDate.toISOString(), customer_id: customerId, vehicle_id: vehicleId });
+      const result = await updateNoteInSupabase({ ...currentTask, customer_id: customerId, vehicle_id: vehicleId });
       if (result.error) { setErrorMessage(`Error: ${result.error.message}`); return; }
       await logAction(supabase, { table_name: "appointments", record_id: String(currentTask.id ?? ""), action: "update", description: desc, user_email: userEmail });
     }

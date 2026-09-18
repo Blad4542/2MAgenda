@@ -465,6 +465,22 @@ const TaskModal = ({
               )}
             </div>
 
+            {!isNewTask && (
+              <div className="mb-3">
+                <label htmlFor="task-date" className={lbl}>Fecha de la cita</label>
+                <input
+                  id="task-date"
+                  type="date"
+                  className={inp}
+                  value={task.appointment_date ? format(new Date(task.appointment_date), "yyyy-MM-dd") : ""}
+                  onChange={e => {
+                    if (!e.target.value) return;
+                    const d = new Date(e.target.value + "T12:00:00");
+                    setTask({ ...task, appointment_date: d.toISOString() });
+                  }}
+                />
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-2 mb-3">
               <div>
                 <label htmlFor="task-start" className={lbl}>Hora inicio</label>
