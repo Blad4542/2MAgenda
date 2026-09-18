@@ -546,8 +546,9 @@ const Agenda = () => {
               { bg: "bg-indigo-200",  label: "Confirmada",  desc: "Cliente confirmó" },
               { bg: "bg-amber-200",   label: "En proceso",  desc: "Trabajo iniciado" },
               { bg: "bg-emerald-200", label: "Completada",  desc: "Trabajo finalizado" },
-              { bg: "bg-teal-200",    label: "Entregado",   desc: "Vehículo entregado al cliente" },
+              { bg: "bg-cyan-200",    label: "Entregado",   desc: "Vehículo entregado al cliente" },
               { bg: "bg-gray-300",    label: "No llegó",    desc: "Cliente no se presentó" },
+              { bg: "bg-red-200",     label: "Cancelada",   desc: "Cita cancelada" },
               { bg: "bg-violet-200",  label: "Reservando",  desc: "Otro usuario agendando" },
             ].map(({ bg, label, desc }) => (
               <div key={label} className="flex items-center gap-2">
@@ -678,7 +679,7 @@ const Agenda = () => {
                       : status === "confirmed" ? "#818cf8"
                       : status === "active"  ? "#fbbf24"
                       : status === "done"      ? "#34d399"
-                      : status === "delivered" ? "#2dd4bf"
+                      : status === "delivered" ? "#22d3ee"
                       : status === "no_show"  ? "#9ca3af"
                       : "transparent";
 
@@ -701,7 +702,7 @@ const Agenda = () => {
                       : status === "confirmed" ? "bg-indigo-50 hover:bg-indigo-100"
                       : status === "active"    ? "bg-amber-50 hover:bg-amber-100"
                       : status === "done"      ? "bg-emerald-50 hover:bg-emerald-100"
-                      : status === "delivered" ? "bg-teal-50 hover:bg-teal-100"
+                      : status === "delivered" ? "bg-cyan-50 hover:bg-cyan-100"
                       : status === "no_show"   ? "bg-gray-100 hover:bg-gray-200"
                       : "hover:bg-[#07C3F8]/5";
 
