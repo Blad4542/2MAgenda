@@ -69,7 +69,7 @@ Quedo atenta a su confirmación`;
 
 const TaskModal = ({
   isOpen, onClose, onSave, onDelete, task, setTask, isNewTask, errorMessage,
-  businessPhone = "", appointmentDate, supabase, initialPendingTasks = [],
+  businessPhone = "", appointmentDate, supabase, initialPendingTasks = [], onMoveToWaiting,
 }: {
   isOpen: boolean; onClose: () => void; onSave: (pendingTasks?: PendingTask[]) => void;
   onDelete: (id: number | string) => void; task: TaskFormState; setTask: (t: TaskFormState) => void;
@@ -77,6 +77,7 @@ const TaskModal = ({
   businessPhone?: string; appointmentDate?: Date;
   supabase?: SupabaseClient;
   initialPendingTasks?: PendingTask[];
+  onMoveToWaiting?: () => void;
 }) => {
   const [customerVehicles, setCustomerVehicles] = useState<{ id: string; description: string }[]>([]);
   const [isNewVehicle, setIsNewVehicle] = useState(true);
@@ -518,9 +519,16 @@ const TaskModal = ({
           {/* Footer */}
           <div className="flex justify-end gap-2 px-5 py-4 border-t border-gray-100 bg-gray-50">
             {!isNewTask && (
-              <button onClick={() => task.id != null && onDelete(task.id)} className="px-4 py-2 text-sm font-medium rounded-xl bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 transition-colors">
-                Eliminar
-              </button>
+              <>
+                <button onClick={() => task.id != null && onDelete(task.id)} className="px-4 py-2 text-sm font-medium rounded-xl bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 transition-colors">
+                  Eliminar
+                </button>
+                {onMoveToWaiting && (
+                  <button onClick={onMoveToWaiting} className="px-4 py-2 text-sm font-medium rounded-xl bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-colors">
+                    Mover a espera
+                  </button>
+                )}
+              </>
             )}
             <button onClick={() => onSave(isNewTask ? pendingTasks : undefined)} className="px-4 py-2 text-sm font-semibold rounded-xl bg-[#07C3F8] hover:bg-[#06aad9] text-white transition-colors">
               Guardar

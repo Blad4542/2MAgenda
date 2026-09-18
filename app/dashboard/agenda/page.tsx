@@ -351,6 +351,27 @@ const Agenda = () => {
     setCurrentTask({ start_time: "", end_time: "", assigned_person: "", staff_id: undefined, name: "", phone: "", description: "", vehicle: "", status: "pending", appointment_date: new Date().toISOString(), customer_id: undefined, vehicle_id: undefined });
   };
 
+  const handleMoveToWaiting = async () => {
+    if (!currentTask.id) return;
+    const { data: tasks } = await supabase
+      .from("appointment_tasks")
+      .select("description")
+      .eq("appointment_id", currentTask.id);
+    await supabase.from("waiting_list").insert({
+      id: uuidv4(),
+      name: currentTask.name,
+      phone: currentTask.phone,
+      vehicle: currentTask.vehicle,
+      description: currentTask.description,
+      status: "waiting",
+      pending_tasks: (tasks ?? []).map(t => t.description),
+    });
+    await deleteNoteFromSupabase(currentTask.id);
+    setIsModalOpen(false);
+    fetchWaitingList();
+    await fetchNotesForSelectedDate();
+  };
+
   const handleDeleteNote = async (id: number | string) => {
     const appt = notes.find(n => n.id === id);
     const { error } = await deleteNoteFromSupabase(id);
@@ -869,7 +890,7 @@ const Agenda = () => {
       </div>
 
       {isModalOpen && (
-        <TaskModal isOpen={isModalOpen} onClose={handleModalClose} onSave={handleSaveNote} task={currentTask} setTask={setCurrentTask} isNewTask={isNewTask} onDelete={handleDeleteNote} errorMessage={errorMessage} businessPhone={businessPhone} appointmentDate={selectedDate} supabase={supabase} initialPendingTasks={pendingTasksForModal} />
+        <TaskModal isOpen={isModalOpen} onClose={handleModalClose} onSave={handleSaveNote} task={currentTask} setTask={setCurrentTask} isNewTask={isNewTask} onDelete={handleDeleteNote} errorMessage={errorMessage} businessPhone={businessPhone} appointmentDate={selectedDate} supabase={supabase} initialPendingTasks={pendingTasksForModal} onMoveToWaiting={!isNewTask ? handleMoveToWaiting : undefined} />
       )}
 
       {/* Settings modal */}
