@@ -19,7 +19,7 @@ interface TaskFormState {
   phone: string;
   description: string;
   vehicle: string;
-  status: "pending" | "confirmed" | "active" | "done" | "no_show" | "delivered";
+  status: "pending" | "confirmed" | "active" | "done" | "no_show" | "delivered" | "cancelled";
   appointment_date: string;
   customer_id?: string;
   vehicle_id?: string;
@@ -484,6 +484,7 @@ const TaskModal = ({
                 <option value="done">Completada</option>
                 <option value="delivered">Entregado</option>
                 <option value="no_show">No llegó</option>
+                <option value="cancelled">Cancelada</option>
               </select>
             </div>
             <div className="mb-3">

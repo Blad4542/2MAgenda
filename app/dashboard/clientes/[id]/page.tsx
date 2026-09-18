@@ -2,7 +2,7 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
-import { ChevronLeft, Car, Calendar, ShoppingBag, Pencil, Check, X, Plus, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronDown, ChevronUp, Car, Calendar, ShoppingBag, Pencil, Check, X, Plus, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale/es";
 import { waUrl, WaIcon } from "@/utils/wa";
@@ -31,7 +31,15 @@ interface Appointment {
   assigned_person: string;
   vehicle: string;
   description: string;
-  status: "pending" | "confirmed" | "active" | "done" | "no_show" | "delivered";
+  status: "pending" | "confirmed" | "active" | "done" | "no_show" | "delivered" | "cancelled";
+}
+
+interface ApptTask {
+  id: string;
+  description: string;
+  completed: boolean;
+  price?: number | null;
+  photo_urls?: string[];
 }
 
 interface Order {
@@ -49,6 +57,7 @@ const statusStyle: Record<string, string> = {
   done:      "bg-emerald-50 text-emerald-700 border border-emerald-200",
   delivered: "bg-teal-50 text-teal-700 border border-teal-200",
   no_show:   "bg-gray-50 text-gray-400 border border-gray-200",
+  cancelled: "bg-red-50 text-red-400 border border-red-200",
 };
 const statusLabel: Record<string, string> = {
   pending:   "Pendiente",
@@ -57,6 +66,7 @@ const statusLabel: Record<string, string> = {
   done:      "Completada",
   delivered: "Entregado",
   no_show:   "No llegó",
+  cancelled: "Cancelada",
 };
 
 export default function CustomerProfilePage() {
@@ -75,6 +85,22 @@ export default function CustomerProfilePage() {
   // Edit customer inline
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState({ name: "", phone: "", notes: "" });
+
+  // Appointment expand
+  const [expandedAppt, setExpandedAppt] = useState<string | number | null>(null);
+  const [tasksMap, setTasksMap] = useState<Record<string, ApptTask[]>>({});
+
+  const toggleAppt = async (apptId: string | number) => {
+    if (expandedAppt === apptId) { setExpandedAppt(null); return; }
+    setExpandedAppt(apptId);
+    if (tasksMap[String(apptId)]) return;
+    const { data } = await supabase
+      .from("appointment_tasks")
+      .select("id, description, completed, price, photo_urls")
+      .eq("appointment_id", apptId)
+      .order("created_at", { ascending: true });
+    setTasksMap(prev => ({ ...prev, [String(apptId)]: (data ?? []) as ApptTask[] }));
+  };
 
   // Add vehicle
   const [vehicleFormOpen, setVehicleFormOpen] = useState(false);
@@ -289,29 +315,79 @@ export default function CustomerProfilePage() {
         {appointments.length === 0 ? (
           <div className="px-5 py-8 text-center text-sm text-gray-400">Sin citas registradas</div>
         ) : (
-          <ul className="divide-y divide-gray-50">
-            {appointments.map(a => (
-              <li key={a.id} className="px-5 py-3 flex items-start gap-4">
-                <div className="text-xs text-gray-400 font-mono w-20 shrink-0 pt-0.5">
-                  {format(new Date(a.appointment_date), "dd/MM/yyyy", { locale: es })}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-sm font-medium text-gray-900">{a.assigned_person}</span>
-                    {a.vehicle && (
-                      <span className="flex items-center gap-1 text-xs text-gray-400">
-                        <Car size={10} aria-hidden="true" /> {a.vehicle}
+          <ul className="divide-y divide-gray-100">
+            {appointments.map(a => {
+              const isExpanded = expandedAppt === a.id;
+              const tasks = tasksMap[String(a.id)] ?? [];
+              const total = tasks.reduce((s, t) => s + (t.price ?? 0), 0);
+              return (
+                <li key={a.id}>
+                  <button
+                    onClick={() => toggleAppt(a.id)}
+                    className="w-full px-5 py-3 flex items-start gap-4 hover:bg-gray-50 transition-colors text-left"
+                  >
+                    <div className="text-xs text-gray-400 font-mono w-20 shrink-0 pt-0.5">
+                      {format(new Date(a.appointment_date), "dd/MM/yyyy", { locale: es })}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-medium text-gray-900">{a.assigned_person}</span>
+                        {a.vehicle && (
+                          <span className="flex items-center gap-1 text-xs text-gray-400">
+                            <Car size={10} aria-hidden="true" /> {a.vehicle}
+                          </span>
+                        )}
+                        <span className="text-xs text-gray-400 font-mono">{a.start_time?.slice(0,5)}–{a.end_time?.slice(0,5)}</span>
+                      </div>
+                      {a.description && <p className="text-xs text-gray-500 mt-0.5 truncate">{a.description}</p>}
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${statusStyle[a.status] ?? "bg-gray-50 text-gray-500 border border-gray-200"}`}>
+                        {statusLabel[a.status] ?? a.status}
                       </span>
-                    )}
-                    <span className="text-xs text-gray-400 font-mono">{a.start_time}–{a.end_time}</span>
-                  </div>
-                  {a.description && <p className="text-xs text-gray-500 mt-0.5 truncate">{a.description}</p>}
-                </div>
-                <span className={`shrink-0 text-xs font-semibold px-2.5 py-1 rounded-full ${statusStyle[a.status] ?? "bg-gray-50 text-gray-500 border border-gray-200"}`}>
-                  {statusLabel[a.status] ?? a.status}
-                </span>
-              </li>
-            ))}
+                      {isExpanded ? <ChevronUp size={14} className="text-gray-400" /> : <ChevronDown size={14} className="text-gray-400" />}
+                    </div>
+                  </button>
+
+                  {isExpanded && (
+                    <div className="px-5 pb-4 bg-gray-50 border-t border-gray-100">
+                      {tasks.length === 0 ? (
+                        <p className="text-xs text-gray-400 py-3 text-center">Sin tareas registradas</p>
+                      ) : (
+                        <>
+                          <ul className="space-y-2 pt-3">
+                            {tasks.map(t => (
+                              <li key={t.id} className="flex items-start gap-2">
+                                <span className={`mt-0.5 w-3 h-3 rounded-full border shrink-0 ${t.completed ? "bg-emerald-400 border-emerald-400" : "border-gray-300"}`} />
+                                <span className={`flex-1 text-sm ${t.completed ? "line-through text-gray-400" : "text-gray-700"}`}>{t.description}</span>
+                                {t.price != null && t.price > 0 && (
+                                  <span className="text-xs font-semibold text-emerald-600 shrink-0">₡{t.price.toLocaleString("es-CR")}</span>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                          {total > 0 && (
+                            <p className="text-right text-sm font-bold text-gray-800 mt-3 pt-2 border-t border-gray-200">
+                              Total: ₡{total.toLocaleString("es-CR")}
+                            </p>
+                          )}
+                          {tasks.some(t => t.photo_urls && t.photo_urls.length > 0) && (
+                            <div className="flex flex-wrap gap-2 mt-3">
+                              {tasks.flatMap(t => t.photo_urls ?? []).map((url, i) => (
+                                <a key={i} href={url} target="_blank" rel="noopener noreferrer">
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img src={url} alt="" className="w-14 h-14 rounded-lg object-cover border border-gray-200 hover:opacity-80 transition-opacity" />
+                                </a>
+                              ))}
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>

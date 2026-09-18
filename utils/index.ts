@@ -10,7 +10,7 @@ interface Appointment {
   phone: string;
   description: string;
   vehicle: string;
-  status: "pending" | "confirmed" | "active" | "done" | "no_show" | "delivered";
+  status: "pending" | "confirmed" | "active" | "done" | "no_show" | "delivered" | "cancelled";
   appointment_date: string;
   customer_id?: string;
   vehicle_id?: string;
