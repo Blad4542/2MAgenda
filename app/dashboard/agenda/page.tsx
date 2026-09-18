@@ -79,10 +79,13 @@ interface Appointment {
   phone: string;
   description: string;
   vehicle: string;
-  status: "pending" | "confirmed" | "active" | "done" | "no_show" | "delivered" | "cancelled";
+  placa?: string;
+  status: "pending" | "confirmed" | "active" | "done" | "delivered" | "cancelled";
   appointment_date: string;
   customer_id?: string;
   vehicle_id?: string;
+  abono?: number;
+  cancel_reason?: string;
   appointment_tasks?: { id: string; description: string; completed: boolean; price?: number | null }[];
 }
 
@@ -115,10 +118,10 @@ const Agenda = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentTask, setCurrentTask] = useState<{
     id?: string | number; start_time: string; end_time: string; assigned_person: string; staff_id?: string; name: string;
-    phone: string; description: string; vehicle: string;
-    status: "pending" | "confirmed" | "active" | "done" | "no_show" | "delivered" | "cancelled"; appointment_date: string;
+    phone: string; description: string; vehicle: string; placa?: string; abono?: number;
+    status: "pending" | "confirmed" | "active" | "done" | "delivered" | "cancelled"; appointment_date: string;
     customer_id?: string; vehicle_id?: string;
-  }>({ start_time: "", end_time: "", assigned_person: "", staff_id: undefined, name: "", phone: "", description: "", vehicle: "", status: "pending", appointment_date: new Date().toISOString() });
+  }>({ start_time: "", end_time: "", assigned_person: "", staff_id: undefined, name: "", phone: "", description: "", vehicle: "", placa: "", abono: undefined, status: "pending", appointment_date: new Date().toISOString() });
   const [notes, setNotes] = useState<Appointment[]>([]);
   const [isNewTask, setIsNewTask] = useState(true);
   const [user, setUser] = useState<string | null>(null);
@@ -369,7 +372,7 @@ const Agenda = () => {
     }
     setIsModalOpen(false);
     await fetchNotesForSelectedDate();
-    setCurrentTask({ start_time: "", end_time: "", assigned_person: "", staff_id: undefined, name: "", phone: "", description: "", vehicle: "", status: "pending", appointment_date: new Date().toISOString(), customer_id: undefined, vehicle_id: undefined });
+    setCurrentTask({ start_time: "", end_time: "", assigned_person: "", staff_id: undefined, name: "", phone: "", description: "", vehicle: "", placa: "", abono: undefined, status: "pending", appointment_date: new Date().toISOString(), customer_id: undefined, vehicle_id: undefined });
   };
 
   const handleMoveToWaiting = async () => {
@@ -391,6 +394,19 @@ const Agenda = () => {
     setIsModalOpen(false);
     fetchWaitingList();
     await fetchNotesForSelectedDate();
+  };
+
+  const handleCancelAppointment = async (reason: string) => {
+    if (!currentTask.id) return;
+    const { error } = await supabase
+      .from("appointments")
+      .update({ status: "cancelled", cancel_reason: reason || null })
+      .eq("id", currentTask.id);
+    if (error) { setErrorMessage(`Error: ${error.message}`); return; }
+    await logAction(supabase, { table_name: "appointments", record_id: String(currentTask.id), action: "update", description: `Cancelada${reason ? `: ${reason}` : ""}`, user_email: userEmail });
+    channelRef.current?.send({ type: "broadcast", event: "appointments-updated", payload: {} });
+    setIsModalOpen(false);
+    fetchNotesForSelectedDate();
   };
 
   const handleDeleteNote = async (id: number | string) => {
@@ -567,8 +583,7 @@ const Agenda = () => {
               { bg: "bg-indigo-200",  label: "Confirmada",  desc: "Cliente confirmó" },
               { bg: "bg-amber-200",   label: "En proceso",  desc: "Trabajo iniciado" },
               { bg: "bg-emerald-200", label: "Completada",  desc: "Trabajo finalizado" },
-              { bg: "bg-orange-200",  label: "Entregado",   desc: "Vehículo entregado al cliente" },
-              { bg: "bg-gray-300",    label: "No llegó",    desc: "Cliente no se presentó" },
+              { bg: "bg-rose-200",    label: "Entregado",   desc: "Vehículo entregado al cliente" },
               { bg: "bg-red-200",     label: "Cancelada",   desc: "Cita cancelada" },
               { bg: "bg-violet-200",  label: "Reservando",  desc: "Otro usuario agendando" },
             ].map(({ bg, label, desc }) => (
@@ -705,8 +720,7 @@ const Agenda = () => {
                       : status === "confirmed" ? "#818cf8"
                       : status === "active"    ? "#fbbf24"
                       : status === "done"      ? "#34d399"
-                      : status === "delivered" ? "#f97316"
-                      : status === "no_show"   ? "#9ca3af"
+                      : status === "delivered" ? "#f43f5e"
                       : status === "cancelled" ? "#ef4444"
                       : "transparent";
 
@@ -729,8 +743,7 @@ const Agenda = () => {
                       : status === "confirmed" ? "bg-indigo-50 hover:bg-indigo-100"
                       : status === "active"    ? "bg-amber-50 hover:bg-amber-100"
                       : status === "done"      ? "bg-emerald-50 hover:bg-emerald-100"
-                      : status === "delivered" ? "bg-orange-50 hover:bg-orange-100"
-                      : status === "no_show"   ? "bg-gray-100 hover:bg-gray-200"
+                      : status === "delivered" ? "bg-rose-50 hover:bg-rose-100"
                       : status === "cancelled" ? "bg-red-50 hover:bg-red-100"
                       : isLunch ? ""
                       : "hover:bg-[#07C3F8]/5";
@@ -759,7 +772,7 @@ const Agenda = () => {
                         {isFirstHour && (
                           <div className="px-2 pt-2 pb-2 flex flex-col gap-1 min-w-0 overflow-hidden">
                             <div className="flex items-start justify-between gap-1 min-w-0">
-                              <p className={`text-xs font-bold truncate leading-tight ${status === "no_show" ? "line-through text-gray-400" : "text-gray-900"}`}>{task.name || "—"}</p>
+                              <p className="text-xs font-bold truncate leading-tight text-gray-900">{task.name || "—"}</p>
                               <div className="flex items-center gap-0.5 shrink-0">
                                 {status === "pending" && (
                                   <button
@@ -770,26 +783,40 @@ const Agenda = () => {
                                     <svg viewBox="0 0 10 10" width="10" height="10" fill="none" stroke="#6366f1" strokeWidth="1.5"><path d="M2 5l2 2 4-4"/></svg>
                                   </button>
                                 )}
-                                {(status === "pending" || status === "confirmed") && (
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); task.id != null && supabase.from("appointments").update({ status: "no_show" }).eq("id", task.id).then(() => fetchNotesForSelectedDate()); }}
-                                    title="No llegó"
-                                    className="w-5 h-5 rounded-full bg-gray-100 hover:bg-red-100 flex items-center justify-center transition-colors"
-                                  >
-                                    <svg viewBox="0 0 10 10" width="10" height="10" fill="none" stroke="#9ca3af" strokeWidth="1.5"><path d="M2 2l6 6M8 2l-6 6"/></svg>
-                                  </button>
-                                )}
                               </div>
                             </div>
                             <div className="flex items-center gap-1 min-w-0">
                               <span className="text-[11px] font-mono text-gray-500 whitespace-nowrap">{fmtTime(task.start_time)}–{fmtTime(task.end_time)}</span>
                               {task.vehicle && <span className="text-[11px] text-gray-400 truncate">· {task.vehicle}</span>}
                             </div>
+                            {task.placa && <span className="text-[11px] text-gray-500 font-mono">🔖 {task.placa}</span>}
                             {(() => {
                               const total = (task.appointment_tasks ?? []).reduce((s, t) => s + (t.price ?? 0), 0);
-                              return total > 0 ? (
-                                <span className="text-[11px] font-semibold text-emerald-600">₡{total.toLocaleString("es-CR")}</span>
-                              ) : null;
+                              if (total <= 0) return null;
+                              const abono = task.abono ?? 0;
+                              const saldo = Math.max(0, total - abono);
+                              return (
+                                <div className="flex flex-col gap-0.5 mt-0.5 border-t border-gray-100 pt-0.5">
+                                  <div className="flex justify-between items-center">
+                                    <span className="text-[10px] text-gray-400">Total</span>
+                                    <span className="text-[11px] font-semibold text-emerald-600">₡{total.toLocaleString("es-CR")}</span>
+                                  </div>
+                                  {abono > 0 && (
+                                    <>
+                                      <div className="flex justify-between items-center">
+                                        <span className="text-[10px] text-gray-400">Abono</span>
+                                        <span className="text-[11px] text-blue-500">−₡{abono.toLocaleString("es-CR")}</span>
+                                      </div>
+                                      <div className="flex justify-between items-center border-t border-gray-100 pt-0.5">
+                                        <span className="text-[10px] font-semibold text-gray-500">Saldo</span>
+                                        <span className={`text-[11px] font-bold ${saldo === 0 ? "text-emerald-500" : "text-orange-500"}`}>
+                                          ₡{saldo.toLocaleString("es-CR")}
+                                        </span>
+                                      </div>
+                                    </>
+                                  )}
+                                </div>
+                              );
                             })()}
                             {task.appointment_tasks && task.appointment_tasks.length > 0 && (
                               <ul className="space-y-0.5">
@@ -930,7 +957,7 @@ const Agenda = () => {
       </div>
 
       {isModalOpen && (
-        <TaskModal isOpen={isModalOpen} onClose={handleModalClose} onSave={handleSaveNote} task={currentTask} setTask={setCurrentTask} isNewTask={isNewTask} onDelete={handleDeleteNote} errorMessage={errorMessage} businessPhone={businessPhone} appointmentDate={selectedDate} supabase={supabase} initialPendingTasks={pendingTasksForModal} onMoveToWaiting={!isNewTask ? handleMoveToWaiting : undefined} staffList={PEOPLE} />
+        <TaskModal isOpen={isModalOpen} onClose={handleModalClose} onSave={handleSaveNote} task={currentTask} setTask={setCurrentTask} isNewTask={isNewTask} onDelete={handleDeleteNote} errorMessage={errorMessage} businessPhone={businessPhone} appointmentDate={selectedDate} supabase={supabase} initialPendingTasks={pendingTasksForModal} onMoveToWaiting={!isNewTask ? handleMoveToWaiting : undefined} staffList={PEOPLE} onCancel={!isNewTask ? handleCancelAppointment : undefined} />
       )}
 
       {/* Settings modal */}

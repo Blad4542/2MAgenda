@@ -20,10 +20,12 @@ interface TaskFormState {
   phone: string;
   description: string;
   vehicle: string;
-  status: "pending" | "confirmed" | "active" | "done" | "no_show" | "delivered" | "cancelled";
+  placa?: string;
+  status: "pending" | "confirmed" | "active" | "done" | "delivered" | "cancelled";
   appointment_date: string;
   customer_id?: string;
   vehicle_id?: string;
+  abono?: number;
 }
 
 interface AppointmentTask {
@@ -70,7 +72,7 @@ Quedo atenta a su confirmación`;
 
 const TaskModal = ({
   isOpen, onClose, onSave, onDelete, task, setTask, isNewTask, errorMessage,
-  businessPhone = "", appointmentDate, supabase, initialPendingTasks = [], onMoveToWaiting, staffList = [],
+  businessPhone = "", appointmentDate, supabase, initialPendingTasks = [], onMoveToWaiting, staffList = [], onCancel,
 }: {
   isOpen: boolean; onClose: () => void; onSave: (pendingTasks?: PendingTask[]) => void;
   onDelete: (id: number | string) => void; task: TaskFormState; setTask: (t: TaskFormState) => void;
@@ -80,10 +82,13 @@ const TaskModal = ({
   initialPendingTasks?: PendingTask[];
   onMoveToWaiting?: () => void;
   staffList?: string[];
+  onCancel?: (reason: string) => void;
 }) => {
   const [customerVehicles, setCustomerVehicles] = useState<{ id: string; description: string }[]>([]);
   const [isNewVehicle, setIsNewVehicle] = useState(true);
   const [phoneError, setPhoneError] = useState("");
+  const [cancelMode, setCancelMode] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
 
   // Task checklist state
   const [apptTasks, setApptTasks] = useState<AppointmentTask[]>([]);
@@ -93,6 +98,7 @@ const TaskModal = ({
   const [pendingTasks, setPendingTasks] = useState<PendingTask[]>(initialPendingTasks ?? []);
 
   useEffect(() => {
+    if (isOpen) { setCancelMode(false); setCancelReason(""); }
     if (isOpen && isNewTask) { setPendingTasks(initialPendingTasks ?? []); setNewTaskText(""); setNewTaskPrice(""); }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, isNewTask]);
@@ -309,6 +315,18 @@ const TaskModal = ({
                 />
               )}
             </div>
+            <div className="mb-3">
+              <label htmlFor="task-placa" className={lbl}>Placa</label>
+              <input
+                id="task-placa"
+                type="text"
+                name="placa"
+                placeholder="Ej: ABC-123"
+                className={inp}
+                value={task.placa ?? ""}
+                onChange={onChange}
+              />
+            </div>
             {/* Task checklist */}
             <div className="mb-3 border-t border-gray-100 pt-3">
               <div className="mb-3">
@@ -380,9 +398,30 @@ const TaskModal = ({
                       ))}
                     </ul>
                     {subtotal > 0 && (
-                      <p className="text-right text-sm font-semibold text-gray-700 mt-2 pr-9">
-                        Total: ₡{subtotal.toLocaleString("es-CR")}
-                      </p>
+                      <div className="mt-2 pr-9 space-y-1">
+                        <div className="flex justify-between text-sm text-gray-600">
+                          <span>Total</span>
+                          <span className="font-semibold">₡{subtotal.toLocaleString("es-CR")}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-sm text-gray-600">
+                          <span>Abono</span>
+                          <input
+                            type="number" min="0"
+                            value={task.abono ?? ""}
+                            onChange={e => setTask({ ...task, abono: e.target.value !== "" ? parseFloat(e.target.value) : undefined })}
+                            placeholder="0"
+                            className="w-28 text-sm border border-gray-200 rounded-lg px-2 py-0.5 text-right focus:outline-none focus:ring-1 focus:ring-[#07C3F8]"
+                          />
+                        </div>
+                        {(task.abono ?? 0) > 0 && (
+                          <div className="flex justify-between text-sm font-bold border-t border-gray-100 pt-1">
+                            <span>Saldo</span>
+                            <span className={(subtotal - (task.abono ?? 0)) <= 0 ? "text-emerald-600" : "text-gray-900"}>
+                              ₡{Math.max(0, subtotal - (task.abono ?? 0)).toLocaleString("es-CR")}
+                            </span>
+                          </div>
+                        )}
+                      </div>
                     )}
                   </>
                 )
@@ -460,9 +499,30 @@ const TaskModal = ({
                   ))}
                 </ul>
                 {subtotal > 0 && (
-                  <p className="text-right text-sm font-semibold text-gray-700 mt-2">
-                    Total: ₡{subtotal.toLocaleString("es-CR")}
-                  </p>
+                  <div className="mt-2 space-y-1">
+                    <div className="flex justify-between text-sm text-gray-600">
+                      <span>Total</span>
+                      <span className="font-semibold">₡{subtotal.toLocaleString("es-CR")}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-sm text-gray-600">
+                      <span>Abono</span>
+                      <input
+                        type="number" min="0"
+                        value={task.abono ?? ""}
+                        onChange={e => setTask({ ...task, abono: e.target.value !== "" ? parseFloat(e.target.value) : undefined })}
+                        placeholder="0"
+                        className="w-28 text-sm border border-gray-200 rounded-lg px-2 py-0.5 text-right focus:outline-none focus:ring-1 focus:ring-[#07C3F8]"
+                      />
+                    </div>
+                    {(task.abono ?? 0) > 0 && (
+                      <div className="flex justify-between text-sm font-bold border-t border-gray-100 pt-1">
+                        <span>Saldo</span>
+                        <span className={(subtotal - (task.abono ?? 0)) <= 0 ? "text-emerald-600" : "text-gray-900"}>
+                          ₡{Math.max(0, subtotal - (task.abono ?? 0)).toLocaleString("es-CR")}
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 )}
                 </>
               )}
@@ -504,13 +564,13 @@ const TaskModal = ({
             <div className="grid grid-cols-2 gap-2 mb-3">
               <div>
                 <label htmlFor="task-start" className={lbl}>Hora inicio</label>
-                <select id="task-start" name="start_time" className={inp} value={task.start_time} onChange={onChange}>
+                <select id="task-start" name="start_time" className={inp} value={task.start_time?.slice(0, 5) ?? ""} onChange={onChange}>
                   {TIME_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
               </div>
               <div>
                 <label htmlFor="task-end" className={lbl}>Hora fin</label>
-                <select id="task-end" name="end_time" className={inp} value={task.end_time} onChange={onChange}>
+                <select id="task-end" name="end_time" className={inp} value={task.end_time?.slice(0, 5) ?? ""} onChange={onChange}>
                   {TIME_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
               </div>
@@ -523,8 +583,6 @@ const TaskModal = ({
                 <option value="active">En proceso</option>
                 <option value="done">Completada</option>
                 <option value="delivered">Entregado</option>
-                <option value="no_show">No llegó</option>
-                <option value="cancelled">Cancelada</option>
               </select>
             </div>
             <div className="mb-3">
@@ -532,6 +590,18 @@ const TaskModal = ({
               <textarea id="task-description" name="description" placeholder="Notas" rows={3} className={`${inp} resize-none`} value={task.description} onChange={onChange} />
             </div>
 
+            {cancelMode && (
+              <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-xl space-y-2">
+                <p className="text-sm font-semibold text-red-700">Motivo de cancelación</p>
+                <textarea
+                  rows={2}
+                  className="w-full text-sm border border-red-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-red-400 resize-none bg-white"
+                  placeholder="Ej: Cliente no pudo llegar, reagendar..."
+                  value={cancelReason}
+                  onChange={e => setCancelReason(e.target.value)}
+                />
+              </div>
+            )}
             {errorMessage && (
               <p role="alert" className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2 mb-3">
                 {errorMessage}
@@ -541,7 +611,7 @@ const TaskModal = ({
 
           {/* Footer */}
           <div className="flex justify-end gap-2 px-5 py-4 border-t border-gray-100 bg-gray-50">
-            {!isNewTask && (
+            {!isNewTask && !cancelMode && (
               <>
                 <button onClick={() => task.id != null && onDelete(task.id)} className="px-4 py-2 text-sm font-medium rounded-xl bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 transition-colors">
                   Eliminar
@@ -551,11 +621,28 @@ const TaskModal = ({
                     Mover a espera
                   </button>
                 )}
+                {onCancel && (
+                  <button onClick={() => setCancelMode(true)} className="px-4 py-2 text-sm font-medium rounded-xl bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200 transition-colors">
+                    Cancelar cita
+                  </button>
+                )}
               </>
             )}
-            <button onClick={() => onSave(isNewTask ? pendingTasks : undefined)} className="px-4 py-2 text-sm font-semibold rounded-xl bg-[#07C3F8] hover:bg-[#06aad9] text-white transition-colors">
-              Guardar
-            </button>
+            {cancelMode && (
+              <>
+                <button onClick={() => { setCancelMode(false); setCancelReason(""); }} className="px-4 py-2 text-sm font-medium rounded-xl bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200 transition-colors">
+                  Volver
+                </button>
+                <button onClick={() => onCancel?.(cancelReason)} className="px-4 py-2 text-sm font-semibold rounded-xl bg-red-500 hover:bg-red-600 text-white transition-colors">
+                  Confirmar cancelación
+                </button>
+              </>
+            )}
+            {!cancelMode && (
+              <button onClick={() => onSave(isNewTask ? pendingTasks : undefined)} className="px-4 py-2 text-sm font-semibold rounded-xl bg-[#07C3F8] hover:bg-[#06aad9] text-white transition-colors">
+                Guardar
+              </button>
+            )}
           </div>
         </Dialog.Panel>
       </div>

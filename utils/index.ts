@@ -10,10 +10,13 @@ interface Appointment {
   phone: string;
   description: string;
   vehicle: string;
-  status: "pending" | "confirmed" | "active" | "done" | "no_show" | "delivered" | "cancelled";
+  status: "pending" | "confirmed" | "active" | "done" | "delivered" | "cancelled";
   appointment_date: string;
   customer_id?: string;
   vehicle_id?: string;
+  placa?: string;
+  abono?: number;
+  cancel_reason?: string;
 }
 
 interface SupabaseResponse<T = any> {
@@ -62,6 +65,9 @@ export const updateNoteInSupabase = async (
       appointment_date: task.appointment_date,
       customer_id: task.customer_id,
       vehicle_id: task.vehicle_id,
+      placa: task.placa ?? null,
+      abono: task.abono ?? 0,
+      cancel_reason: task.cancel_reason ?? null,
     })
     .match({ id: task.id });
 

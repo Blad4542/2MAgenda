@@ -55,8 +55,7 @@ const statusStyle: Record<string, string> = {
   confirmed: "bg-indigo-50 text-indigo-700 border border-indigo-200",
   active:    "bg-amber-50 text-amber-700 border border-amber-200",
   done:      "bg-emerald-50 text-emerald-700 border border-emerald-200",
-  delivered: "bg-orange-50 text-orange-700 border border-orange-200",
-  no_show:   "bg-gray-50 text-gray-400 border border-gray-200",
+  delivered: "bg-rose-50 text-rose-700 border border-rose-200",
   cancelled: "bg-red-50 text-red-400 border border-red-200",
 };
 const statusLabel: Record<string, string> = {
@@ -65,7 +64,6 @@ const statusLabel: Record<string, string> = {
   active:    "En proceso",
   done:      "Completada",
   delivered: "Entregado",
-  no_show:   "No llegó",
   cancelled: "Cancelada",
 };
 

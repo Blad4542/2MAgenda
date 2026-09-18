@@ -31,8 +31,7 @@ const STATUS_LABEL: Record<string, { label: string; color: string }> = {
   active:    { label: "En proceso",  color: "bg-amber-100 text-amber-700" },
   done:      { label: "Completada",  color: "bg-emerald-100 text-emerald-700" },
   completed: { label: "Completada",  color: "bg-emerald-100 text-emerald-700" },
-  delivered: { label: "Entregado",   color: "bg-orange-100 text-orange-700" },
-  no_show:   { label: "No llegó",    color: "bg-gray-100 text-gray-500" },
+  delivered: { label: "Entregado",   color: "bg-rose-100 text-rose-700" },
   cancelled: { label: "Cancelada",   color: "bg-red-100 text-red-700" },
 };
 
