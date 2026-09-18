@@ -31,8 +31,11 @@ interface AppointmentTask {
   completed: boolean;
   photo_url: string | null;
   photo_urls: string[];
+  price?: number | null;
   uploading?: boolean;
 }
+
+type PendingTask = { text: string; price?: number };
 
 function fmtTime12(time: string): string {
   const [h, m] = time.slice(0, 5).split(":").map(Number);
@@ -68,12 +71,12 @@ const TaskModal = ({
   isOpen, onClose, onSave, onDelete, task, setTask, isNewTask, errorMessage,
   businessPhone = "", appointmentDate, supabase, initialPendingTasks = [],
 }: {
-  isOpen: boolean; onClose: () => void; onSave: (pendingTasks?: string[]) => void;
+  isOpen: boolean; onClose: () => void; onSave: (pendingTasks?: PendingTask[]) => void;
   onDelete: (id: number | string) => void; task: TaskFormState; setTask: (t: TaskFormState) => void;
   isNewTask: boolean; errorMessage?: string;
   businessPhone?: string; appointmentDate?: Date;
   supabase?: SupabaseClient;
-  initialPendingTasks?: string[];
+  initialPendingTasks?: PendingTask[];
 }) => {
   const [customerVehicles, setCustomerVehicles] = useState<{ id: string; description: string }[]>([]);
   const [isNewVehicle, setIsNewVehicle] = useState(true);
@@ -83,10 +86,11 @@ const TaskModal = ({
   const [apptTasks, setApptTasks] = useState<AppointmentTask[]>([]);
   const [tasksLoading, setTasksLoading] = useState(false);
   const [newTaskText, setNewTaskText] = useState("");
-  const [pendingTasks, setPendingTasks] = useState<string[]>(initialPendingTasks);
+  const [newTaskPrice, setNewTaskPrice] = useState<string>("");
+  const [pendingTasks, setPendingTasks] = useState<PendingTask[]>(initialPendingTasks ?? []);
 
   useEffect(() => {
-    if (isOpen && isNewTask) setPendingTasks(initialPendingTasks);
+    if (isOpen && isNewTask) { setPendingTasks(initialPendingTasks ?? []); setNewTaskText(""); setNewTaskPrice(""); }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, isNewTask]);
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
@@ -143,7 +147,7 @@ const TaskModal = ({
     setTasksLoading(true);
     supabase
       .from("appointment_tasks")
-      .select("id, description, completed, photo_url, photo_urls")
+      .select("id, description, completed, photo_url, photo_urls, price")
       .eq("appointment_id", task.id)
       .order("created_at", { ascending: true })
       .then(({ data, error }) => {
@@ -156,15 +160,22 @@ const TaskModal = ({
   const addTask = async () => {
     const text = newTaskText.trim();
     if (!text || !supabase || !task.id) return;
+    const price = newTaskPrice !== "" ? parseFloat(newTaskPrice) : null;
     setNewTaskText("");
+    setNewTaskPrice("");
     const { data, error } = await supabase
       .from("appointment_tasks")
-      .insert({ appointment_id: task.id, description: text })
-      .select("id, description, completed, photo_url, photo_urls")
+      .insert({ appointment_id: task.id, description: text, price })
+      .select("id, description, completed, photo_url, photo_urls, price")
       .single();
     if (!error && data) {
       setApptTasks(prev => [...prev, { ...data, photo_urls: data.photo_urls ?? [] } as AppointmentTask]);
     }
+  };
+
+  const updateTaskPrice = async (taskId: string, price: number | null) => {
+    setApptTasks(prev => prev.map(t => t.id === taskId ? { ...t, price } : t));
+    await supabase?.from("appointment_tasks").update({ price }).eq("id", taskId);
   };
 
   const toggleTask = async (taskId: string, completed: boolean) => {
@@ -203,8 +214,12 @@ const TaskModal = ({
   };
 
   const taskLabels = isNewTask
-    ? pendingTasks
+    ? pendingTasks.map(t => t.text)
     : apptTasks.map(t => t.description);
+
+  const subtotal = isNewTask
+    ? pendingTasks.reduce((s, t) => s + (t.price ?? 0), 0)
+    : apptTasks.reduce((s, t) => s + (t.price ?? 0), 0);
   const waHref = buildWaHref(task, appointmentDate ?? new Date(), taskLabels);
 
   return (
@@ -293,59 +308,80 @@ const TaskModal = ({
             </div>
             {/* Task checklist */}
             <div className="mb-3 border-t border-gray-100 pt-3">
-              <div className="flex items-center gap-2 mb-3">
-                <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 flex-1">Tareas</span>
-                <input
-                  type="text"
-                  value={newTaskText}
-                  onChange={e => setNewTaskText(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key !== "Enter") return;
-                    if (isNewTask) {
-                      const text = newTaskText.trim();
-                      if (text) { setPendingTasks(prev => [...prev, text]); setNewTaskText(""); }
-                    } else {
-                      addTask();
-                    }
-                  }}
-                  placeholder="Nueva tarea…"
-                  className="flex-1 text-sm border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-[#07C3F8]"
-                />
-                <button
-                  onClick={() => {
-                    if (isNewTask) {
-                      const text = newTaskText.trim();
-                      if (text) { setPendingTasks(prev => [...prev, text]); setNewTaskText(""); }
-                    } else {
-                      addTask();
-                    }
-                  }}
-                  disabled={!newTaskText.trim()}
-                  className="p-1.5 rounded-lg bg-[#07C3F8] text-white hover:bg-[#06aad9] disabled:opacity-40 transition-colors"
-                  aria-label="Agregar tarea"
-                >
-                  <Plus className="w-4 h-4" />
-                </button>
+              <div className="mb-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Tareas</p>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="text"
+                    value={newTaskText}
+                    onChange={e => setNewTaskText(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key !== "Enter") return;
+                      if (isNewTask) {
+                        const text = newTaskText.trim();
+                        if (text) { setPendingTasks(prev => [...prev, { text, price: newTaskPrice !== "" ? parseFloat(newTaskPrice) : undefined }]); setNewTaskText(""); setNewTaskPrice(""); }
+                      } else { addTask(); }
+                    }}
+                    placeholder="Descripción…"
+                    className="flex-1 text-sm border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-[#07C3F8]"
+                  />
+                  <input
+                    type="number"
+                    value={newTaskPrice}
+                    onChange={e => setNewTaskPrice(e.target.value)}
+                    placeholder="₡ Precio"
+                    min="0"
+                    className="w-24 text-sm border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-[#07C3F8]"
+                  />
+                  <button
+                    onClick={() => {
+                      if (isNewTask) {
+                        const text = newTaskText.trim();
+                        if (text) { setPendingTasks(prev => [...prev, { text, price: newTaskPrice !== "" ? parseFloat(newTaskPrice) : undefined }]); setNewTaskText(""); setNewTaskPrice(""); }
+                      } else { addTask(); }
+                    }}
+                    disabled={!newTaskText.trim()}
+                    className="p-1.5 rounded-lg bg-[#07C3F8] text-white hover:bg-[#06aad9] disabled:opacity-40 transition-colors shrink-0"
+                    aria-label="Agregar tarea"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
 
               {isNewTask ? (
                 pendingTasks.length === 0 ? (
                   <p className="text-xs text-gray-400 text-center py-2">Sin tareas aún</p>
                 ) : (
-                  <ul className="space-y-2">
-                    {pendingTasks.map((text, idx) => (
-                      <li key={idx} className="flex items-center gap-2">
-                        <span className="flex-1 text-sm text-gray-700">{text}</span>
-                        <button
-                          onClick={() => setPendingTasks(prev => prev.filter((_, i) => i !== idx))}
-                          className="shrink-0 p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors"
-                          aria-label="Eliminar tarea"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
+                  <>
+                    <ul className="space-y-1.5">
+                      {pendingTasks.map((pt, idx) => (
+                        <li key={idx} className="flex items-center gap-1.5">
+                          <span className="flex-1 text-sm text-gray-700 truncate">{pt.text}</span>
+                          <input
+                            type="number"
+                            value={pt.price ?? ""}
+                            onChange={e => setPendingTasks(prev => prev.map((t, i) => i === idx ? { ...t, price: e.target.value !== "" ? parseFloat(e.target.value) : undefined } : t))}
+                            placeholder="₡"
+                            min="0"
+                            className="w-24 text-sm border border-gray-200 rounded-lg px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-[#07C3F8]"
+                          />
+                          <button
+                            onClick={() => setPendingTasks(prev => prev.filter((_, i) => i !== idx))}
+                            className="shrink-0 p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors"
+                            aria-label="Eliminar tarea"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                    {subtotal > 0 && (
+                      <p className="text-right text-sm font-semibold text-gray-700 mt-2 pr-9">
+                        Total: ₡{subtotal.toLocaleString("es-CR")}
+                      </p>
+                    )}
+                  </>
                 )
               ) : tasksLoading ? (
                 <div className="flex justify-center py-3">
@@ -354,10 +390,11 @@ const TaskModal = ({
               ) : apptTasks.length === 0 ? (
                 <p className="text-xs text-gray-400 text-center py-2">Sin tareas aún</p>
               ) : (
+                <>
                 <ul className="space-y-2">
                   {apptTasks.map(t => (
                     <React.Fragment key={t.id}>
-                      <li className="flex items-center gap-2">
+                      <li className="flex items-center gap-1.5">
                         <input
                           type="checkbox"
                           checked={t.completed}
@@ -367,6 +404,14 @@ const TaskModal = ({
                         <span className={`flex-1 text-sm truncate ${t.completed ? "line-through text-gray-400" : "text-gray-700"}`}>
                           {t.description}
                         </span>
+                        <input
+                          type="number"
+                          value={t.price ?? ""}
+                          onChange={e => updateTaskPrice(t.id, e.target.value !== "" ? parseFloat(e.target.value) : null)}
+                          placeholder="₡"
+                          min="0"
+                          className="w-24 text-sm border border-gray-200 rounded-lg px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-[#07C3F8]"
+                        />
                         {t.uploading && <Loader2 className="w-4 h-4 animate-spin text-gray-400 shrink-0" />}
                         <input
                           type="file" accept="image/*" multiple className="hidden"
@@ -411,6 +456,12 @@ const TaskModal = ({
                     </React.Fragment>
                   ))}
                 </ul>
+                {subtotal > 0 && (
+                  <p className="text-right text-sm font-semibold text-gray-700 mt-2">
+                    Total: ₡{subtotal.toLocaleString("es-CR")}
+                  </p>
+                )}
+                </>
               )}
             </div>
 

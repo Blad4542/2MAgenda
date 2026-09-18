@@ -3,7 +3,7 @@ import Link from "next/link";
 import DashboardCharts from "@/components/DashboardCharts";
 
 export const dynamic = "force-dynamic";
-import { Calendar, ClipboardList, ShoppingBag, Package, AlertCircle } from "lucide-react";
+import { Calendar, ClipboardList, ShoppingBag, Package, AlertCircle, TrendingUp } from "lucide-react";
 
 export default async function DashboardHome() {
   const supabase = await createClient();
@@ -21,6 +21,11 @@ export default async function DashboardHome() {
   const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
   const endOfMonth   = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59, 999);
 
+  const dayOfWeek = today.getDay();
+  const diffToMon = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  const startOfWeek = new Date(today); startOfWeek.setDate(today.getDate() + diffToMon); startOfWeek.setHours(0, 0, 0, 0);
+  const endOfWeek   = new Date(startOfWeek); endOfWeek.setDate(startOfWeek.getDate() + 6); endOfWeek.setHours(23, 59, 59, 999);
+
   const [
     { data: appointments },
     { data: tasks },
@@ -28,6 +33,7 @@ export default async function DashboardHome() {
     { data: lowStock },
     { data: revenueData },
     { data: techData },
+    { data: doneAppts },
   ] = await Promise.all([
     supabase
       .from("appointments")
@@ -59,12 +65,45 @@ export default async function DashboardHome() {
       .select("assigned_person")
       .gte("appointment_date", startOfMonth.toISOString())
       .lte("appointment_date", endOfMonth.toISOString()),
+
+    // Revenue: appointment_tasks with price for done/delivered appointments this month
+    supabase
+      .from("appointments")
+      .select("id, assigned_person, appointment_date")
+      .in("status", ["done", "delivered"])
+      .gte("appointment_date", startOfMonth.toISOString())
+      .lte("appointment_date", endOfMonth.toISOString()),
   ]);
 
   const appts      = appointments ?? [];
   const taskList   = tasks        ?? [];
   const orderList  = orders       ?? [];
   const lowList    = lowStock     ?? [];
+
+  // Revenue from appointment_tasks prices
+  let revenueToday = 0, revenueWeek = 0, revenueMonth = 0;
+  const revenueByTech: Record<string, number> = {};
+  if ((doneAppts ?? []).length > 0) {
+    const doneIds = (doneAppts ?? []).map(a => a.id);
+    const { data: apptTaskPrices } = await supabase
+      .from("appointment_tasks")
+      .select("appointment_id, price")
+      .in("appointment_id", doneIds)
+      .not("price", "is", null);
+    const priceMap: Record<string, number> = {};
+    for (const t of apptTaskPrices ?? []) {
+      priceMap[t.appointment_id] = (priceMap[t.appointment_id] ?? 0) + (t.price ?? 0);
+    }
+    for (const a of doneAppts ?? []) {
+      const amt = priceMap[a.id] ?? 0;
+      const apptDate = new Date(a.appointment_date);
+      if (apptDate >= startOfDay && apptDate <= endOfDay) revenueToday += amt;
+      if (apptDate >= startOfWeek && apptDate <= endOfWeek) revenueWeek += amt;
+      revenueMonth += amt;
+      const tech = a.assigned_person ?? "—";
+      revenueByTech[tech] = (revenueByTech[tech] ?? 0) + amt;
+    }
+  }
 
   // Build monthly revenue for last 6 months
   const monthlyMap: Record<string, number> = {};
@@ -119,6 +158,27 @@ export default async function DashboardHome() {
         <p className="text-sm text-gray-500 mt-0.5 capitalize">
           {today.toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
         </p>
+      </div>
+
+      {/* Revenue cards */}
+      <div className="grid grid-cols-3 gap-4 mb-6">
+        {[
+          { label: "Ingresos hoy",    value: revenueToday },
+          { label: "Ingresos semana", value: revenueWeek  },
+          { label: "Ingresos mes",    value: revenueMonth },
+        ].map(({ label, value }) => (
+          <div key={label} className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium text-gray-500">{label}</span>
+              <div className="w-8 h-8 rounded-xl bg-emerald-50 flex items-center justify-center">
+                <TrendingUp size={15} className="text-emerald-500" />
+              </div>
+            </div>
+            <p className="text-2xl font-bold text-gray-900 font-mono">
+              {value > 0 ? `₡${value.toLocaleString("es-CR")}` : <span className="text-gray-300 text-xl">—</span>}
+            </p>
+          </div>
+        ))}
       </div>
 
       {/* Stat cards */}

@@ -81,7 +81,7 @@ interface Appointment {
   appointment_date: string;
   customer_id?: string;
   vehicle_id?: string;
-  appointment_tasks?: { id: string; description: string; completed: boolean }[];
+  appointment_tasks?: { id: string; description: string; completed: boolean; price?: number | null }[];
 }
 
 interface WaitingEntry {
@@ -140,7 +140,7 @@ const Agenda = () => {
   const [waitingForm, setWaitingForm] = useState({ name: "", phone: "", vehicle: "", description: "", status: "waiting" as WaitingEntry["status"] });
   const [waitingTasks, setWaitingTasks] = useState<string[]>([]);
   const [newWaitingTaskText, setNewWaitingTaskText] = useState("");
-  const [pendingTasksForModal, setPendingTasksForModal] = useState<string[]>([]);
+  const [pendingTasksForModal, setPendingTasksForModal] = useState<{ text: string; price?: number }[]>([]);
   const [pendingFromWaiting, setPendingFromWaiting] = useState<WaitingEntry | null>(null);
   const pendingWaitingIdRef = useRef<string | null>(null);
 
@@ -170,12 +170,12 @@ const Agenda = () => {
     if (appts.length === 0) { setNotes([]); setIsLoading(false); return; }
     const ids = appts.map(a => a.id);
     const { data: tasks } = await supabase.from("appointment_tasks")
-      .select("id, appointment_id, description, completed")
+      .select("id, appointment_id, description, completed, price")
       .in("appointment_id", ids);
-    const tasksByAppt: Record<string, { id: string; description: string; completed: boolean }[]> = {};
+    const tasksByAppt: Record<string, { id: string; description: string; completed: boolean; price?: number | null }[]> = {};
     for (const t of tasks ?? []) {
       if (!tasksByAppt[t.appointment_id]) tasksByAppt[t.appointment_id] = [];
-      tasksByAppt[t.appointment_id].push({ id: t.id, description: t.description, completed: t.completed });
+      tasksByAppt[t.appointment_id].push({ id: t.id, description: t.description, completed: t.completed, price: t.price });
     }
     setNotes(appts.map(a => ({ ...a, appointment_tasks: tasksByAppt[a.id] ?? [] })));
     setIsLoading(false);
@@ -308,7 +308,7 @@ const Agenda = () => {
     await fetchNotesForSelectedDate();
   };
 
-  const handleSaveNote = async (pendingTasks?: string[]) => {
+  const handleSaveNote = async (pendingTasks?: { text: string; price?: number }[]) => {
     if (!currentTask.name.trim() || !currentTask.phone.trim() || (!currentTask.vehicle.trim() && !currentTask.vehicle_id)) { setErrorMessage("Nombre, teléfono y vehículo son obligatorios."); return; }
     if (currentTask.phone.replace(/\D/g, "").length < 8) { setErrorMessage("El teléfono debe tener al menos 8 dígitos."); return; }
     if (isNewTask && (!pendingTasks || pendingTasks.length === 0)) { setErrorMessage("Agrega al menos una tarea."); return; }
@@ -329,7 +329,7 @@ const Agenda = () => {
       await logAction(supabase, { table_name: "appointments", record_id: insertedId, action: "create", description: desc, user_email: userEmail });
       if (pendingTasks && pendingTasks.length > 0 && insertedId) {
         await supabase.from("appointment_tasks").insert(
-          pendingTasks.map(t => ({ appointment_id: Number(insertedId), description: t }))
+          pendingTasks.map(t => ({ appointment_id: Number(insertedId), description: t.text, price: t.price ?? null }))
         );
       }
     } else {
@@ -729,6 +729,12 @@ const Agenda = () => {
                               <span className="text-[11px] font-mono text-gray-500 whitespace-nowrap">{fmtTime(task.start_time)}–{fmtTime(task.end_time)}</span>
                               {task.vehicle && <span className="text-[11px] text-gray-400 truncate">· {task.vehicle}</span>}
                             </div>
+                            {(() => {
+                              const total = (task.appointment_tasks ?? []).reduce((s, t) => s + (t.price ?? 0), 0);
+                              return total > 0 ? (
+                                <span className="text-[11px] font-semibold text-emerald-600">₡{total.toLocaleString("es-CR")}</span>
+                              ) : null;
+                            })()}
                             {task.appointment_tasks && task.appointment_tasks.length > 0 && (
                               <ul className="space-y-0.5">
                                 {task.appointment_tasks.map(t => (
