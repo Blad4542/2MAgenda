@@ -2,7 +2,7 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
-import { ChevronLeft, ChevronDown, ChevronUp, Car, Calendar, ShoppingBag, Pencil, Check, X, Plus, Trash2 } from "lucide-react";
+import { ChevronLeft, Car, Calendar, ShoppingBag, Pencil, Check, X, Plus, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale/es";
 import { waUrl, WaIcon } from "@/utils/wa";
@@ -77,6 +77,163 @@ const statusLabel: Record<string, string> = {
   cancelled: "Cancelada",
 };
 
+function ApptDetailModal({
+  appt,
+  onClose,
+}: {
+  appt: Appointment;
+  onClose: () => void;
+}) {
+  const supabase = useMemo(() => createClient(), []);
+  const [tasks, setTasks] = useState<ApptTask[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    supabase
+      .from("appointment_tasks")
+      .select("id,description,completed,price,photo_urls")
+      .eq("appointment_id", appt.id)
+      .order("created_at", { ascending: true })
+      .then(({ data }) => { setTasks((data ?? []) as ApptTask[]); setLoading(false); });
+  }, [appt.id, supabase]);
+
+  const total = tasks.reduce((s, t) => s + (t.price ?? 0), 0);
+
+  return (
+    <>
+      <div
+        className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+        onClick={onClose}
+      >
+        <div
+          className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
+          onClick={e => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 bg-gray-50 shrink-0">
+            <div>
+              <p className="text-xs text-gray-400 font-mono">
+                {format(new Date(appt.appointment_date), "dd/MM/yyyy", { locale: es })}
+              </p>
+              <h2 className="text-base font-semibold text-gray-900 mt-0.5">{appt.assigned_person}</h2>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${statusStyle[appt.status] ?? "bg-gray-50 text-gray-500 border border-gray-200"}`}>
+                {statusLabel[appt.status] ?? appt.status}
+              </span>
+              <button onClick={onClose} className="text-gray-400 hover:text-gray-700 p-1.5 rounded-lg hover:bg-gray-200 transition-colors">
+                <X size={16} />
+              </button>
+            </div>
+          </div>
+
+          {/* Body */}
+          <div className="px-5 py-4 overflow-y-auto space-y-4">
+            {/* Info grid */}
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              {appt.vehicle && (
+                <div>
+                  <p className="text-xs text-gray-400 mb-0.5">Vehículo</p>
+                  <p className="font-medium text-gray-900">{appt.vehicle}</p>
+                </div>
+              )}
+              {appt.placa && (
+                <div>
+                  <p className="text-xs text-gray-400 mb-0.5">Placa</p>
+                  <p className="font-medium text-gray-900 font-mono">{appt.placa}</p>
+                </div>
+              )}
+              <div>
+                <p className="text-xs text-gray-400 mb-0.5">Hora</p>
+                <p className="font-medium text-gray-900">
+                  {fmtTime(appt.start_time)}–{fmtTime(appt.end_time)}
+                </p>
+              </div>
+            </div>
+
+            {appt.description && (
+              <div>
+                <p className="text-xs text-gray-400 mb-1">Notas</p>
+                <p className="text-sm text-gray-700 bg-gray-50 rounded-xl px-3 py-2">{appt.description}</p>
+              </div>
+            )}
+
+            {appt.cancel_reason && (
+              <div className="bg-red-50 rounded-xl px-3 py-2">
+                <p className="text-xs text-red-400 mb-0.5">Razón de cancelación</p>
+                <p className="text-sm text-red-700">{appt.cancel_reason}</p>
+              </div>
+            )}
+
+            {/* Tasks */}
+            <div>
+              <p className="text-xs text-gray-400 mb-2">Tareas</p>
+              {loading && <p className="text-xs text-gray-400 animate-pulse">Cargando...</p>}
+              {!loading && tasks.length === 0 && <p className="text-xs text-gray-400">Sin tareas registradas</p>}
+              {!loading && tasks.length > 0 && (
+                <>
+                  <ul className="space-y-2">
+                    {tasks.map(t => (
+                      <li key={t.id} className="flex items-start gap-2">
+                        <span className={`mt-0.5 shrink-0 w-4 h-4 rounded border flex items-center justify-center ${t.completed ? "bg-emerald-400 border-emerald-400" : "border-gray-300"}`}>
+                          {t.completed && (
+                            <svg viewBox="0 0 8 8" width="8" height="8" fill="white"><path d="M1 4l2 2 4-4" stroke="white" strokeWidth="1.5" fill="none"/></svg>
+                          )}
+                        </span>
+                        <span className={`flex-1 text-sm ${t.completed ? "line-through text-gray-400" : "text-gray-800"}`}>{t.description}</span>
+                        {t.price != null && t.price > 0 && (
+                          <span className="text-xs font-semibold text-emerald-600 shrink-0">₡{t.price.toLocaleString("es-CR")}</span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+
+                  {total > 0 && (
+                    <div className="mt-3 pt-2 border-t border-gray-200 space-y-0.5 text-right">
+                      <p className="text-sm font-bold text-gray-800">Total: ₡{total.toLocaleString("es-CR")}</p>
+                      {(appt.abono ?? 0) > 0 && (
+                        <>
+                          <p className="text-xs text-gray-500">Abono: ₡{appt.abono!.toLocaleString("es-CR")}</p>
+                          <p className="text-xs font-semibold text-amber-600">Saldo: ₡{(total - appt.abono!).toLocaleString("es-CR")}</p>
+                        </>
+                      )}
+                    </div>
+                  )}
+
+                  {tasks.some(t => t.photo_urls && t.photo_urls.length > 0) && (
+                    <div className="flex flex-wrap gap-2 mt-3">
+                      {tasks.flatMap(t => t.photo_urls ?? []).map((url, i) => (
+                        <button key={i} onClick={() => setLightboxUrl(url)} className="shrink-0">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={url} alt={`foto ${i + 1}`} className="w-16 h-16 rounded-lg object-cover border border-gray-200 hover:opacity-80 transition-opacity" />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {lightboxUrl && (
+        <div
+          className="fixed inset-0 z-[300] flex items-center justify-center bg-black/80 backdrop-blur-sm"
+          onClick={() => setLightboxUrl(null)}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={lightboxUrl} alt="" className="max-w-[90vw] max-h-[90vh] rounded-2xl shadow-2xl object-contain" onClick={e => e.stopPropagation()} />
+          <button onClick={() => setLightboxUrl(null)} className="absolute top-4 right-4 text-white/70 hover:text-white bg-black/30 hover:bg-black/50 p-2 rounded-full transition-colors">
+            <X size={20} />
+          </button>
+        </div>
+      )}
+    </>
+  );
+}
+
 export default function CustomerProfilePage() {
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
@@ -94,21 +251,7 @@ export default function CustomerProfilePage() {
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState({ name: "", phone: "", notes: "" });
 
-  // Appointment expand
-  const [expandedAppt, setExpandedAppt] = useState<string | number | null>(null);
-  const [tasksMap, setTasksMap] = useState<Record<string, ApptTask[]>>({});
-
-  const toggleAppt = async (apptId: string | number) => {
-    if (expandedAppt === apptId) { setExpandedAppt(null); return; }
-    setExpandedAppt(apptId);
-    if (tasksMap[String(apptId)]) return;
-    const { data } = await supabase
-      .from("appointment_tasks")
-      .select("id, description, completed, price, photo_urls")
-      .eq("appointment_id", apptId)
-      .order("created_at", { ascending: true });
-    setTasksMap(prev => ({ ...prev, [String(apptId)]: (data ?? []) as ApptTask[] }));
-  };
+  const [selectedAppt, setSelectedAppt] = useState<Appointment | null>(null);
 
   // Add vehicle
   const [vehicleFormOpen, setVehicleFormOpen] = useState(false);
@@ -182,6 +325,7 @@ export default function CustomerProfilePage() {
   );
 
   return (
+    <>
     <div className="p-6 max-w-3xl mx-auto space-y-6">
       {/* Back */}
       <button
@@ -324,95 +468,34 @@ export default function CustomerProfilePage() {
           <div className="px-5 py-8 text-center text-sm text-gray-400">Sin citas registradas</div>
         ) : (
           <ul className="divide-y divide-gray-100">
-            {appointments.map(a => {
-              const isExpanded = expandedAppt === a.id;
-              const tasks = tasksMap[String(a.id)] ?? [];
-              const total = tasks.reduce((s, t) => s + (t.price ?? 0), 0);
-              return (
-                <li key={a.id}>
-                  <button
-                    onClick={() => toggleAppt(a.id)}
-                    className="w-full px-5 py-3 flex items-start gap-4 hover:bg-gray-50 transition-colors text-left"
-                  >
-                    <div className="text-xs text-gray-400 font-mono w-20 shrink-0 pt-0.5">
-                      {format(new Date(a.appointment_date), "dd/MM/yyyy", { locale: es })}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-sm font-medium text-gray-900">{a.assigned_person}</span>
-                        {a.vehicle && (
-                          <span className="flex items-center gap-1 text-xs text-gray-400">
-                            <Car size={10} aria-hidden="true" /> {a.vehicle}
-                          </span>
-                        )}
-                        <span className="text-xs text-gray-400 font-mono">{fmtTime(a.start_time)}–{fmtTime(a.end_time)}</span>
-                        {a.placa && <span className="text-xs text-gray-400 font-mono">{a.placa}</span>}
-                      </div>
-                      {a.description && <p className="text-xs text-gray-500 mt-0.5 truncate">{a.description}</p>}
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${statusStyle[a.status] ?? "bg-gray-50 text-gray-500 border border-gray-200"}`}>
-                        {statusLabel[a.status] ?? a.status}
-                      </span>
-                      {isExpanded ? <ChevronUp size={14} className="text-gray-400" /> : <ChevronDown size={14} className="text-gray-400" />}
-                    </div>
-                  </button>
-
-                  {isExpanded && (
-                    <div className="px-5 pb-4 bg-gray-50 border-t border-gray-100">
-                      {tasks.length === 0 ? (
-                        <div className="py-3 text-center space-y-1">
-                          <p className="text-xs text-gray-400">Sin tareas registradas</p>
-                          {a.cancel_reason && (
-                            <p className="text-xs text-red-500">Razón de cancelación: {a.cancel_reason}</p>
-                          )}
-                        </div>
-                      ) : (
-                        <>
-                          <ul className="space-y-2 pt-3">
-                            {tasks.map(t => (
-                              <li key={t.id} className="flex items-start gap-2">
-                                <span className={`mt-0.5 w-3 h-3 rounded-full border shrink-0 ${t.completed ? "bg-emerald-400 border-emerald-400" : "border-gray-300"}`} />
-                                <span className={`flex-1 text-sm ${t.completed ? "line-through text-gray-400" : "text-gray-700"}`}>{t.description}</span>
-                                {t.price != null && t.price > 0 && (
-                                  <span className="text-xs font-semibold text-emerald-600 shrink-0">₡{t.price.toLocaleString("es-CR")}</span>
-                                )}
-                              </li>
-                            ))}
-                          </ul>
-                          {total > 0 && (
-                            <div className="mt-3 pt-2 border-t border-gray-200 space-y-0.5 text-right">
-                              <p className="text-sm font-bold text-gray-800">Total: ₡{total.toLocaleString("es-CR")}</p>
-                              {(a.abono ?? 0) > 0 && (
-                                <>
-                                  <p className="text-xs text-gray-500">Abono: ₡{(a.abono!).toLocaleString("es-CR")}</p>
-                                  <p className="text-xs font-semibold text-amber-600">Saldo: ₡{(total - a.abono!).toLocaleString("es-CR")}</p>
-                                </>
-                              )}
-                            </div>
-                          )}
-                          {a.cancel_reason && (
-                            <p className="text-xs text-red-500 mt-2 pt-2 border-t border-gray-100">
-                              Razón de cancelación: {a.cancel_reason}
-                            </p>
-                          )}
-                          {tasks.some(t => t.photo_urls && t.photo_urls.length > 0) && (
-                            <div className="flex flex-wrap gap-2 mt-3">
-                              {tasks.flatMap(t => t.photo_urls ?? []).map((url, i) => (
-                                <a key={i} href={url} target="_blank" rel="noopener noreferrer">
-                                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                                  <img src={url} alt="" className="w-14 h-14 rounded-lg object-cover border border-gray-200 hover:opacity-80 transition-opacity" />
-                                </a>
-                              ))}
-                            </div>
-                          )}
-                        </>
+            {appointments.map(a => (
+              <li key={a.id}>
+                <button
+                  onClick={() => setSelectedAppt(a)}
+                  className="w-full px-5 py-3 flex items-start gap-4 hover:bg-gray-50 transition-colors text-left"
+                >
+                  <div className="text-xs text-gray-400 font-mono w-20 shrink-0 pt-0.5">
+                    {format(new Date(a.appointment_date), "dd/MM/yyyy", { locale: es })}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-medium text-gray-900">{a.assigned_person}</span>
+                      {a.vehicle && (
+                        <span className="flex items-center gap-1 text-xs text-gray-400">
+                          <Car size={10} aria-hidden="true" /> {a.vehicle}
+                        </span>
                       )}
+                      <span className="text-xs text-gray-400 font-mono">{fmtTime(a.start_time)}–{fmtTime(a.end_time)}</span>
+                      {a.placa && <span className="text-xs text-gray-400 font-mono">{a.placa}</span>}
                     </div>
-                  )}
-                </li>
-              );
-            })}
+                    {a.description && <p className="text-xs text-gray-500 mt-0.5 truncate">{a.description}</p>}
+                  </div>
+                  <span className={`text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 ${statusStyle[a.status] ?? "bg-gray-50 text-gray-500 border border-gray-200"}`}>
+                    {statusLabel[a.status] ?? a.status}
+                  </span>
+                </button>
+              </li>
+            ))}
           </ul>
         )}
       </div>
@@ -448,5 +531,10 @@ export default function CustomerProfilePage() {
         </div>
       )}
     </div>
+
+      {selectedAppt && (
+        <ApptDetailModal appt={selectedAppt} onClose={() => setSelectedAppt(null)} />
+      )}
+    </>
   );
 }

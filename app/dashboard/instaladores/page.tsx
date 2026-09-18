@@ -37,6 +37,13 @@ const STATUS_LABEL: Record<string, { label: string; color: string }> = {
 
 const PAGE_SIZE = 10;
 
+function fmtTime(t: string): string {
+  const [h, m] = t.slice(0, 5).split(":").map(Number);
+  const suffix = h >= 12 ? "pm" : "am";
+  const h12 = h % 12 || 12;
+  return `${h12}:${String(m).padStart(2, "0")}${suffix}`;
+}
+
 function PhotoLightbox({ url, name, onClose }: { url: string; name: string; onClose: () => void }) {
   return (
     <div
@@ -113,8 +120,8 @@ function ApptDetailModal({
                 <p className="text-xs text-gray-400 mb-0.5">Hora</p>
                 <p className="font-medium text-gray-900">
                   {appt.start_time && appt.end_time
-                    ? `${appt.start_time.slice(0, 5)}–${appt.end_time.slice(0, 5)}`
-                    : appt.start_time?.slice(0, 5) ?? "—"}
+                    ? `${fmtTime(appt.start_time)}–${fmtTime(appt.end_time)}`
+                    : appt.start_time ? fmtTime(appt.start_time) : "—"}
                 </p>
               </div>
               <div>
@@ -318,7 +325,7 @@ function StaffCard({
                           <td className="px-4 py-2 text-gray-900 font-medium">{a.name}</td>
                           <td className="px-4 py-2 text-gray-500 hidden sm:table-cell">{a.vehicle ?? "—"}</td>
                           <td className="px-4 py-2 text-gray-500 hidden sm:table-cell whitespace-nowrap">
-                            {a.start_time && a.end_time ? `${a.start_time.slice(0, 5)}–${a.end_time.slice(0, 5)}` : a.start_time?.slice(0, 5) ?? "—"}
+                            {a.start_time && a.end_time ? `${fmtTime(a.start_time)}–${fmtTime(a.end_time)}` : a.start_time ? fmtTime(a.start_time) : "—"}
                           </td>
                           <td className="px-4 py-2">
                             <span className={`px-2 py-0.5 rounded-full font-semibold ${statusInfo.color}`}>
