@@ -31,7 +31,7 @@ interface Appointment {
   assigned_person: string;
   vehicle: string;
   description: string;
-  status: "pending" | "active" | "done";
+  status: "pending" | "confirmed" | "active" | "done" | "no_show" | "delivered";
 }
 
 interface Order {
@@ -43,14 +43,20 @@ interface Order {
 }
 
 const statusStyle: Record<string, string> = {
-  pending: "bg-sky-50 text-sky-700 border border-sky-200",
-  active:  "bg-amber-50 text-amber-700 border border-amber-200",
-  done:    "bg-emerald-50 text-emerald-700 border border-emerald-200",
+  pending:   "bg-sky-50 text-sky-700 border border-sky-200",
+  confirmed: "bg-indigo-50 text-indigo-700 border border-indigo-200",
+  active:    "bg-amber-50 text-amber-700 border border-amber-200",
+  done:      "bg-emerald-50 text-emerald-700 border border-emerald-200",
+  delivered: "bg-teal-50 text-teal-700 border border-teal-200",
+  no_show:   "bg-gray-50 text-gray-400 border border-gray-200",
 };
 const statusLabel: Record<string, string> = {
-  pending: "Pendiente",
-  active:  "Activo",
-  done:    "Completado",
+  pending:   "Pendiente",
+  confirmed: "Confirmada",
+  active:    "En proceso",
+  done:      "Completada",
+  delivered: "Entregado",
+  no_show:   "No llegó",
 };
 
 export default function CustomerProfilePage() {

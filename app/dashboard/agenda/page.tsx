@@ -77,7 +77,7 @@ interface Appointment {
   phone: string;
   description: string;
   vehicle: string;
-  status: "pending" | "confirmed" | "active" | "done";
+  status: "pending" | "confirmed" | "active" | "done" | "no_show" | "delivered";
   appointment_date: string;
   customer_id?: string;
   vehicle_id?: string;
@@ -114,7 +114,7 @@ const Agenda = () => {
   const [currentTask, setCurrentTask] = useState<{
     id?: string | number; start_time: string; end_time: string; assigned_person: string; staff_id?: string; name: string;
     phone: string; description: string; vehicle: string;
-    status: "pending" | "confirmed" | "active" | "done"; appointment_date: string;
+    status: "pending" | "confirmed" | "active" | "done" | "no_show" | "delivered"; appointment_date: string;
     customer_id?: string; vehicle_id?: string;
   }>({ start_time: "", end_time: "", assigned_person: "", staff_id: undefined, name: "", phone: "", description: "", vehicle: "", status: "pending", appointment_date: new Date().toISOString() });
   const [notes, setNotes] = useState<Appointment[]>([]);
@@ -161,12 +161,23 @@ const Agenda = () => {
     const startOfDay = new Date(selectedDate); startOfDay.setHours(0, 0, 0, 0);
     const endOfDay = new Date(selectedDate); endOfDay.setHours(23, 59, 59, 999);
     const { data, error } = await supabase.from("appointments")
-      .select("*, appointment_tasks!appointment_id(id,description,completed)")
+      .select("*")
       .gte("appointment_date", startOfDay.toISOString())
       .lt("appointment_date", endOfDay.toISOString())
       .order("start_time", { ascending: true });
-    if (error) setErrorMessage(`Error: ${error.message}`);
-    else setNotes(data ?? []);
+    if (error) { setErrorMessage(`Error: ${error.message}`); setIsLoading(false); return; }
+    const appts = data ?? [];
+    if (appts.length === 0) { setNotes([]); setIsLoading(false); return; }
+    const ids = appts.map(a => a.id);
+    const { data: tasks } = await supabase.from("appointment_tasks")
+      .select("id, appointment_id, description, completed")
+      .in("appointment_id", ids);
+    const tasksByAppt: Record<string, { id: string; description: string; completed: boolean }[]> = {};
+    for (const t of tasks ?? []) {
+      if (!tasksByAppt[t.appointment_id]) tasksByAppt[t.appointment_id] = [];
+      tasksByAppt[t.appointment_id].push({ id: t.id, description: t.description, completed: t.completed });
+    }
+    setNotes(appts.map(a => ({ ...a, appointment_tasks: tasksByAppt[a.id] ?? [] })));
     setIsLoading(false);
   };
 
@@ -394,6 +405,7 @@ const Agenda = () => {
 
   // Waiting list handlers
   const saveWaiting = async () => {
+    if (!waitingForm.name.trim() || !waitingForm.phone.trim() || !waitingForm.vehicle.trim() || waitingTasks.length === 0) return;
     const entryId = editingWaiting ? editingWaiting.id : uuidv4();
     const payload = { ...waitingForm, pending_tasks: waitingTasks };
     if (editingWaiting) {
@@ -512,6 +524,8 @@ const Agenda = () => {
               { bg: "bg-indigo-200",  label: "Confirmada",  desc: "Cliente confirmó" },
               { bg: "bg-amber-200",   label: "En proceso",  desc: "Trabajo iniciado" },
               { bg: "bg-emerald-200", label: "Completada",  desc: "Trabajo finalizado" },
+              { bg: "bg-teal-200",    label: "Entregado",   desc: "Vehículo entregado al cliente" },
+              { bg: "bg-gray-300",    label: "No llegó",    desc: "Cliente no se presentó" },
               { bg: "bg-violet-200",  label: "Reservando",  desc: "Otro usuario agendando" },
             ].map(({ bg, label, desc }) => (
               <div key={label} className="flex items-center gap-2">
@@ -641,7 +655,9 @@ const Agenda = () => {
                       status === "pending"   ? "#38bdf8"
                       : status === "confirmed" ? "#818cf8"
                       : status === "active"  ? "#fbbf24"
-                      : status === "done"    ? "#34d399"
+                      : status === "done"      ? "#34d399"
+                      : status === "delivered" ? "#2dd4bf"
+                      : status === "no_show"  ? "#9ca3af"
                       : "transparent";
 
                     const isDropping = dragging && dropTarget === person && person !== dragging.assigned_person;
@@ -663,6 +679,8 @@ const Agenda = () => {
                       : status === "confirmed" ? "bg-indigo-50 hover:bg-indigo-100"
                       : status === "active"    ? "bg-amber-50 hover:bg-amber-100"
                       : status === "done"      ? "bg-emerald-50 hover:bg-emerald-100"
+                      : status === "delivered" ? "bg-teal-50 hover:bg-teal-100"
+                      : status === "no_show"   ? "bg-gray-100 hover:bg-gray-200"
                       : "hover:bg-[#07C3F8]/5";
 
                     return (
@@ -685,16 +703,27 @@ const Agenda = () => {
                         {isFirstHour && (
                           <div className="px-2 pt-2 pb-2 flex flex-col gap-1 min-w-0 overflow-hidden">
                             <div className="flex items-start justify-between gap-1 min-w-0">
-                              <p className="text-xs font-bold text-gray-900 truncate leading-tight">{task.name || "—"}</p>
-                              {status === "pending" && (
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); task.id != null && confirmAppt(task.id); }}
-                                  title="Confirmar cita"
-                                  className="shrink-0 w-5 h-5 rounded-full bg-indigo-100 hover:bg-indigo-200 flex items-center justify-center transition-colors"
-                                >
-                                  <svg viewBox="0 0 10 10" width="10" height="10" fill="none" stroke="#6366f1" strokeWidth="1.5"><path d="M2 5l2 2 4-4"/></svg>
-                                </button>
-                              )}
+                              <p className={`text-xs font-bold truncate leading-tight ${status === "no_show" ? "line-through text-gray-400" : "text-gray-900"}`}>{task.name || "—"}</p>
+                              <div className="flex items-center gap-0.5 shrink-0">
+                                {status === "pending" && (
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); task.id != null && confirmAppt(task.id); }}
+                                    title="Confirmar cita"
+                                    className="w-5 h-5 rounded-full bg-indigo-100 hover:bg-indigo-200 flex items-center justify-center transition-colors"
+                                  >
+                                    <svg viewBox="0 0 10 10" width="10" height="10" fill="none" stroke="#6366f1" strokeWidth="1.5"><path d="M2 5l2 2 4-4"/></svg>
+                                  </button>
+                                )}
+                                {(status === "pending" || status === "confirmed") && (
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); task.id != null && supabase.from("appointments").update({ status: "no_show" }).eq("id", task.id).then(() => fetchNotesForSelectedDate()); }}
+                                    title="No llegó"
+                                    className="w-5 h-5 rounded-full bg-gray-100 hover:bg-red-100 flex items-center justify-center transition-colors"
+                                  >
+                                    <svg viewBox="0 0 10 10" width="10" height="10" fill="none" stroke="#9ca3af" strokeWidth="1.5"><path d="M2 2l6 6M8 2l-6 6"/></svg>
+                                  </button>
+                                )}
+                              </div>
                             </div>
                             <div className="flex items-center gap-1 min-w-0">
                               <span className="text-[11px] font-mono text-gray-500 whitespace-nowrap">{fmtTime(task.start_time)}–{fmtTime(task.end_time)}</span>
@@ -956,7 +985,11 @@ const Agenda = () => {
                   Eliminar
                 </button>
               )}
-              <button onClick={saveWaiting} className="px-5 py-2 text-sm font-semibold rounded-xl bg-[#07C3F8] hover:bg-[#06aad9] text-white transition-colors">
+              <button
+                onClick={saveWaiting}
+                disabled={!waitingForm.name.trim() || !waitingForm.phone.trim() || !waitingForm.vehicle.trim() || waitingTasks.length === 0}
+                className="px-5 py-2 text-sm font-semibold rounded-xl bg-[#07C3F8] hover:bg-[#06aad9] text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
                 Guardar
               </button>
             </div>
