@@ -2,6 +2,7 @@
 import { useState, useRef } from "react";
 import Modal from "@/components/Modal";
 import { inp, lbl } from "@/utils/styles";
+import { TIME_OPTIONS } from "@/utils/timeOptions";
 import { waUrl, WaIcon } from "@/utils/wa";
 import { createClient } from "@/utils/supabase/client";
 import { Upload, Trash2 } from "lucide-react";
@@ -13,6 +14,8 @@ export interface StaffRecord {
   specialty: string | null;
   photo_url: string | null;
   active: boolean;
+  lunch_start?: string | null;
+  lunch_end?: string | null;
 }
 
 interface Props {
@@ -31,6 +34,8 @@ export default function StaffModal({ isOpen, onClose, staff, onSaved }: Props) {
     phone: staff?.phone ?? "",
     specialty: staff?.specialty ?? "",
     active: staff?.active ?? true,
+    lunch_start: staff?.lunch_start ?? "",
+    lunch_end: staff?.lunch_end ?? "",
   });
   const [photoUrl, setPhotoUrl] = useState(staff?.photo_url ?? "");
   const [uploading, setUploading] = useState(false);
@@ -65,6 +70,8 @@ export default function StaffModal({ isOpen, onClose, staff, onSaved }: Props) {
       specialty: form.specialty.trim() || null,
       photo_url: photoUrl || null,
       active: form.active,
+      lunch_start: form.lunch_start || null,
+      lunch_end: form.lunch_end || null,
     };
     if (isEdit) {
       await supabase.from("staff").update(payload).eq("id", staff.id);
@@ -168,6 +175,37 @@ export default function StaffModal({ isOpen, onClose, staff, onSaved }: Props) {
             onChange={e => setForm({ ...form, specialty: e.target.value })}
             placeholder="Ej: Polarizado, Vinil, Pintura"
           />
+        </div>
+
+        {/* Lunch break */}
+        <div>
+          <label className={lbl}>Hora de almuerzo</label>
+          <div className="flex items-center gap-2">
+            <select
+              className={inp}
+              value={form.lunch_start}
+              onChange={e => setForm({ ...form, lunch_start: e.target.value })}
+            >
+              {TIME_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+            <span className="text-gray-400 text-sm shrink-0">a</span>
+            <select
+              className={inp}
+              value={form.lunch_end}
+              onChange={e => setForm({ ...form, lunch_end: e.target.value })}
+            >
+              {TIME_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </div>
+          {form.lunch_start && form.lunch_end && (
+            <button
+              type="button"
+              onClick={() => setForm({ ...form, lunch_start: "", lunch_end: "" })}
+              className="mt-1 text-xs text-gray-400 hover:text-red-500 transition-colors"
+            >
+              Quitar almuerzo
+            </button>
+          )}
         </div>
 
         {/* Active */}

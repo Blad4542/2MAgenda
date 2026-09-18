@@ -26,8 +26,10 @@ for (let h = 8; h <= 17; h++) {
 HOURS.push("17:30");
 
 function fmtTime(t: string): string {
-  const [h, m] = t.slice(0, 5).split(":");
-  return `${parseInt(h)}:${m}`;
+  const [h, m] = t.slice(0, 5).split(":").map(Number);
+  const suffix = h >= 12 ? "pm" : "am";
+  const h12 = h % 12 || 12;
+  return `${h12}:${String(m).padStart(2, "0")}${suffix}`;
 }
 
 function timesOverlap(s1: string, e1: string, s2: string, e2: string): boolean {
@@ -65,7 +67,7 @@ function getLastHourIndex(endTime: string): number {
 
 interface DecodedToken { email: string; }
 
-interface StaffMember { id: string; name: string; }
+interface StaffMember { id: string; name: string; lunch_start?: string | null; lunch_end?: string | null; }
 
 interface Appointment {
   id: string | number;
@@ -130,6 +132,7 @@ const Agenda = () => {
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const PEOPLE = useMemo(() => staff.map(s => s.name), [staff]);
   const GRID_COLS = useMemo(() => `72px repeat(${PEOPLE.length}, minmax(120px, 1fr))`, [PEOPLE]);
+  const staffMap = useMemo(() => new Map(staff.map(s => [s.name, s])), [staff]);
 
   const [userEmail, setUserEmail] = useState<string | undefined>(undefined);
 
@@ -228,7 +231,7 @@ const Agenda = () => {
   useEffect(() => {
     fetchWaitingList();
     getAppSetting("business_phone").then(v => { if (v) { setBusinessPhone(v); setSettingsPhone(v); } });
-    supabase.from("staff").select("id, name").eq("active", true).order("created_at", { ascending: true })
+    supabase.from("staff").select("id, name, lunch_start, lunch_end").eq("active", true).order("created_at", { ascending: true })
       .then(({ data }) => { if (data) setStaff(data as StaffMember[]); });
     supabase.from("holidays").select("date,name")
       .then(({ data, error }) => {
@@ -683,7 +686,7 @@ const Agenda = () => {
               {/* Hour rows */}
               {HOURS.map((hour, hourIndex) => (
                 <div key={hour} className={`grid border-b border-gray-100 last:border-b-0 ${hourIndex % 2 ? "bg-white" : "bg-gray-50/30"}`} style={{ gridTemplateColumns: GRID_COLS }}>
-                  <div className="text-center text-xs py-3 border-r border-gray-200 sticky left-0 z-[40] bg-inherit text-gray-400 font-mono">{hour}</div>
+                  <div className="text-center text-xs py-3 border-r border-gray-200 sticky left-0 z-[40] bg-inherit text-gray-400 font-mono">{fmtTime(hour)}</div>
                   {PEOPLE.map((person) => {
                     const task = notesIndex.get(`${person}-${hour}`);
                     const isFirstHour = task && getFirstHourIndex(task.start_time) === hourIndex;
@@ -691,6 +694,11 @@ const Agenda = () => {
                     const status = task?.status;
                     const slotKey = `${person}-${hour}-${dateStr}`;
                     const reservingUser = !task && reservingSlots[slotKey] && reservingSlots[slotKey] !== user ? reservingSlots[slotKey] : null;
+                    const sm = staffMap.get(person);
+                    const nextHalf = HOURS[hourIndex + 1] ?? "24:00";
+                    const isLunch = !!sm?.lunch_start && !!sm?.lunch_end
+                      ? timesOverlap(hour, nextHalf, sm.lunch_start, sm.lunch_end)
+                      : false;
 
                     const accentColor =
                       status === "pending"   ? "#38bdf8"
@@ -724,6 +732,7 @@ const Agenda = () => {
                       : status === "delivered" ? "bg-orange-50 hover:bg-orange-100"
                       : status === "no_show"   ? "bg-gray-100 hover:bg-gray-200"
                       : status === "cancelled" ? "bg-red-50 hover:bg-red-100"
+                      : isLunch ? ""
                       : "hover:bg-[#07C3F8]/5";
 
                     return (
@@ -741,6 +750,10 @@ const Agenda = () => {
                           minHeight: "3.25rem",
                           borderBottom: isLastHour ? `2px solid ${accentColor}` : undefined,
                           borderLeft: task ? `3px solid ${accentColor}` : undefined,
+                          backgroundImage: isLunch
+                            ? "repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(168,85,247,0.12) 4px, rgba(168,85,247,0.12) 8px)"
+                            : undefined,
+                          backgroundColor: isLunch && !task ? "rgba(245,243,255,0.8)" : undefined,
                         }}
                       >
                         {isFirstHour && (
@@ -794,6 +807,12 @@ const Agenda = () => {
                           </div>
                         )}
                         {reservingUser && <div className="px-2 py-1.5 text-[11px] text-violet-500 font-medium truncate">Agendando… ({reservingUser})</div>}
+                        {isLunch && !reservingUser && (
+                          <div className="px-1.5 py-0.5 mx-1.5 mb-1 inline-flex items-center gap-1 rounded-full bg-purple-100 border border-purple-200">
+                            <span className="text-[10px]">🍽</span>
+                            <span className="text-[10px] text-purple-600 font-semibold">Almuerzo</span>
+                          </div>
+                        )}
                         {pendingFromWaiting && !task && !reservingUser && (
                           <div className="hidden group-hover:flex px-2 py-1.5 items-center justify-center text-[11px] text-green-600 font-medium h-full">+ Agendar aquí</div>
                         )}

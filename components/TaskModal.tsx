@@ -6,6 +6,7 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale/es";
 import { waUrl } from "@/utils/wa";
 import { inp, lbl } from "@/utils/styles";
+import { TIME_OPTIONS } from "@/utils/timeOptions";
 import { lookupCustomer, getCustomerVehicles } from "@/utils/customers";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -503,11 +504,15 @@ const TaskModal = ({
             <div className="grid grid-cols-2 gap-2 mb-3">
               <div>
                 <label htmlFor="task-start" className={lbl}>Hora inicio</label>
-                <input id="task-start" type="time" name="start_time" className={inp} value={task.start_time} onChange={onChange} />
+                <select id="task-start" name="start_time" className={inp} value={task.start_time} onChange={onChange}>
+                  {TIME_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
               </div>
               <div>
                 <label htmlFor="task-end" className={lbl}>Hora fin</label>
-                <input id="task-end" type="time" name="end_time" className={inp} value={task.end_time} onChange={onChange} />
+                <select id="task-end" name="end_time" className={inp} value={task.end_time} onChange={onChange}>
+                  {TIME_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
               </div>
             </div>
             <div className="mb-3">
