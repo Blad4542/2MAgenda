@@ -208,6 +208,7 @@ const Agenda = () => {
       if (data?.session) { const decoded = jwtDecode<DecodedToken>(data.session.access_token); setUser(decoded.email); setUserEmail(decoded.email); }
       else setUser(null);
     };
+    setErrorMessage("");
     checkAuth();
     fetchNotesForSelectedDate();
   }, [selectedDate]);

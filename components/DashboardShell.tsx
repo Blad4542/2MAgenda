@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/utils/supabase/client";
 import {
-  Home, Calendar, FileText, ShoppingCart, LogOut, Droplets, Menu, X, Users, HardHat,
+  Home, Calendar, FileText, ShoppingCart, LogOut, Droplets, Menu, X, Users, HardHat, ChevronLeft, ChevronRight,
 } from "lucide-react";
 
 const baseNavItems = [
@@ -22,14 +22,16 @@ const SidebarNav = memo(function SidebarNav({
   pathname,
   isAdmin,
   onNav,
+  collapsed,
 }: {
   pathname: string;
   isAdmin: boolean;
   onNav?: () => void;
+  collapsed?: boolean;
 }) {
   const items = baseNavItems.filter(item => !item.adminOnly || isAdmin);
   return (
-    <nav aria-label="Navegación principal" className="flex flex-col gap-0.5 p-3 flex-1">
+    <nav aria-label="Navegación principal" className="flex flex-col gap-0.5 p-2 flex-1">
       {items.map(({ href, icon: Icon, label }) => {
         const active = pathname === href;
         return (
@@ -37,15 +39,18 @@ const SidebarNav = memo(function SidebarNav({
             key={href}
             href={href}
             onClick={onNav}
+            title={collapsed ? label : undefined}
             aria-current={active ? "page" : undefined}
-            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+            className={`flex items-center rounded-lg text-sm font-medium transition-colors ${
+              collapsed ? "justify-center px-0 py-2.5" : "gap-3 px-3 py-2.5"
+            } ${
               active
                 ? "bg-[#07C3F8]/10 text-[#07C3F8]"
                 : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
             }`}
           >
             <Icon className="w-4 h-4 shrink-0" aria-hidden="true" />
-            <span className="truncate">{label}</span>
+            {!collapsed && <span className="truncate">{label}</span>}
           </Link>
         );
       })}
@@ -55,11 +60,17 @@ const SidebarNav = memo(function SidebarNav({
 
 export default function DashboardShell({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [displayName, setDisplayName] = useState("");
   const router   = useRouter();
   const pathname = usePathname();
   const supabase = createClient();
+
+  useEffect(() => {
+    const stored = localStorage.getItem("sidebar-collapsed");
+    if (stored === "true") setCollapsed(true);
+  }, []);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -80,6 +91,13 @@ export default function DashboardShell({ children }: { children: React.ReactNode
   const handleLogout = async () => {
     await supabase.auth.signOut();
     router.push("/login");
+  };
+
+  const toggleCollapsed = () => {
+    setCollapsed(prev => {
+      localStorage.setItem("sidebar-collapsed", String(!prev));
+      return !prev;
+    });
   };
 
   return (
@@ -124,9 +142,21 @@ export default function DashboardShell({ children }: { children: React.ReactNode
 
       <div className="flex flex-1 overflow-hidden">
 
-        {/* ── Desktop sidebar — always visible with labels ── */}
-        <aside className="hidden md:flex flex-col w-56 bg-white border-r border-gray-200 shrink-0">
-          <SidebarNav pathname={pathname} isAdmin={isAdmin} />
+        {/* ── Desktop sidebar ── */}
+        <aside className={`hidden md:flex flex-col bg-white border-r border-gray-200 shrink-0 transition-all duration-200 ${collapsed ? "w-14" : "w-56"}`}>
+          <SidebarNav pathname={pathname} isAdmin={isAdmin} collapsed={collapsed} />
+          <div className="p-2 border-t border-gray-100">
+            <button
+              onClick={toggleCollapsed}
+              aria-label={collapsed ? "Expandir menú" : "Colapsar menú"}
+              className="w-full flex items-center justify-center p-2 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+            >
+              {collapsed
+                ? <ChevronRight className="w-4 h-4" aria-hidden="true" />
+                : <ChevronLeft className="w-4 h-4" aria-hidden="true" />
+              }
+            </button>
+          </div>
         </aside>
 
         {/* ── Mobile sidebar overlay ── */}
