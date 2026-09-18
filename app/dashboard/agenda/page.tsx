@@ -616,7 +616,7 @@ const Agenda = () => {
               )}
             </div>
           ) : (
-            <div className="min-w-max rounded-xl border border-gray-200 overflow-clip shadow-sm mb-8">
+            <div className="rounded-xl border border-gray-200 overflow-clip shadow-sm mb-8" style={{ minWidth: `calc(72px + ${PEOPLE.length} * 120px)` }}>
               {/* Grid header */}
               <div className="grid sticky top-0 z-[50] bg-gray-50 border-b border-gray-200" style={{ gridTemplateColumns: GRID_COLS }}>
                 <div className="text-center py-3 border-r border-gray-200 sticky left-0 z-[60] bg-gray-50 text-xs font-semibold text-gray-400 uppercase tracking-wider">Hora</div>
