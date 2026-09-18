@@ -218,7 +218,10 @@ const Agenda = () => {
     supabase.from("staff").select("id, name").eq("active", true).order("created_at", { ascending: true })
       .then(({ data }) => { if (data) setStaff(data as StaffMember[]); });
     supabase.from("holidays").select("date,name")
-      .then(({ data }) => { if (data) setHolidays(data as { date: string; name: string }[]); });
+      .then(({ data, error }) => {
+        if (error) console.error("holidays fetch error:", error.message);
+        if (data) setHolidays(data as { date: string; name: string }[]);
+      });
   }, []);
 
   useEffect(() => {
@@ -496,9 +499,10 @@ const Agenda = () => {
             selected={selectedDate}
             onChange={(date) => setSelectedDate(date || new Date())}
             inline
-            highlightDates={[{
-              "react-datepicker__day--holiday": holidays.map(h => new Date(h.date + "T12:00:00"))
-            }]}
+            dayClassName={(date) => {
+              const ds = format(date, "yyyy-MM-dd");
+              return holidays.some(h => h.date === ds) ? "holiday-day" : "";
+            }}
           />
           <div className="mt-4 w-full space-y-1.5 px-1">
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Estados</p>

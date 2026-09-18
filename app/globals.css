@@ -16,13 +16,13 @@
   }
 }
 
-.react-datepicker__day--holiday {
+.holiday-day {
   background-color: #fee2e2 !important;
   color: #dc2626 !important;
   border-radius: 50% !important;
   font-weight: 700 !important;
 }
-.react-datepicker__day--holiday:hover {
+.holiday-day:hover {
   background-color: #fecaca !important;
 }
 
