@@ -7,29 +7,30 @@ import { createClient } from "@/utils/supabase/client";
 import {
   Home, Calendar, FileText, ShoppingCart, LogOut, Droplets, Menu, X, Users, HardHat, ChevronLeft, ChevronRight,
 } from "lucide-react";
+import { RoleContext, type Role } from "@/contexts/RoleContext";
 
 const baseNavItems = [
-  { href: "/dashboard",              icon: Home,         label: "Inicio",                   adminOnly: false },
-  { href: "/dashboard/agenda",       icon: Calendar,     label: "Agenda",                   adminOnly: false },
-  { href: "/dashboard/orders",       icon: ShoppingCart, label: "Pedidos",                  adminOnly: false },
-  { href: "/dashboard/tasks",        icon: FileText,     label: "Cotizaciones pendientes",   adminOnly: false },
-  { href: "/dashboard/botaguas",     icon: Droplets,     label: "Inventario Botaguas",      adminOnly: false },
-  { href: "/dashboard/clientes",     icon: Users,        label: "Clientes",                 adminOnly: false },
-  { href: "/dashboard/instaladores", icon: HardHat,      label: "Instaladores",             adminOnly: true  },
+  { href: "/dashboard",              icon: Home,         label: "Inicio",                  roles: ["admin"] as Role[] },
+  { href: "/dashboard/agenda",       icon: Calendar,     label: "Agenda",                  roles: ["admin", "tecnico", "asistente", "botaguas"] as Role[] },
+  { href: "/dashboard/orders",       icon: ShoppingCart, label: "Pedidos",                 roles: ["admin", "asistente"] as Role[] },
+  { href: "/dashboard/tasks",        icon: FileText,     label: "Cotizaciones pendientes", roles: ["admin", "asistente"] as Role[] },
+  { href: "/dashboard/botaguas",     icon: Droplets,     label: "Inventario Botaguas",     roles: ["admin", "asistente", "botaguas"] as Role[] },
+  { href: "/dashboard/clientes",     icon: Users,        label: "Clientes",                roles: ["admin"] as Role[] },
+  { href: "/dashboard/instaladores", icon: HardHat,      label: "Instaladores",            roles: ["admin"] as Role[] },
 ];
 
 const SidebarNav = memo(function SidebarNav({
   pathname,
-  isAdmin,
+  role,
   onNav,
   collapsed,
 }: {
   pathname: string;
-  isAdmin: boolean;
+  role: Role | null;
   onNav?: () => void;
   collapsed?: boolean;
 }) {
-  const items = baseNavItems.filter(item => !item.adminOnly || isAdmin);
+  const items = baseNavItems.filter(item => !role || item.roles.includes(role));
   return (
     <nav aria-label="Navegación principal" className="flex flex-col gap-0.5 p-2 flex-1">
       {items.map(({ href, icon: Icon, label }) => {
@@ -61,11 +62,19 @@ const SidebarNav = memo(function SidebarNav({
 export default function DashboardShell({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [roleData, setRoleData] = useState<{ role: Role; staffId: string | null }>({ role: "asistente", staffId: null });
+  const [roleLoaded, setRoleLoaded] = useState(false);
   const [displayName, setDisplayName] = useState("");
+  const [navigating, setNavigating] = useState(false);
   const router   = useRouter();
   const pathname = usePathname();
   const supabase = createClient();
+
+  useEffect(() => {
+    setNavigating(true);
+    const t = setTimeout(() => setNavigating(false), 400);
+    return () => clearTimeout(t);
+  }, [pathname]);
 
   useEffect(() => {
     const stored = localStorage.getItem("sidebar-collapsed");
@@ -79,11 +88,12 @@ export default function DashboardShell({ children }: { children: React.ReactNode
       setDisplayName(meta?.full_name ?? meta?.name ?? data.user.email?.split("@")[0] ?? "");
       supabase
         .from("user_roles")
-        .select("role")
+        .select("role, staff_id")
         .eq("id", data.user.id)
         .maybeSingle()
-        .then(({ data: roleData }) => {
-          setIsAdmin(roleData?.role === "admin");
+        .then(({ data: rd }) => {
+          setRoleData({ role: (rd?.role as Role) ?? "asistente", staffId: rd?.staff_id ?? null });
+          setRoleLoaded(true);
         });
     });
   }, []);
@@ -102,6 +112,9 @@ export default function DashboardShell({ children }: { children: React.ReactNode
 
   return (
     <div className="flex flex-col h-screen bg-gray-50">
+
+      {/* ── Nav progress bar ── */}
+      <div className={`fixed top-0 left-0 z-[999] h-0.5 bg-[#07C3F8] transition-all duration-300 ease-out ${navigating ? "w-3/4 opacity-100" : "w-full opacity-0"}`} />
 
       {/* ── Header ── */}
       <header className="h-14 bg-white border-b border-gray-200 px-4 flex items-center justify-between shrink-0 z-50">
@@ -144,7 +157,7 @@ export default function DashboardShell({ children }: { children: React.ReactNode
 
         {/* ── Desktop sidebar ── */}
         <aside className={`hidden md:flex flex-col bg-white border-r border-gray-200 shrink-0 transition-all duration-200 ${collapsed ? "w-14" : "w-56"}`}>
-          <SidebarNav pathname={pathname} isAdmin={isAdmin} collapsed={collapsed} />
+          {roleLoaded && <SidebarNav pathname={pathname} role={roleData.role} collapsed={collapsed} />}
           <div className="p-2 border-t border-gray-100">
             <button
               onClick={toggleCollapsed}
@@ -183,13 +196,17 @@ export default function DashboardShell({ children }: { children: React.ReactNode
                   <X className="w-5 h-5" aria-hidden="true" />
                 </button>
               </div>
-              <SidebarNav pathname={pathname} isAdmin={isAdmin} onNav={() => setMobileOpen(false)} />
+              {roleLoaded && <SidebarNav pathname={pathname} role={roleData.role} onNav={() => setMobileOpen(false)} />}
             </div>
           </>
         )}
 
         {/* ── Main content ── */}
-        <main className="flex-1 overflow-y-auto">{children}</main>
+        <main className="flex-1 overflow-y-auto">
+          <RoleContext.Provider value={roleData}>
+            {children}
+          </RoleContext.Provider>
+        </main>
       </div>
     </div>
   );

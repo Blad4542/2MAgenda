@@ -1,7 +1,5 @@
 import Image from "next/image";
-import { headers } from "next/headers";
-import { createClient } from "@/utils/supabase/server";
-import { redirect } from "next/navigation";
+import { signIn, signUp } from "./actions";
 
 const LOGO_URL =
   "https://igzxgawkalsqyydqxbqf.supabase.co/storage/v1/object/public/public-assets//3132f1d1-9cac-4b6b-993b-0bc6022d64bd.png";
@@ -12,30 +10,6 @@ export default async function Login({
   searchParams: Promise<{ message?: string }>;
 }) {
   const { message } = await searchParams;
-
-  const signIn = async (formData: FormData) => {
-    "use server";
-    const supabase = await createClient();
-    const { error } = await supabase.auth.signInWithPassword({
-      email: formData.get("email") as string,
-      password: formData.get("password") as string,
-    });
-    if (error) return redirect("/login?message=Correo o contraseña incorrectos.");
-    return redirect("/dashboard/agenda");
-  };
-
-  const signUp = async (formData: FormData) => {
-    "use server";
-    const origin = (await headers()).get("origin");
-    const supabase = await createClient();
-    const { error } = await supabase.auth.signUp({
-      email: formData.get("email") as string,
-      password: formData.get("password") as string,
-      options: { emailRedirectTo: `${origin}/auth/callback` },
-    });
-    if (error) return redirect("/login?message=No se pudo registrar el usuario.");
-    return redirect("/login?message=Revisa tu correo para confirmar el registro.");
-  };
 
   return (
     <div className="min-h-screen flex bg-gray-50">
@@ -76,7 +50,7 @@ export default async function Login({
                 {message}
               </div>
             )}
-            <form className="space-y-4" action={signIn} method="POST">
+            <form className="space-y-4" action={signIn}>
               <div>
                 <label htmlFor="email-address" className="block text-sm font-medium text-gray-700 mb-1.5">
                   Correo electrónico

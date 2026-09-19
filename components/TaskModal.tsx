@@ -73,9 +73,10 @@ Quedo atenta a su confirmación`;
 const TaskModal = ({
   isOpen, onClose, onSave, onDelete, task, setTask, isNewTask, errorMessage,
   businessPhone = "", appointmentDate, supabase, initialPendingTasks = [], onMoveToWaiting, staffList = [], onCancel,
+  hideFinancials = false,
 }: {
   isOpen: boolean; onClose: () => void; onSave: (pendingTasks?: PendingTask[]) => void;
-  onDelete: (id: number | string) => void; task: TaskFormState; setTask: (t: TaskFormState) => void;
+  onDelete?: (id: number | string) => void; task: TaskFormState; setTask: (t: TaskFormState) => void;
   isNewTask: boolean; errorMessage?: string;
   businessPhone?: string; appointmentDate?: Date;
   supabase?: SupabaseClient;
@@ -83,6 +84,7 @@ const TaskModal = ({
   onMoveToWaiting?: () => void;
   staffList?: string[];
   onCancel?: (reason: string) => void;
+  hideFinancials?: boolean;
 }) => {
   const [customerVehicles, setCustomerVehicles] = useState<{ id: string; description: string }[]>([]);
   const [isNewVehicle, setIsNewVehicle] = useState(true);
@@ -347,6 +349,7 @@ const TaskModal = ({
                     placeholder="Descripción…"
                     className="flex-1 text-sm border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-[#07C3F8]"
                   />
+                  {!hideFinancials && (
                   <input
                     type="number"
                     value={newTaskPrice}
@@ -355,6 +358,7 @@ const TaskModal = ({
                     min="0"
                     className="w-24 text-sm border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-[#07C3F8]"
                   />
+                  )}
                   <button
                     onClick={() => {
                       if (isNewTask) {
@@ -380,6 +384,7 @@ const TaskModal = ({
                       {pendingTasks.map((pt, idx) => (
                         <li key={idx} className="flex items-center gap-1.5">
                           <span className="flex-1 text-sm text-gray-700 truncate">{pt.text}</span>
+                          {!hideFinancials && (
                           <input
                             type="number"
                             value={pt.price ?? ""}
@@ -388,6 +393,7 @@ const TaskModal = ({
                             min="0"
                             className="w-24 text-sm border border-gray-200 rounded-lg px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-[#07C3F8]"
                           />
+                          )}
                           <button
                             onClick={() => setPendingTasks(prev => prev.filter((_, i) => i !== idx))}
                             className="shrink-0 p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors"
@@ -398,7 +404,7 @@ const TaskModal = ({
                         </li>
                       ))}
                     </ul>
-                    {subtotal > 0 && (
+                    {subtotal > 0 && !hideFinancials && (
                       <div className="mt-2 pr-9 space-y-1">
                         <div className="flex justify-between text-sm text-gray-600">
                           <span>Total</span>
@@ -447,6 +453,7 @@ const TaskModal = ({
                         <span className={`flex-1 text-sm truncate ${t.completed ? "line-through text-gray-400" : "text-gray-700"}`}>
                           {t.description}
                         </span>
+                        {!hideFinancials && (
                         <input
                           type="number"
                           value={t.price ?? ""}
@@ -455,6 +462,7 @@ const TaskModal = ({
                           min="0"
                           className="w-24 text-sm border border-gray-200 rounded-lg px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-[#07C3F8]"
                         />
+                        )}
                         {t.uploading && <Loader2 className="w-4 h-4 animate-spin text-gray-400 shrink-0" />}
                         <input
                           type="file" accept="image/*" multiple className="hidden"
@@ -499,7 +507,7 @@ const TaskModal = ({
                     </React.Fragment>
                   ))}
                 </ul>
-                {subtotal > 0 && (
+                {subtotal > 0 && !hideFinancials && (
                   <div className="mt-2 space-y-1">
                     <div className="flex justify-between text-sm text-gray-600">
                       <span>Total</span>
@@ -635,7 +643,7 @@ const TaskModal = ({
                 <button onClick={() => setDeleteConfirm(false)} className="px-4 py-2 text-sm font-medium rounded-xl bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200 transition-colors">
                   Volver
                 </button>
-                <button onClick={() => task.id != null && onDelete(task.id)} className="px-4 py-2 text-sm font-semibold rounded-xl bg-red-500 hover:bg-red-600 text-white transition-colors">
+                <button onClick={() => task.id != null && onDelete && onDelete(task.id)} className="px-4 py-2 text-sm font-semibold rounded-xl bg-red-500 hover:bg-red-600 text-white transition-colors">
                   Sí, eliminar
                 </button>
               </>

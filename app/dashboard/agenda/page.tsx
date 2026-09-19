@@ -10,6 +10,7 @@ import { findOrCreateCustomer, findOrCreateVehicle } from "@/utils/customers";
 import { createClient } from "@/utils/supabase/client";
 import { logAction } from "@/utils/auditLog";
 import { getAppSetting, setAppSetting } from "@/utils/appSettings";
+import { useRole, useStaffId } from "@/contexts/RoleContext";
 import { waUrl, WaIcon } from "@/utils/wa";
 import { inp, lbl } from "@/utils/styles";
 import { ChevronLeft, ChevronRight, Plus, Edit, Trash2, CalendarPlus, X, Settings } from "lucide-react";
@@ -118,6 +119,9 @@ const waitingStatusLabel: Record<WaitingEntry["status"], string> = {
 
 
 const Agenda = () => {
+  const role = useRole();
+  const staffId = useStaffId();
+  const canEdit = role !== "botaguas";
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [errorMessage, setErrorMessage] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -138,7 +142,13 @@ const Agenda = () => {
   const userRef = useRef<string | null>(null);
   const supabase = useMemo(() => createClient(), []);
   const [staff, setStaff] = useState<StaffMember[]>([]);
-  const PEOPLE = useMemo(() => staff.map(s => s.name), [staff]);
+  const PEOPLE = useMemo(() => {
+    const all = staff.map(s => s.name);
+    if (role === "botaguas" && staffId) {
+      return staff.filter(s => s.id === staffId).map(s => s.name);
+    }
+    return all;
+  }, [staff, role, staffId]);
   const GRID_COLS = useMemo(() => `72px repeat(${PEOPLE.length}, minmax(120px, 1fr))`, [PEOPLE]);
   const staffMap = useMemo(() => new Map(staff.map(s => [s.name, s])), [staff]);
 
@@ -759,7 +769,7 @@ const Agenda = () => {
                         onDragOver={(e) => { if (dragging && person !== dragging.assigned_person) { e.preventDefault(); setDropTarget(person); } }}
                         onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDropTarget(null); }}
                         onDrop={(e) => { e.preventDefault(); handleDrop(person); }}
-                        onClick={() => !dragging && !isSatNoon && (task ? (setCurrentTask(task), setIsNewTask(false), setIsModalOpen(true)) : handleNewTaskClick(hour, person))}
+                        onClick={() => !dragging && !isSatNoon && canEdit && (task ? (setCurrentTask(task), setIsNewTask(false), setIsModalOpen(true)) : handleNewTaskClick(hour, person))}
                         style={{
                           minHeight: "3.25rem",
                           borderBottom: isLastHour ? `2px solid ${accentColor}` : undefined,
@@ -959,7 +969,7 @@ const Agenda = () => {
       </div>
 
       {isModalOpen && (
-        <TaskModal isOpen={isModalOpen} onClose={handleModalClose} onSave={handleSaveNote} task={currentTask} setTask={setCurrentTask} isNewTask={isNewTask} onDelete={handleDeleteNote} errorMessage={errorMessage} businessPhone={businessPhone} appointmentDate={selectedDate} supabase={supabase} initialPendingTasks={pendingTasksForModal} onMoveToWaiting={!isNewTask ? handleMoveToWaiting : undefined} staffList={PEOPLE} onCancel={!isNewTask ? handleCancelAppointment : undefined} />
+        <TaskModal isOpen={isModalOpen} onClose={handleModalClose} onSave={handleSaveNote} task={currentTask} setTask={setCurrentTask} isNewTask={isNewTask} onDelete={canEdit && role !== "tecnico" ? handleDeleteNote : undefined} hideFinancials={role === "tecnico"} errorMessage={errorMessage} businessPhone={businessPhone} appointmentDate={selectedDate} supabase={supabase} initialPendingTasks={pendingTasksForModal} onMoveToWaiting={!isNewTask ? handleMoveToWaiting : undefined} staffList={PEOPLE} onCancel={!isNewTask ? handleCancelAppointment : undefined} />
       )}
 
       {/* Settings modal */}

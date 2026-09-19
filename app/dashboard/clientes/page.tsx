@@ -2,7 +2,8 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
-import { Search, Plus, Phone, Calendar, ChevronRight, ChevronLeft } from "lucide-react";
+import { Search, Plus, Phone, ChevronRight, ChevronLeft } from "lucide-react";
+import { useRequireRole } from "@/hooks/useRequireRole";
 import { inp, lbl } from "@/utils/styles";
 
 interface Customer {
@@ -11,10 +12,10 @@ interface Customer {
   phone: string;
   notes?: string;
   created_at: string;
-  appointment_count?: number;
 }
 
 export default function ClientesPage() {
+  useRequireRole(["admin"]);
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
 
@@ -32,21 +33,7 @@ export default function ClientesPage() {
       .from("customers")
       .select("id, name, phone, notes, created_at")
       .order("created_at", { ascending: false });
-
-    if (!data) { setLoading(false); return; }
-
-    // Fetch appointment counts in parallel
-    const counts = await Promise.all(
-      data.map(c =>
-        supabase
-          .from("appointments")
-          .select("id", { count: "exact", head: true })
-          .eq("customer_id", c.id)
-          .then(({ count }) => ({ id: c.id, count: count ?? 0 }))
-      )
-    );
-    const countMap = Object.fromEntries(counts.map(c => [c.id, c.count]));
-    setCustomers(data.map(c => ({ ...c, appointment_count: countMap[c.id] ?? 0 })));
+    setCustomers((data ?? []) as Customer[]);
     setLoading(false);
   }, [supabase]);
 
@@ -113,7 +100,17 @@ export default function ClientesPage() {
       </div>
 
       {loading && (
-        <div className="text-center text-sm text-gray-400 py-16 animate-pulse">Cargando...</div>
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden animate-pulse">
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="flex items-center gap-4 px-5 py-4 border-b border-gray-100 last:border-0">
+              <div className="w-10 h-10 rounded-xl bg-gray-200 shrink-0" />
+              <div className="flex-1 space-y-2">
+                <div className="h-3.5 bg-gray-200 rounded w-40" />
+                <div className="h-2.5 bg-gray-100 rounded w-24" />
+              </div>
+            </div>
+          ))}
+        </div>
       )}
 
       {!loading && customers.length === 0 && (
@@ -144,14 +141,8 @@ export default function ClientesPage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-gray-900">{c.name}</p>
-                    <div className="flex items-center gap-3 mt-0.5 text-xs text-gray-400">
-                      <span className="flex items-center gap-1">
-                        <Phone size={10} aria-hidden="true" /> {c.phone}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Calendar size={10} aria-hidden="true" />
-                        {c.appointment_count} cita{c.appointment_count !== 1 ? "s" : ""}
-                      </span>
+                    <div className="flex items-center gap-1 mt-0.5 text-xs text-gray-400">
+                      <Phone size={10} aria-hidden="true" /> {c.phone}
                     </div>
                   </div>
                   <ChevronRight size={16} className="text-gray-300 shrink-0" aria-hidden="true" />

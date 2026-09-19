@@ -1,5 +1,5 @@
 "use client";
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { Plus, Edit, Trash2, ChevronLeft, ChevronRight, Search, X, Download } from "lucide-react";
 import Modal from "@/components/Modal";
 import { createClient } from "@/utils/supabase/client";
@@ -7,7 +7,9 @@ import { v4 as uuidv4 } from "uuid";
 import { exportCsv } from "@/utils/exportCsv";
 import { logAction } from "@/utils/auditLog";
 import { waUrl, WaIcon } from "@/utils/wa";
+import { useRequireRole } from "@/hooks/useRequireRole";
 import { inp, lbl } from "@/utils/styles";
+import { lookupCustomer, getCustomerVehicles, findOrCreateCustomer, findOrCreateVehicle } from "@/utils/customers";
 
 interface Task {
   id: string;
@@ -15,6 +17,9 @@ interface Task {
   phone: string;
   description: string;
   status: "Pending" | "Quoting" | "Quoted";
+  vehicle?: string;
+  customer_id?: string;
+  vehicle_id?: string;
 }
 
 const PAGE_SIZE = 50;
@@ -75,7 +80,7 @@ const Table = memo(function Table({ list, title, selected, onToggle, onToggleAll
                     className="cursor-pointer accent-[#07C3F8] w-4 h-4"
                   />
                 </th>
-                {["Nombre", "Teléfono", "Descripción", "Estado", ""].map(h => (
+                {["Nombre", "Teléfono", "Vehículo", "Descripción", "Estado", ""].map(h => (
                   <th key={h} className="p-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</th>
                 ))}
               </tr>
@@ -103,6 +108,7 @@ const Table = memo(function Table({ list, title, selected, onToggle, onToggleAll
                       )}
                     </div>
                   </td>
+                  <td className="p-3 text-sm text-gray-500">{task.vehicle || "—"}</td>
                   <td className="p-3 text-sm text-gray-500 max-w-xs truncate">{task.description}</td>
                   <td className="p-3">
                     <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold ${statusStyle[task.status]}`}>
@@ -138,13 +144,16 @@ const Table = memo(function Table({ list, title, selected, onToggle, onToggleAll
 });
 
 export default function TasksPage() {
+  useRequireRole(["admin", "asistente"]);
   const supabase = useMemo(() => createClient(), []);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
   const [editing, setEditing] = useState<Task | null>(null);
-  const [form, setForm] = useState<Omit<Task, "id">>({ name: "", phone: "", description: "", status: "Pending" });
+  const [form, setForm] = useState<Omit<Task, "id">>({ name: "", phone: "", description: "", status: "Pending", vehicle: "", customer_id: undefined, vehicle_id: undefined });
+  const [customerVehicles, setCustomerVehicles] = useState<{ id: string; description: string }[]>([]);
+  const [isNewVehicle, setIsNewVehicle] = useState(true);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -159,7 +168,19 @@ export default function TasksPage() {
       .range(from, to);
     if (s.trim()) q = q.or(`name.ilike.%${s.trim()}%,description.ilike.%${s.trim()}%`);
     const { data, count } = await q;
-    if (data) setTasks(data as Task[]);
+    if (data) {
+      const customerIds = Array.from(new Set(data.filter(t => t.customer_id).map(t => t.customer_id as string)));
+      let nameMap: Record<string, { name: string; phone: string }> = {};
+      if (customerIds.length > 0) {
+        const { data: custs } = await supabase.from("customers").select("id, name, phone").in("id", customerIds);
+        if (custs) custs.forEach(c => { nameMap[c.id] = { name: c.name, phone: c.phone }; });
+      }
+      setTasks(data.map(t =>
+        t.customer_id && nameMap[t.customer_id]
+          ? { ...t, name: nameMap[t.customer_id].name, phone: nameMap[t.customer_id].phone }
+          : t
+      ) as Task[]);
+    }
     if (count !== null) setTotal(count);
     setIsLoading(false);
   }, [supabase]);
@@ -182,16 +203,57 @@ export default function TasksPage() {
     fetchTasks(p, search);
   };
 
+  const onPhoneBlur = async () => {
+    const digits = form.phone.replace(/\D/g, "");
+    if (digits.length < 6) return;
+    const match = await lookupCustomer(supabase, form.phone);
+    if (!match) { setCustomerVehicles([]); setIsNewVehicle(true); return; }
+    const vehicles = await getCustomerVehicles(supabase, match.id);
+    setCustomerVehicles(vehicles);
+    setIsNewVehicle(vehicles.length === 0);
+    setForm(f => ({
+      ...f,
+      name: f.name || match.name,
+      customer_id: match.id,
+      vehicle_id: vehicles[0]?.id ?? undefined,
+      vehicle: vehicles[0]?.description ?? f.vehicle,
+    }));
+  };
+
+  const onVehicleSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const val = e.target.value;
+    if (val === "__new__") { setIsNewVehicle(true); setForm(f => ({ ...f, vehicle: "", vehicle_id: undefined })); }
+    else {
+      const found = customerVehicles.find(v => v.id === val);
+      if (found) { setIsNewVehicle(false); setForm(f => ({ ...f, vehicle: found.description, vehicle_id: found.id })); }
+    }
+  };
+
+  const resetForm = () => {
+    setForm({ name: "", phone: "", description: "", status: "Pending", vehicle: "", customer_id: undefined, vehicle_id: undefined });
+    setCustomerVehicles([]);
+    setIsNewVehicle(true);
+  };
+
   const save = async () => {
+    let customerId = form.customer_id;
+    let vehicleId = form.vehicle_id;
+    try {
+      if (form.phone.replace(/\D/g, "").length >= 6) {
+        customerId = await findOrCreateCustomer(supabase, form.phone, form.name);
+        if (form.vehicle?.trim()) vehicleId = await findOrCreateVehicle(supabase, customerId, form.vehicle);
+      }
+    } catch { /* non-fatal */ }
+
     if (editing) {
-      await supabase.from("pending_tasks").update(form).eq("id", editing.id);
+      await supabase.from("pending_tasks").update({ ...form, customer_id: customerId, vehicle_id: vehicleId }).eq("id", editing.id);
       await logAction(supabase, { table_name: "pending_tasks", record_id: editing.id, action: "update", description: `Cotización de ${form.name}`, user_email: userEmail });
     } else {
       const id = uuidv4();
-      await supabase.from("pending_tasks").insert({ id, ...form });
+      await supabase.from("pending_tasks").insert({ id, ...form, customer_id: customerId, vehicle_id: vehicleId });
       await logAction(supabase, { table_name: "pending_tasks", record_id: id, action: "create", description: `Cotización de ${form.name}`, user_email: userEmail });
     }
-    setIsOpen(false); setForm({ name: "", phone: "", description: "", status: "Pending" }); setEditing(null); fetchTasks(page, search);
+    setIsOpen(false); resetForm(); setEditing(null); fetchTasks(page, search);
   };
   const del = async (id: string) => {
     const task = tasks.find(t => t.id === id);
@@ -262,7 +324,7 @@ export default function TasksPage() {
             <Download size={16} aria-hidden="true" /> Exportar
           </button>
           <button
-            onClick={() => { setEditing(null); setForm({ name: "", phone: "", description: "", status: "Pending" }); setIsOpen(true); }}
+            onClick={() => { setEditing(null); resetForm(); setIsOpen(true); }}
             className="flex items-center gap-2 bg-[#07C3F8] hover:bg-[#06aad9] text-white font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-colors"
           >
             <Plus size={16} aria-hidden="true" /> Nueva tarea
@@ -294,7 +356,16 @@ export default function TasksPage() {
         onToggle={toggle}
         onToggleAll={toggleAll}
         onBulkDelete={bulkDel}
-        onEdit={(task) => { setEditing(task); setForm({ name: task.name, phone: task.phone, description: task.description, status: task.status }); setIsOpen(true); }}
+        onEdit={async (task) => {
+          setEditing(task);
+          setForm({ name: task.name, phone: task.phone, description: task.description, status: task.status, vehicle: task.vehicle ?? "", customer_id: task.customer_id, vehicle_id: task.vehicle_id });
+          if (task.customer_id) {
+            const vehicles = await getCustomerVehicles(supabase, task.customer_id);
+            setCustomerVehicles(vehicles);
+            setIsNewVehicle(!task.vehicle_id);
+          } else { setCustomerVehicles([]); setIsNewVehicle(true); }
+          setIsOpen(true);
+        }}
         onDelete={del}
       />
       <Table
@@ -304,7 +375,16 @@ export default function TasksPage() {
         onToggle={toggle}
         onToggleAll={toggleAll}
         onBulkDelete={bulkDel}
-        onEdit={(task) => { setEditing(task); setForm({ name: task.name, phone: task.phone, description: task.description, status: task.status }); setIsOpen(true); }}
+        onEdit={async (task) => {
+          setEditing(task);
+          setForm({ name: task.name, phone: task.phone, description: task.description, status: task.status, vehicle: task.vehicle ?? "", customer_id: task.customer_id, vehicle_id: task.vehicle_id });
+          if (task.customer_id) {
+            const vehicles = await getCustomerVehicles(supabase, task.customer_id);
+            setCustomerVehicles(vehicles);
+            setIsNewVehicle(!task.vehicle_id);
+          } else { setCustomerVehicles([]); setIsNewVehicle(true); }
+          setIsOpen(true);
+        }}
         onDelete={del}
       />
 
@@ -339,8 +419,23 @@ export default function TasksPage() {
       {isOpen && (
         <Modal isOpen={isOpen} onClose={() => setIsOpen(false)} title={editing ? "Editar tarea" : "Nueva tarea"}>
           <div className="space-y-4">
+            <div>
+              <label className={lbl}>Teléfono</label>
+              <input className={inp} value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} onBlur={onPhoneBlur} />
+            </div>
             <div><label className={lbl}>Nombre</label><input className={inp} value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} /></div>
-            <div><label className={lbl}>Teléfono</label><input className={inp} value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} /></div>
+            <div>
+              <label className={lbl}>Vehículo</label>
+              {customerVehicles.length > 0 && (
+                <select className={inp} value={isNewVehicle ? "__new__" : (form.vehicle_id ?? "")} onChange={onVehicleSelect}>
+                  {customerVehicles.map(v => <option key={v.id} value={v.id}>{v.description}</option>)}
+                  <option value="__new__">+ Nuevo vehículo</option>
+                </select>
+              )}
+              {(customerVehicles.length === 0 || isNewVehicle) && (
+                <input className={`${inp} ${customerVehicles.length > 0 ? "mt-2" : ""}`} placeholder="Ej: Toyota Corolla 2019" value={form.vehicle ?? ""} onChange={e => setForm({ ...form, vehicle: e.target.value })} />
+              )}
+            </div>
             <div><label className={lbl}>Descripción</label><input className={inp} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} /></div>
             <div>
               <label className={lbl}>Estado</label>

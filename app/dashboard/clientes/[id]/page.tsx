@@ -2,7 +2,7 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
-import { ChevronLeft, Car, Calendar, ShoppingBag, Pencil, Check, X, Plus, Trash2 } from "lucide-react";
+import { ChevronLeft, Car, Calendar, ShoppingBag, Pencil, Check, X, Plus, Trash2, FileText } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale/es";
 import { waUrl, WaIcon } from "@/utils/wa";
@@ -51,6 +51,14 @@ interface Order {
   product_description?: string;
   total_amount: number;
   remaining: number;
+  status?: string;
+}
+
+interface PendingQuote {
+  id: string;
+  description: string;
+  status: "Pending" | "Quoting" | "Quoted";
+  vehicle?: string;
 }
 
 function fmtTime(t: string): string {
@@ -244,6 +252,7 @@ export default function CustomerProfilePage() {
   const [vehicles, setVehicles]         = useState<Vehicle[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [orders, setOrders]             = useState<Order[]>([]);
+  const [quotes, setQuotes]             = useState<PendingQuote[]>([]);
   const [loading, setLoading]           = useState(true);
   const [notFound, setNotFound]         = useState(false);
 
@@ -252,6 +261,7 @@ export default function CustomerProfilePage() {
   const [editForm, setEditForm] = useState({ name: "", phone: "", notes: "" });
 
   const [selectedAppt, setSelectedAppt] = useState<Appointment | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   // Add vehicle
   const [vehicleFormOpen, setVehicleFormOpen] = useState(false);
@@ -261,11 +271,12 @@ export default function CustomerProfilePage() {
   const fetchAll = useCallback(async () => {
     setLoading(true);
 
-    const [{ data: cust }, { data: vehs }, { data: appts }, { data: ords }] = await Promise.all([
+    const [{ data: cust }, { data: vehs }, { data: appts }, { data: ords }, { data: qts }] = await Promise.all([
       supabase.from("customers").select("*").eq("id", id).single(),
       supabase.from("vehicles").select("*").eq("customer_id", id).order("created_at", { ascending: true }),
       supabase.from("appointments").select("*").eq("customer_id", id).order("appointment_date", { ascending: false }),
       supabase.from("orders").select("*").eq("customer_id", id).order("order_date", { ascending: false }),
+      supabase.from("pending_tasks").select("id,description,status,vehicle").eq("customer_id", id).order("id", { ascending: false }),
     ]);
 
     if (!cust) { setNotFound(true); setLoading(false); return; }
@@ -275,6 +286,7 @@ export default function CustomerProfilePage() {
     setVehicles((vehs ?? []) as Vehicle[]);
     setAppointments((appts ?? []) as Appointment[]);
     setOrders((ords ?? []) as Order[]);
+    setQuotes((qts ?? []) as PendingQuote[]);
     setLoading(false);
   }, [supabase, id]);
 
@@ -282,11 +294,11 @@ export default function CustomerProfilePage() {
 
   const saveCustomer = async () => {
     if (!editForm.name.trim() || !editForm.phone.trim()) return;
-    await supabase
-      .from("customers")
-      .update({ name: editForm.name.trim(), phone: editForm.phone.trim(), notes: editForm.notes.trim() || null })
-      .eq("id", id);
-    setCustomer(prev => prev ? { ...prev, name: editForm.name.trim(), phone: editForm.phone.trim(), notes: editForm.notes.trim() } : prev);
+    const name = editForm.name.trim();
+    const phone = editForm.phone.trim();
+    const { error } = await supabase.from("customers").update({ name, phone, notes: editForm.notes.trim() || null }).eq("id", id);
+    if (error) return;
+    setCustomer(prev => prev ? { ...prev, name, phone, notes: editForm.notes.trim() } : prev);
     setEditing(false);
   };
 
@@ -307,6 +319,11 @@ export default function CustomerProfilePage() {
   const deleteVehicle = async (vehicleId: string) => {
     await supabase.from("vehicles").delete().eq("id", vehicleId);
     setVehicles(prev => prev.filter(v => v.id !== vehicleId));
+  };
+
+  const deleteCustomer = async () => {
+    await supabase.from("customers").delete().eq("id", id);
+    router.push("/dashboard/clientes");
   };
 
   if (loading) return (
@@ -377,13 +394,34 @@ export default function CustomerProfilePage() {
               </div>
               {customer!.notes && <p className="text-xs text-gray-400 mt-1.5">{customer!.notes}</p>}
             </div>
-            <button
-              onClick={() => setEditing(true)}
-              className="shrink-0 p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
-              title="Editar cliente"
-            >
-              <Pencil size={15} />
-            </button>
+            <div className="shrink-0 flex items-center gap-1">
+              <button
+                onClick={() => setEditing(true)}
+                className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+                title="Editar cliente"
+              >
+                <Pencil size={15} />
+              </button>
+              {confirmDelete ? (
+                <div className="flex items-center gap-1 bg-red-50 border border-red-200 rounded-xl px-2 py-1">
+                  <span className="text-xs text-red-600 font-medium">¿Eliminar?</span>
+                  <button onClick={deleteCustomer} className="p-1 rounded text-red-500 hover:text-red-700 hover:bg-red-100 transition-colors" title="Confirmar">
+                    <Check size={13} />
+                  </button>
+                  <button onClick={() => setConfirmDelete(false)} className="p-1 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors" title="Cancelar">
+                    <X size={13} />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setConfirmDelete(true)}
+                  className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                  title="Eliminar cliente"
+                >
+                  <Trash2 size={15} />
+                </button>
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -500,6 +538,34 @@ export default function CustomerProfilePage() {
         )}
       </div>
 
+      {/* Quotes */}
+      {quotes.length > 0 && (
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-100">
+            <FileText size={15} className="text-amber-500" aria-hidden="true" />
+            <h2 className="font-semibold text-gray-900">Cotizaciones</h2>
+            <span className="bg-gray-100 text-gray-500 text-xs font-semibold px-2 py-0.5 rounded-full">{quotes.length}</span>
+          </div>
+          <ul className="divide-y divide-gray-50">
+            {quotes.map(q => {
+              const qStyle = q.status === "Quoted" ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                : q.status === "Quoting" ? "bg-blue-50 text-blue-700 border border-blue-200"
+                : "bg-amber-50 text-amber-700 border border-amber-200";
+              const qLabel = q.status === "Quoted" ? "Cotizado" : q.status === "Quoting" ? "Cotizando" : "Pendiente";
+              return (
+                <li key={q.id} className="px-5 py-3 flex items-start gap-4">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-gray-700 truncate">{q.description || "—"}</p>
+                    {q.vehicle && <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1"><Car size={10} aria-hidden="true" /> {q.vehicle}</p>}
+                  </div>
+                  <span className={`text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 ${qStyle}`}>{qLabel}</span>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+
       {/* Orders */}
       {orders.length > 0 && (
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
@@ -517,6 +583,14 @@ export default function CustomerProfilePage() {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-gray-700 truncate">{o.product_description || "—"}</p>
                 </div>
+                {o.status && (
+                  <span className={`text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 ${
+                    o.status === "Entregado" ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                    : o.status === "En local" ? "bg-violet-50 text-violet-700 border border-violet-200"
+                    : o.status === "Pedido"   ? "bg-blue-50 text-blue-700 border border-blue-200"
+                    : "bg-amber-50 text-amber-700 border border-amber-200"
+                  }`}>{o.status}</span>
+                )}
                 <div className="text-right shrink-0">
                   <p className="text-sm font-semibold text-gray-900 font-mono">₡{o.total_amount.toLocaleString("es-CR")}</p>
                   {o.remaining > 0 ? (

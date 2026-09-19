@@ -1,4 +1,5 @@
 "use client";
+import { useRequireRole } from "@/hooks/useRequireRole";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
@@ -376,6 +377,7 @@ function StaffCard({
 }
 
 export default function InstaladoresPage() {
+  useRequireRole(["admin"]);
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
   const [staff, setStaff] = useState<StaffRecord[]>([]);
