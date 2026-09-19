@@ -57,15 +57,15 @@ const buildWaHref = (task: TaskFormState, appointmentDate: Date, tasksList: stri
     : task.description?.trim() || "—";
 
   const msg =
-`☀️Buenas tardes de parte de Autodecoracion 2M es un gusto saludarle, para confirmar su cita el día de mañana
+`Buenas tardes de parte de Autodecoracion 2M, es un gusto saludarle. Para confirmar su cita el día de mañana:
 
-📅Día: ${dateCapitalized}
-🕜Hora: ${hora}
-✅Trabajo a realizar:
+*Día:* ${dateCapitalized}
+*Hora:* ${hora}
+*Trabajo a realizar:*
 ${trabajo}
-🚗Vehiculo: ${task.vehicle || "—"}
+*Vehículo:* ${task.vehicle || "—"}
 
-Quedo atenta a su confirmación`;
+Quedo atenta a su confirmación.`;
 
   return `${waUrl(task.phone)}?text=${encodeURIComponent(msg)}`;
 };
