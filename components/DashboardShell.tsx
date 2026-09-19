@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/utils/supabase/client";
 import {
-  Home, Calendar, FileText, ShoppingCart, LogOut, Droplets, Menu, X, Users, HardHat, ChevronLeft, ChevronRight,
+  Home, Calendar, FileText, ShoppingCart, LogOut, Droplets, Menu, X, Users, HardHat, ChevronLeft, ChevronRight, ClipboardList,
 } from "lucide-react";
 import { RoleContext, type Role } from "@/contexts/RoleContext";
 
@@ -17,6 +17,7 @@ const baseNavItems = [
   { href: "/dashboard/botaguas",     icon: Droplets,     label: "Inventario Botaguas",     roles: ["admin", "asistente", "botaguas"] as Role[] },
   { href: "/dashboard/clientes",     icon: Users,        label: "Clientes",                roles: ["admin"] as Role[] },
   { href: "/dashboard/instaladores", icon: HardHat,      label: "Instaladores",            roles: ["admin"] as Role[] },
+  { href: "/dashboard/auditoria",    icon: ClipboardList, label: "Auditoría",               roles: ["admin"] as Role[] },
 ];
 
 const SidebarNav = memo(function SidebarNav({
