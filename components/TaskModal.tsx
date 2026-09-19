@@ -73,7 +73,7 @@ Quedo atenta a su confirmación`;
 const TaskModal = ({
   isOpen, onClose, onSave, onDelete, task, setTask, isNewTask, errorMessage,
   businessPhone = "", appointmentDate, supabase, initialPendingTasks = [], onMoveToWaiting, staffList = [], onCancel,
-  hideFinancials = false,
+  hideFinancials = false, readOnly = false,
 }: {
   isOpen: boolean; onClose: () => void; onSave: (pendingTasks?: PendingTask[]) => void;
   onDelete?: (id: number | string) => void; task: TaskFormState; setTask: (t: TaskFormState) => void;
@@ -85,6 +85,7 @@ const TaskModal = ({
   staffList?: string[];
   onCancel?: (reason: string) => void;
   hideFinancials?: boolean;
+  readOnly?: boolean;
 }) => {
   const [customerVehicles, setCustomerVehicles] = useState<{ id: string; description: string }[]>([]);
   const [isNewVehicle, setIsNewVehicle] = useState(true);
@@ -242,7 +243,7 @@ const TaskModal = ({
           {/* Header */}
           <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 bg-gray-50">
             <Dialog.Title className="text-base font-semibold text-gray-900">
-              {isNewTask ? "Nueva cita" : "Editar cita"}
+              {isNewTask ? "Nueva cita" : readOnly ? "Ver cita" : "Editar cita"}
             </Dialog.Title>
             <button
               onClick={onClose}
@@ -267,6 +268,7 @@ const TaskModal = ({
                   value={task.phone}
                   onChange={onChange}
                   onBlur={onPhoneBlur}
+                  disabled={readOnly}
                 />
                 {waHref && (
                   <a
@@ -289,7 +291,7 @@ const TaskModal = ({
             </div>
             <div className="mb-3">
               <label htmlFor="task-name" className={lbl}>Nombre</label>
-              <input id="task-name" type="text" name="name" placeholder="Nombre" className={inp} value={task.name} onChange={onChange} />
+              <input id="task-name" type="text" name="name" placeholder="Nombre" className={inp} value={task.name} onChange={onChange} disabled={readOnly} />
             </div>
             <div className="mb-3">
               <label htmlFor="task-vehicle" className={lbl}>Vehículo</label>
@@ -315,6 +317,7 @@ const TaskModal = ({
                   className={`${inp} ${isNewTask && customerVehicles.length > 0 ? "mt-2" : ""}`}
                   value={task.vehicle}
                   onChange={onChange}
+                  disabled={readOnly}
                 />
               )}
             </div>
@@ -328,12 +331,16 @@ const TaskModal = ({
                 className={inp}
                 value={task.placa ?? ""}
                 onChange={onChange}
+                disabled={readOnly}
               />
             </div>
             {/* Task checklist */}
             <div className="mb-3 border-t border-gray-100 pt-3">
               <div className="mb-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Tareas</p>
+                <div className="flex items-center gap-2 mb-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Tareas</p>
+                  {readOnly && <span className="text-xs text-green-600 font-medium">· Se guardan automáticamente</span>}
+                </div>
                 <div className="flex items-center gap-1.5">
                   <input
                     type="text"
@@ -551,6 +558,7 @@ const TaskModal = ({
                       const d = new Date(e.target.value + "T12:00:00");
                       setTask({ ...task, appointment_date: d.toISOString() });
                     }}
+                    disabled={readOnly}
                   />
                 </div>
                 {staffList.length > 0 && (
@@ -561,6 +569,7 @@ const TaskModal = ({
                       className={inp}
                       value={task.assigned_person}
                       onChange={e => setTask({ ...task, assigned_person: e.target.value })}
+                      disabled={readOnly}
                     >
                       {staffList.map(name => (
                         <option key={name} value={name}>{name}</option>
@@ -573,20 +582,20 @@ const TaskModal = ({
             <div className="grid grid-cols-2 gap-2 mb-3">
               <div>
                 <label htmlFor="task-start" className={lbl}>Hora inicio</label>
-                <select id="task-start" name="start_time" className={inp} value={task.start_time?.slice(0, 5) ?? ""} onChange={onChange}>
+                <select id="task-start" name="start_time" className={inp} value={task.start_time?.slice(0, 5) ?? ""} onChange={onChange} disabled={readOnly}>
                   {TIME_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
               </div>
               <div>
                 <label htmlFor="task-end" className={lbl}>Hora fin</label>
-                <select id="task-end" name="end_time" className={inp} value={task.end_time?.slice(0, 5) ?? ""} onChange={onChange}>
+                <select id="task-end" name="end_time" className={inp} value={task.end_time?.slice(0, 5) ?? ""} onChange={onChange} disabled={readOnly}>
                   {TIME_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
               </div>
             </div>
             <div className="mb-3">
               <label htmlFor="task-status" className={lbl}>Estado</label>
-              <select id="task-status" name="status" className={inp} value={task.status} onChange={onChange}>
+              <select id="task-status" name="status" className={inp} value={task.status} onChange={onChange} disabled={readOnly}>
                 <option value="pending">Pendiente</option>
                 <option value="confirmed">Confirmada</option>
                 <option value="active">En proceso</option>
@@ -596,7 +605,7 @@ const TaskModal = ({
             </div>
             <div className="mb-3">
               <label htmlFor="task-description" className={lbl}>Notas</label>
-              <textarea id="task-description" name="description" placeholder="Notas" rows={3} className={`${inp} resize-none`} value={task.description} onChange={onChange} />
+              <textarea id="task-description" name="description" placeholder="Notas" rows={3} className={`${inp} resize-none`} value={task.description} onChange={onChange} disabled={readOnly} />
             </div>
 
             {cancelMode && (
@@ -620,7 +629,7 @@ const TaskModal = ({
 
           {/* Footer */}
           <div className="flex justify-end gap-2 px-5 py-4 border-t border-gray-100 bg-gray-50">
-            {!isNewTask && !cancelMode && !deleteConfirm && (
+            {!readOnly && !isNewTask && !cancelMode && !deleteConfirm && (
               <>
                 <button onClick={() => setDeleteConfirm(true)} className="px-4 py-2 text-sm font-medium rounded-xl bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 transition-colors">
                   Eliminar
@@ -658,9 +667,14 @@ const TaskModal = ({
                 </button>
               </>
             )}
-            {!cancelMode && !deleteConfirm && (
+            {!readOnly && !cancelMode && !deleteConfirm && (
               <button onClick={() => onSave(isNewTask ? pendingTasks : undefined)} className="px-4 py-2 text-sm font-semibold rounded-xl bg-[#07C3F8] hover:bg-[#06aad9] text-white transition-colors">
                 Guardar
+              </button>
+            )}
+            {readOnly && (
+              <button onClick={onClose} className="px-4 py-2 text-sm font-semibold rounded-xl bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 transition-colors">
+                Cerrar
               </button>
             )}
           </div>

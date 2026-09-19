@@ -122,6 +122,7 @@ const Agenda = () => {
   const role = useRole();
   const staffId = useStaffId();
   const canEdit = role !== "botaguas";
+  const canCreateNew = canEdit && role !== "tecnico";
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [errorMessage, setErrorMessage] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -769,7 +770,7 @@ const Agenda = () => {
                         onDragOver={(e) => { if (dragging && person !== dragging.assigned_person) { e.preventDefault(); setDropTarget(person); } }}
                         onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDropTarget(null); }}
                         onDrop={(e) => { e.preventDefault(); handleDrop(person); }}
-                        onClick={() => !dragging && !isSatNoon && canEdit && (task ? (setCurrentTask(task), setIsNewTask(false), setIsModalOpen(true)) : handleNewTaskClick(hour, person))}
+                        onClick={() => !dragging && !isSatNoon && (task ? canEdit && (setCurrentTask(task), setIsNewTask(false), setIsModalOpen(true)) : canCreateNew && handleNewTaskClick(hour, person))}
                         style={{
                           minHeight: "3.25rem",
                           borderBottom: isLastHour ? `2px solid ${accentColor}` : undefined,
@@ -969,7 +970,7 @@ const Agenda = () => {
       </div>
 
       {isModalOpen && (
-        <TaskModal isOpen={isModalOpen} onClose={handleModalClose} onSave={handleSaveNote} task={currentTask} setTask={setCurrentTask} isNewTask={isNewTask} onDelete={canEdit && role !== "tecnico" ? handleDeleteNote : undefined} hideFinancials={role === "tecnico"} errorMessage={errorMessage} businessPhone={businessPhone} appointmentDate={selectedDate} supabase={supabase} initialPendingTasks={pendingTasksForModal} onMoveToWaiting={!isNewTask ? handleMoveToWaiting : undefined} staffList={PEOPLE} onCancel={!isNewTask ? handleCancelAppointment : undefined} />
+        <TaskModal isOpen={isModalOpen} onClose={handleModalClose} onSave={handleSaveNote} task={currentTask} setTask={setCurrentTask} isNewTask={isNewTask} onDelete={canEdit && role !== "tecnico" ? handleDeleteNote : undefined} hideFinancials={role === "tecnico"} readOnly={role === "tecnico" && !isNewTask} errorMessage={errorMessage} businessPhone={businessPhone} appointmentDate={selectedDate} supabase={supabase} initialPendingTasks={pendingTasksForModal} onMoveToWaiting={!isNewTask ? handleMoveToWaiting : undefined} staffList={PEOPLE} onCancel={!isNewTask ? handleCancelAppointment : undefined} />
       )}
 
       {/* Settings modal */}
