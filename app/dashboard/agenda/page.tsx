@@ -413,6 +413,7 @@ const Agenda = () => {
       pending_tasks: (tasks ?? []).map(t => t.description),
     });
     await deleteNoteFromSupabase(currentTask.id);
+    setCurrentTask({ start_time: "", end_time: "", assigned_person: "", staff_id: undefined, name: "", phone: "", description: "", vehicle: "", placa: "", abono: undefined, status: "pending", appointment_date: new Date().toISOString(), customer_id: undefined, vehicle_id: undefined });
     setIsModalOpen(false);
     fetchWaitingList();
     await fetchNotesForSelectedDate();
