@@ -17,6 +17,7 @@ interface Appointment {
   placa?: string;
   abono?: number;
   cancel_reason?: string;
+  appointment_tasks?: unknown;
 }
 
 interface SupabaseResponse<T = any> {
@@ -32,7 +33,7 @@ export const addNoteToSupabase = async (
 ): Promise<SupabaseResponse> => {
   const supabase = createClient();
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { id: _id, ...fields } = appointment;
+  const { id: _id, appointment_tasks: _tasks, ...fields } = appointment;
   const { data, error } = await supabase
     .from("appointments")
     .insert([fields])
