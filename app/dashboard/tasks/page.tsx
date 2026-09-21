@@ -16,7 +16,7 @@ interface Task {
   name: string;
   phone: string;
   description: string;
-  status: "Pending" | "Quoting" | "Quoted";
+  status: "Pending" | "Quoting" | "Quoted" | "Waiting";
   vehicle?: string;
   customer_id?: string;
   vehicle_id?: string;
@@ -29,11 +29,13 @@ const statusStyle: Record<Task["status"], string> = {
   Pending: "bg-amber-50 text-amber-700 border border-amber-200",
   Quoting: "bg-blue-50 text-blue-700 border border-blue-200",
   Quoted:  "bg-emerald-50 text-emerald-700 border border-emerald-200",
+  Waiting: "bg-purple-50 text-purple-700 border border-purple-200",
 };
 const statusLabel: Record<Task["status"], string> = {
   Pending: "Pendiente",
   Quoting: "Cotizando",
   Quoted:  "Cotizado",
+  Waiting: "Lista de espera",
 };
 
 interface TableProps {
@@ -177,7 +179,7 @@ export default function TasksPage() {
   const [search, setSearch] = useState("");
   const [userEmail, setUserEmail] = useState<string | undefined>(undefined);
   const [draggingTask, setDraggingTask] = useState<Task | null>(null);
-  const [dropTarget, setDropTarget] = useState<"pending" | "quoted" | null>(null);
+  const [dropTarget, setDropTarget] = useState<"pending" | "quoted" | "waiting" | null>(null);
 
   const fetchTasks = useCallback(async (p = 0, s = "") => {
     const from = p * PAGE_SIZE;
@@ -289,12 +291,12 @@ export default function TasksPage() {
     }));
     setSelected(p => { const n = new Set(p); ids.forEach(id => n.delete(id)); return n; }); fetchTasks(page, search);
   };
-  const handleDrop = async (target: "pending" | "quoted") => {
+  const handleDrop = async (target: "pending" | "quoted" | "waiting") => {
     setDropTarget(null);
     if (!draggingTask) return;
-    const isAlreadyThere = target === "quoted" ? draggingTask.status === "Quoted" : draggingTask.status !== "Quoted";
-    if (isAlreadyThere) { setDraggingTask(null); return; }
-    const newStatus: Task["status"] = target === "quoted" ? "Quoted" : "Pending";
+    const statusMap: Record<typeof target, Task["status"]> = { pending: "Pending", quoted: "Quoted", waiting: "Waiting" };
+    const newStatus = statusMap[target];
+    if (draggingTask.status === newStatus) { setDraggingTask(null); return; }
     setTasks(prev => prev.map(t => t.id === draggingTask.id ? { ...t, status: newStatus } : t));
     await supabase.from("pending_tasks").update({ status: newStatus }).eq("id", draggingTask.id);
     await logAction(supabase, { table_name: "pending_tasks", record_id: draggingTask.id, action: "update", description: `Cotización de ${draggingTask.name} → ${statusLabel[newStatus]}`, user_email: userEmail });
@@ -381,7 +383,7 @@ export default function TasksPage() {
       </div>
 
       <Table
-        list={tasks.filter(t => t.status !== "Quoted")}
+        list={tasks.filter(t => t.status !== "Quoted" && t.status !== "Waiting")}
         title="Pendientes / Cotizando"
         selected={selected}
         onToggle={toggle}
@@ -426,6 +428,30 @@ export default function TasksPage() {
         onRowDragStart={setDraggingTask}
         onDrop={() => handleDrop("quoted")}
         onDragOver={e => { e.preventDefault(); setDropTarget("quoted"); }}
+        onDragLeave={() => setDropTarget(null)}
+      />
+      <Table
+        list={tasks.filter(t => t.status === "Waiting")}
+        title="Lista de espera"
+        selected={selected}
+        onToggle={toggle}
+        onToggleAll={toggleAll}
+        onBulkDelete={bulkDel}
+        onEdit={async (task) => {
+          setEditing(task);
+          setForm({ name: task.name, phone: task.phone, description: task.description, status: task.status, vehicle: task.vehicle ?? "", customer_id: task.customer_id, vehicle_id: task.vehicle_id, notes: task.notes ?? "" });
+          if (task.customer_id) {
+            const vehicles = await getCustomerVehicles(supabase, task.customer_id);
+            setCustomerVehicles(vehicles);
+            setIsNewVehicle(!task.vehicle_id);
+          } else { setCustomerVehicles([]); setIsNewVehicle(true); }
+          setIsOpen(true);
+        }}
+        onDelete={del}
+        isDropTarget={dropTarget === "waiting"}
+        onRowDragStart={setDraggingTask}
+        onDrop={() => handleDrop("waiting")}
+        onDragOver={e => { e.preventDefault(); setDropTarget("waiting"); }}
         onDragLeave={() => setDropTarget(null)}
       />
 
@@ -485,6 +511,7 @@ export default function TasksPage() {
                 <option value="Pending">Pendiente</option>
                 <option value="Quoting">Cotizando</option>
                 <option value="Quoted">Cotizado</option>
+                <option value="Waiting">Lista de espera</option>
               </select>
             </div>
             <div className="flex justify-end gap-2 pt-2">
