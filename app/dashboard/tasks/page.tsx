@@ -21,6 +21,7 @@ interface Task {
   customer_id?: string;
   vehicle_id?: string;
   notes?: string;
+  image_url?: string;
 }
 
 interface QuoteItem {
@@ -49,6 +50,7 @@ interface TableProps {
   title: string;
   selected: Set<string>;
   itemCounts: Record<string, number>;
+  taskDescriptions: Record<string, string[]>;
   onToggle: (id: string) => void;
   onToggleAll: (list: Task[], all: boolean) => void;
   onBulkDelete: (ids: string[]) => void;
@@ -62,7 +64,7 @@ interface TableProps {
   onDragLeave?: () => void;
 }
 
-const Table = memo(function Table({ list, title, selected, itemCounts, onToggle, onToggleAll, onBulkDelete, onEdit, onDelete, onRowClick, isDropTarget, onRowDragStart, onDrop, onDragOver, onDragLeave }: TableProps) {
+const Table = memo(function Table({ list, title, selected, itemCounts, taskDescriptions, onToggle, onToggleAll, onBulkDelete, onEdit, onDelete, onRowClick, isDropTarget, onRowDragStart, onDrop, onDragOver, onDragLeave }: TableProps) {
   const sel = list.map(t => t.id).filter(id => selected.has(id));
   const all = list.length > 0 && sel.length === list.length;
   return (
@@ -88,9 +90,20 @@ const Table = memo(function Table({ list, title, selected, itemCounts, onToggle,
       ) : (
         <div
           onDrop={onDrop} onDragOver={onDragOver} onDragLeave={onDragLeave}
-          className={`bg-white rounded-2xl shadow-sm border overflow-hidden transition-colors ${isDropTarget ? "border-[#07C3F8] ring-2 ring-[#07C3F8]/30" : "border-gray-200"}`}
+          className={`bg-white rounded-2xl shadow-sm border overflow-x-auto transition-colors ${isDropTarget ? "border-[#07C3F8] ring-2 ring-[#07C3F8]/30" : "border-gray-200"}`}
         >
-          <table className="min-w-full">
+          <table className="w-full table-fixed">
+            <colgroup>
+              <col style={{width: "40px"}} />
+              <col className="w-[14%]" />
+              <col className="w-[10%]" />
+              <col className="w-[11%]" />
+              <col className="w-[20%]" />
+              <col className="w-[16%]" />
+              <col className="w-[13%]" />
+              <col className="w-[10%]" />
+              <col style={{width: "80px"}} />
+            </colgroup>
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
                 <th className="w-10 p-3 text-left">
@@ -102,7 +115,7 @@ const Table = memo(function Table({ list, title, selected, itemCounts, onToggle,
                     className="cursor-pointer accent-[#07C3F8] w-4 h-4"
                   />
                 </th>
-                {["Nombre", "Teléfono", "Vehículo", "Descripción", "Notas", "Estado", ""].map(h => (
+                {["Nombre", "Teléfono", "Vehículo", "Descripción", "Tareas", "Notas", "Estado", ""].map(h => (
                   <th key={h} className="p-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</th>
                 ))}
               </tr>
@@ -125,19 +138,10 @@ const Table = memo(function Table({ list, title, selected, itemCounts, onToggle,
                       className="cursor-pointer accent-[#07C3F8] w-4 h-4"
                     />
                   </td>
-                  <td className="p-3 text-sm font-medium text-gray-900">
-                    <div className="flex items-center gap-2">
-                      {task.name}
-                      {(itemCounts[task.id] ?? 0) > 0 && (
-                        <span className="flex items-center gap-0.5 bg-[#07C3F8]/10 text-[#07C3F8] text-xs font-semibold px-1.5 py-0.5 rounded-full">
-                          <ListChecks size={10} /> {itemCounts[task.id]}
-                        </span>
-                      )}
-                    </div>
-                  </td>
+                  <td className="p-3 text-sm font-medium text-gray-900 truncate">{task.name}</td>
                   <td className="p-3 text-sm text-gray-500">
                     <div className="flex items-center gap-1.5">
-                      <span>{task.phone}</span>
+                      <span className="truncate">{task.phone}</span>
                       {task.phone && (
                         <a href={waUrl(task.phone)} target="_blank" rel="noopener noreferrer" aria-label={`WhatsApp a ${task.name}`} className="shrink-0 opacity-60 hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
                           <WaIcon />
@@ -145,11 +149,28 @@ const Table = memo(function Table({ list, title, selected, itemCounts, onToggle,
                       )}
                     </div>
                   </td>
-                  <td className="p-3 text-sm text-gray-500">{task.vehicle || "—"}</td>
-                  <td className="p-3 text-sm text-gray-500 max-w-xs truncate">{task.description}</td>
-                  <td className="p-3 text-sm text-gray-500 max-w-xs truncate">{task.notes || "—"}</td>
+                  <td className="p-3 text-sm text-gray-500 truncate">{task.vehicle || "—"}</td>
+                  <td className="p-3 text-sm text-gray-500"><div className="line-clamp-3">{task.description || "—"}</div></td>
                   <td className="p-3">
-                    <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold ${statusStyle[task.status]}`}>
+                    {(taskDescriptions[task.id] ?? []).length === 0 ? (
+                      <span className="text-gray-300 text-xs">—</span>
+                    ) : (
+                      <div className="space-y-0.5">
+                        {(taskDescriptions[task.id] ?? []).slice(0, 3).map((d, i) => (
+                          <div key={i} className="flex items-start gap-1 text-xs text-gray-600">
+                            <span className="text-gray-400 shrink-0">•</span>
+                            <span className="truncate">{d}</span>
+                          </div>
+                        ))}
+                        {(taskDescriptions[task.id] ?? []).length > 3 && (
+                          <span className="text-xs text-[#07C3F8]">+{(taskDescriptions[task.id] ?? []).length - 3} más</span>
+                        )}
+                      </div>
+                    )}
+                  </td>
+                  <td className="p-3 text-sm text-gray-500"><div className="line-clamp-3">{task.notes || "—"}</div></td>
+                  <td className="p-3">
+                    <span className={`inline-flex px-2 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${statusStyle[task.status]}`}>
                       {statusLabel[task.status]}
                     </span>
                   </td>
@@ -189,7 +210,8 @@ export default function TasksPage() {
   const [page, setPage] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
   const [editing, setEditing] = useState<Task | null>(null);
-  const [form, setForm] = useState<Omit<Task, "id">>({ name: "", phone: "", description: "", status: "Pending", vehicle: "", customer_id: undefined, vehicle_id: undefined, notes: "" });
+  const [form, setForm] = useState<Omit<Task, "id">>({ name: "", phone: "", description: "", status: "Pending", vehicle: "", customer_id: undefined, vehicle_id: undefined, notes: "", image_url: "" });
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const [formError, setFormError] = useState("");
   const [customerVehicles, setCustomerVehicles] = useState<VehicleRecord[]>([]);
   const [isNewVehicle, setIsNewVehicle] = useState(true);
@@ -201,6 +223,7 @@ export default function TasksPage() {
   const [draggingTask, setDraggingTask] = useState<Task | null>(null);
   const [dropTarget, setDropTarget] = useState<"pending" | "quoted" | "waiting" | null>(null);
   const [itemCounts, setItemCounts] = useState<Record<string, number>>({});
+  const [taskDescriptions, setTaskDescriptions] = useState<Record<string, string[]>>({});
   const [detailTask, setDetailTask] = useState<Task | null>(null);
   const [detailItems, setDetailItems] = useState<QuoteItem[]>([]);
   const [newItemText, setNewItemText] = useState("");
@@ -222,20 +245,28 @@ export default function TasksPage() {
         const { data: custs } = await supabase.from("customers").select("id, name, phone").in("id", customerIds);
         if (custs) custs.forEach(c => { nameMap[c.id] = { name: c.name, phone: c.phone }; });
       }
-      const mapped = data.map(t =>
-        t.customer_id && nameMap[t.customer_id]
-          ? { ...t, name: nameMap[t.customer_id].name, phone: nameMap[t.customer_id].phone }
-          : t
-      ) as Task[];
+      const mapped = data.map(t => {
+        if (t.customer_id && nameMap[t.customer_id]) {
+          const c = nameMap[t.customer_id];
+          return { ...t, name: c.name || t.name, phone: c.phone || t.phone };
+        }
+        return t;
+      }) as Task[];
       setTasks(mapped);
 
       const ids = mapped.map(t => t.id);
       if (ids.length > 0) {
-        const { data: items } = await supabase.from("quote_items").select("task_id").in("task_id", ids);
+        const { data: items } = await supabase.from("quote_items").select("task_id, description").in("task_id", ids);
         if (items) {
           const counts: Record<string, number> = {};
-          for (const item of items) counts[item.task_id] = (counts[item.task_id] ?? 0) + 1;
+          const descs: Record<string, string[]> = {};
+          for (const item of items) {
+            counts[item.task_id] = (counts[item.task_id] ?? 0) + 1;
+            if (!descs[item.task_id]) descs[item.task_id] = [];
+            descs[item.task_id].push(item.description);
+          }
           setItemCounts(counts);
+          setTaskDescriptions(descs);
         }
       }
     }
@@ -297,11 +328,15 @@ export default function TasksPage() {
   };
 
   const resetForm = () => {
-    setForm({ name: "", phone: "", description: "", status: "Pending", vehicle: "", customer_id: undefined, vehicle_id: undefined, notes: "" });
+    setForm({ name: "", phone: "", description: "", status: "Pending", vehicle: "", customer_id: undefined, vehicle_id: undefined, notes: "", image_url: "" });
     setFormError("");
     setVehicleFields({ make: "", model: "", year: "" });
     setCustomerVehicles([]);
     setIsNewVehicle(true);
+    setImageFile(null);
+    setDetailItems([]);
+    setDetailTask(null);
+    setNewItemText("");
   };
 
   const save = async () => {
@@ -312,6 +347,7 @@ export default function TasksPage() {
     setFormError("");
     let customerId = form.customer_id;
     let vehicleId = form.vehicle_id;
+    let imageUrl = form.image_url ?? "";
     try {
       if (form.phone.replace(/\D/g, "").length >= 6) {
         customerId = await findOrCreateCustomer(supabase, form.phone, form.name);
@@ -320,12 +356,25 @@ export default function TasksPage() {
       }
     } catch { /* non-fatal */ }
 
+    if (imageFile) {
+      try {
+        const ext = imageFile.name.split(".").pop() ?? "jpg";
+        const taskId = editing?.id ?? uuidv4();
+        const path = `${taskId}_${Date.now()}.${ext}`;
+        const { data: uploaded, error: upErr } = await supabase.storage.from("task-images").upload(path, imageFile, { upsert: true });
+        if (!upErr && uploaded) {
+          const { data: { publicUrl } } = supabase.storage.from("task-images").getPublicUrl(uploaded.path);
+          imageUrl = publicUrl;
+        }
+      } catch { /* non-fatal */ }
+    }
+
     if (editing) {
-      await supabase.from("pending_tasks").update({ ...form, customer_id: customerId, vehicle_id: vehicleId }).eq("id", editing.id);
+      await supabase.from("pending_tasks").update({ ...form, customer_id: customerId, vehicle_id: vehicleId, image_url: imageUrl }).eq("id", editing.id);
       await logAction(supabase, { table_name: "pending_tasks", record_id: editing.id, action: "update", description: `Cotización de ${form.name}`, user_email: userEmail });
     } else {
       const id = uuidv4();
-      await supabase.from("pending_tasks").insert({ id, ...form, customer_id: customerId, vehicle_id: vehicleId });
+      await supabase.from("pending_tasks").insert({ id, ...form, customer_id: customerId, vehicle_id: vehicleId, image_url: imageUrl });
       await logAction(supabase, { table_name: "pending_tasks", record_id: id, action: "create", description: `Cotización de ${form.name}`, user_email: userEmail });
     }
     setIsOpen(false); resetForm(); setEditing(null); fetchTasks(page, search);
@@ -368,18 +417,29 @@ export default function TasksPage() {
   const addItem = async () => {
     if (!newItemText.trim() || !detailTask) return;
     const id = uuidv4();
-    const item: QuoteItem = { id, task_id: detailTask.id, description: newItemText.trim() };
-    await supabase.from("quote_items").insert({ id, task_id: detailTask.id, description: newItemText.trim() });
+    const desc = newItemText.trim();
+    const item: QuoteItem = { id, task_id: detailTask.id, description: desc };
+    await supabase.from("quote_items").insert({ id, task_id: detailTask.id, description: desc });
     setDetailItems(prev => [...prev, item]);
     setItemCounts(prev => ({ ...prev, [detailTask.id]: (prev[detailTask.id] ?? 0) + 1 }));
+    setTaskDescriptions(prev => ({ ...prev, [detailTask.id]: [...(prev[detailTask.id] ?? []), desc] }));
     setNewItemText("");
   };
 
   const removeItem = async (itemId: string) => {
     if (!detailTask) return;
+    const removed = detailItems.find(i => i.id === itemId);
     await supabase.from("quote_items").delete().eq("id", itemId);
     setDetailItems(prev => prev.filter(i => i.id !== itemId));
     setItemCounts(prev => ({ ...prev, [detailTask.id]: Math.max(0, (prev[detailTask.id] ?? 1) - 1) }));
+    if (removed) {
+      setTaskDescriptions(prev => {
+        const arr = [...(prev[detailTask.id] ?? [])];
+        const idx = arr.indexOf(removed.description);
+        if (idx > -1) arr.splice(idx, 1);
+        return { ...prev, [detailTask.id]: arr };
+      });
+    }
   };
 
   const toggle = (id: string) => setSelected(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
@@ -389,14 +449,10 @@ export default function TasksPage() {
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
-  const sharedTableProps = {
-    selected, itemCounts, onToggle: toggle, onToggleAll: toggleAll, onBulkDelete: bulkDel, onRowClick: openDetail,
-    onRowDragStart: setDraggingTask,
-  };
-
   const makeEditHandler = () => async (task: Task) => {
     setEditing(task);
-    setForm({ name: task.name, phone: task.phone, description: task.description, status: task.status, vehicle: task.vehicle ?? "", customer_id: task.customer_id, vehicle_id: task.vehicle_id, notes: task.notes ?? "" });
+    setForm({ name: task.name, phone: task.phone, description: task.description, status: task.status, vehicle: task.vehicle ?? "", customer_id: task.customer_id, vehicle_id: task.vehicle_id, notes: task.notes ?? "", image_url: task.image_url ?? "" });
+    setImageFile(null);
     // Parse vehicle description into structured fields (best-effort)
     const vDesc = task.vehicle ?? "";
     const parts = vDesc.trim().split(/\s+/);
@@ -409,18 +465,26 @@ export default function TasksPage() {
       const vehicles = await getCustomerVehicles(supabase, task.customer_id);
       setCustomerVehicles(vehicles);
       setIsNewVehicle(!task.vehicle_id);
-      // If vehicle exists with structured data, use that
       if (task.vehicle_id) {
         const veh = vehicles.find(v => v.id === task.vehicle_id);
         if (veh?.make) setVehicleFields({ make: veh.make ?? "", model: veh.model ?? "", year: veh.year ? String(veh.year) : "" });
       }
+      if (!task.name.trim() || !task.phone.trim()) {
+        const { data: cust } = await supabase.from("customers").select("name, phone").eq("id", task.customer_id).single();
+        if (cust) setForm(prev => ({ ...prev, name: cust.name || prev.name, phone: cust.phone || prev.phone }));
+      }
     } else { setCustomerVehicles([]); setIsNewVehicle(true); }
+    // Load quote items for edit modal
+    setDetailTask(task);
+    setNewItemText("");
+    const { data: items } = await supabase.from("quote_items").select("id, task_id, description").eq("task_id", task.id).order("created_at", { ascending: true });
+    setDetailItems((items ?? []) as QuoteItem[]);
     setFormError("");
     setIsOpen(true);
   };
 
   if (isLoading) return (
-    <div className="p-6 max-w-6xl mx-auto animate-pulse">
+    <div className="p-6 animate-pulse">
       <div className="flex justify-between items-center mb-8">
         <div><div className="h-7 w-52 bg-gray-200 rounded-lg mb-2" /><div className="h-4 w-48 bg-gray-100 rounded-lg" /></div>
         <div className="h-10 w-36 bg-gray-200 rounded-xl" />
@@ -452,8 +516,14 @@ export default function TasksPage() {
     </div>
   );
 
+  const editTask = makeEditHandler();
+  const sharedTableProps = {
+    selected, itemCounts, taskDescriptions, onToggle: toggle, onToggleAll: toggleAll, onBulkDelete: bulkDel,
+    onRowClick: editTask, onRowDragStart: setDraggingTask,
+  };
+
   return (
-    <div className="p-6 max-w-6xl mx-auto">
+    <div className="p-6">
       <div className="flex justify-between items-center mb-8">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Cotizaciones</h1>
@@ -496,7 +566,7 @@ export default function TasksPage() {
         {...sharedTableProps}
         list={tasks.filter(t => t.status !== "Quoted" && t.status !== "Waiting")}
         title="Pendientes / Cotizando"
-        onEdit={makeEditHandler()}
+        onEdit={editTask}
         onDelete={del}
         isDropTarget={dropTarget === "pending"}
         onDrop={() => handleDrop("pending")}
@@ -507,7 +577,7 @@ export default function TasksPage() {
         {...sharedTableProps}
         list={tasks.filter(t => t.status === "Quoted")}
         title="Cotizadas"
-        onEdit={makeEditHandler()}
+        onEdit={editTask}
         onDelete={del}
         isDropTarget={dropTarget === "quoted"}
         onDrop={() => handleDrop("quoted")}
@@ -518,7 +588,7 @@ export default function TasksPage() {
         {...sharedTableProps}
         list={tasks.filter(t => t.status === "Waiting")}
         title="Lista de espera"
-        onEdit={makeEditHandler()}
+        onEdit={editTask}
         onDelete={del}
         isDropTarget={dropTarget === "waiting"}
         onDrop={() => handleDrop("waiting")}
@@ -580,7 +650,7 @@ export default function TasksPage() {
               )}
             </div>
             <div><label className={lbl}>Descripción</label><input className={inp} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} /></div>
-            <div><label className={lbl}>Notas</label><textarea className={`${inp} resize-none`} rows={3} value={form.notes ?? ""} onChange={e => setForm({ ...form, notes: e.target.value })} /></div>
+            <div><label className={lbl}>Notas</label><textarea className={`${inp} resize-none`} rows={2} value={form.notes ?? ""} onChange={e => setForm({ ...form, notes: e.target.value })} /></div>
             <div>
               <label className={lbl}>Estado</label>
               <select className={inp} value={form.status} onChange={e => setForm({ ...form, status: e.target.value as Task["status"] })}>
@@ -590,6 +660,66 @@ export default function TasksPage() {
                 <option value="Waiting">Lista de espera</option>
               </select>
             </div>
+
+            {/* Imagen (opcional) */}
+            <div>
+              <label className={lbl}>Imagen <span className="text-gray-400 font-normal">(opcional)</span></label>
+              {(form.image_url || imageFile) && (
+                <div className="mb-2 relative inline-block">
+                  <img
+                    src={imageFile ? URL.createObjectURL(imageFile) : form.image_url!}
+                    alt="Vista previa"
+                    className="h-32 w-auto rounded-xl border border-gray-200 object-cover"
+                  />
+                  <button
+                    onClick={() => { setImageFile(null); setForm(f => ({ ...f, image_url: "" })); }}
+                    className="absolute -top-1.5 -right-1.5 bg-white border border-gray-200 rounded-full p-0.5 text-gray-400 hover:text-red-500 shadow-sm"
+                    aria-label="Quitar imagen"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+              )}
+              <input
+                type="file"
+                accept="image/*"
+                className="block w-full text-sm text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-[#07C3F8]/10 file:text-[#07C3F8] hover:file:bg-[#07C3F8]/20 cursor-pointer"
+                onChange={e => { const f = e.target.files?.[0] ?? null; setImageFile(f); }}
+              />
+            </div>
+
+            {/* Tareas */}
+            <div className="border-t border-gray-100 pt-4">
+              <h3 className="text-sm font-semibold text-gray-700 mb-3">Tareas</h3>
+              {detailItems.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-3">Sin tareas aún</p>
+              ) : (
+                <ul className="space-y-1.5 mb-3">
+                  {detailItems.map((item, idx) => (
+                    <li key={item.id} className="flex items-center gap-2 group">
+                      <span className="text-xs text-gray-400 w-5 text-right shrink-0">{idx + 1}.</span>
+                      <span className="flex-1 text-sm text-gray-700">{item.description}</span>
+                      <button onClick={() => removeItem(item.id)} aria-label="Eliminar tarea" className="opacity-0 group-hover:opacity-100 p-1 rounded text-gray-400 hover:text-red-500 transition-all">
+                        <X size={13} />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <div className="flex gap-2">
+                <input
+                  className={`${inp} flex-1`}
+                  placeholder="Nueva tarea..."
+                  value={newItemText}
+                  onChange={e => setNewItemText(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addItem(); } }}
+                />
+                <button onClick={addItem} disabled={!newItemText.trim()} className="px-3 py-2 rounded-xl bg-[#07C3F8] hover:bg-[#06aad9] text-white text-sm font-semibold disabled:opacity-40 transition-colors">
+                  <Plus size={15} />
+                </button>
+              </div>
+            </div>
+
             {formError && <p className="text-sm text-red-600">{formError}</p>}
             <div className="flex justify-end gap-2 pt-2">
               {editing && (
@@ -605,63 +735,6 @@ export default function TasksPage() {
         </Modal>
       )}
 
-      {/* Detail / items modal */}
-      {isDetailOpen && detailTask && (
-        <Modal isOpen={isDetailOpen} onClose={() => { setIsDetailOpen(false); setDetailTask(null); setDetailItems([]); setNewItemText(""); }} title={`${detailTask.name} — ${detailTask.vehicle || "Sin vehículo"}`}>
-          <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold ${statusStyle[detailTask.status]}`}>{statusLabel[detailTask.status]}</span>
-              {detailTask.phone && (
-                <a href={waUrl(detailTask.phone)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-sm text-gray-500 hover:text-green-600 transition-colors">
-                  <WaIcon /> {detailTask.phone}
-                </a>
-              )}
-            </div>
-            {detailTask.description && <p className="text-sm text-gray-600">{detailTask.description}</p>}
-            {detailTask.notes && <p className="text-sm text-gray-500 italic">{detailTask.notes}</p>}
-
-            <div className="border-t border-gray-100 pt-4">
-              <h3 className="text-sm font-semibold text-gray-700 mb-3">Tareas</h3>
-              {detailItems.length === 0 ? (
-                <p className="text-sm text-gray-400 text-center py-4">No hay tareas aún</p>
-              ) : (
-                <ul className="space-y-1.5">
-                  {detailItems.map((item, idx) => (
-                    <li key={item.id} className="flex items-center gap-2 group">
-                      <span className="text-xs text-gray-400 w-5 text-right shrink-0">{idx + 1}.</span>
-                      <span className="flex-1 text-sm text-gray-700">{item.description}</span>
-                      <button
-                        onClick={() => removeItem(item.id)}
-                        aria-label="Eliminar tarea"
-                        className="opacity-0 group-hover:opacity-100 p-1 rounded text-gray-400 hover:text-red-500 transition-all"
-                      >
-                        <X size={13} />
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              <div className="flex gap-2 mt-3">
-                <input
-                  className={`${inp} flex-1`}
-                  placeholder="Nueva tarea..."
-                  value={newItemText}
-                  onChange={e => setNewItemText(e.target.value)}
-                  onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addItem(); } }}
-                />
-                <button
-                  onClick={addItem}
-                  disabled={!newItemText.trim()}
-                  className="px-3 py-2 rounded-xl bg-[#07C3F8] hover:bg-[#06aad9] text-white text-sm font-semibold disabled:opacity-40 transition-colors"
-                >
-                  <Plus size={15} />
-                </button>
-              </div>
-            </div>
-          </div>
-        </Modal>
-      )}
     </div>
   );
 }
