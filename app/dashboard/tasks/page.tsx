@@ -315,7 +315,7 @@ export default function TasksPage() {
     try {
       if (form.phone.replace(/\D/g, "").length >= 6) {
         customerId = await findOrCreateCustomer(supabase, form.phone, form.name);
-        const vDesc = buildVehicleDescription(vehicleFields.make, vehicleFields.model, vehicleFields.year) || form.vehicle;
+        const vDesc = buildVehicleDescription(vehicleFields.make, vehicleFields.model, vehicleFields.year) || form.vehicle || "";
         if (vDesc.trim()) vehicleId = await findOrCreateVehicle(supabase, customerId, { make: vehicleFields.make, model: vehicleFields.model, year: vehicleFields.year, description: vDesc });
       }
     } catch { /* non-fatal */ }
