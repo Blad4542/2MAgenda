@@ -92,7 +92,7 @@ const Table = memo(function Table({ list, title, selected, onToggle, onToggleAll
                     className="cursor-pointer accent-[#07C3F8] w-4 h-4"
                   />
                 </th>
-                {["Nombre", "Teléfono", "Vehículo", "Descripción", "Estado", ""].map(h => (
+                {["Nombre", "Teléfono", "Vehículo", "Descripción", "Notas", "Estado", ""].map(h => (
                   <th key={h} className="p-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</th>
                 ))}
               </tr>
@@ -127,6 +127,7 @@ const Table = memo(function Table({ list, title, selected, onToggle, onToggleAll
                   </td>
                   <td className="p-3 text-sm text-gray-500">{task.vehicle || "—"}</td>
                   <td className="p-3 text-sm text-gray-500 max-w-xs truncate">{task.description}</td>
+                  <td className="p-3 text-sm text-gray-500 max-w-xs truncate">{task.notes || "—"}</td>
                   <td className="p-3">
                     <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold ${statusStyle[task.status]}`}>
                       {statusLabel[task.status]}
