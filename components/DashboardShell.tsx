@@ -13,7 +13,7 @@ const baseNavItems = [
   { href: "/dashboard",              icon: Home,         label: "Inicio",                  roles: ["admin"] as Role[] },
   { href: "/dashboard/agenda",       icon: Calendar,     label: "Agenda",                  roles: ["admin", "tecnico", "asistente", "botaguas"] as Role[] },
   { href: "/dashboard/orders",       icon: ShoppingCart, label: "Pedidos",                 roles: ["admin", "asistente"] as Role[] },
-  { href: "/dashboard/tasks",        icon: FileText,     label: "Cotizaciones pendientes", roles: ["admin", "asistente"] as Role[] },
+  { href: "/dashboard/tasks",        icon: FileText,     label: "Cotizaciones",            roles: ["admin", "asistente"] as Role[] },
   { href: "/dashboard/botaguas",     icon: Droplets,     label: "Inventario Botaguas",     roles: ["admin", "asistente", "botaguas"] as Role[] },
   { href: "/dashboard/clientes",     icon: Users,        label: "Clientes",                roles: ["admin"] as Role[] },
   { href: "/dashboard/instaladores", icon: HardHat,      label: "Instaladores",            roles: ["admin"] as Role[] },

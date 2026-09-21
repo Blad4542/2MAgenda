@@ -20,6 +20,7 @@ interface Task {
   vehicle?: string;
   customer_id?: string;
   vehicle_id?: string;
+  notes?: string;
 }
 
 const PAGE_SIZE = 50;
@@ -44,9 +45,14 @@ interface TableProps {
   onBulkDelete: (ids: string[]) => void;
   onEdit: (task: Task) => void;
   onDelete: (id: string) => void;
+  isDropTarget?: boolean;
+  onRowDragStart?: (task: Task) => void;
+  onDrop?: () => void;
+  onDragOver?: (e: React.DragEvent) => void;
+  onDragLeave?: () => void;
 }
 
-const Table = memo(function Table({ list, title, selected, onToggle, onToggleAll, onBulkDelete, onEdit, onDelete }: TableProps) {
+const Table = memo(function Table({ list, title, selected, onToggle, onToggleAll, onBulkDelete, onEdit, onDelete, isDropTarget, onRowDragStart, onDrop, onDragOver, onDragLeave }: TableProps) {
   const sel = list.map(t => t.id).filter(id => selected.has(id));
   const all = list.length > 0 && sel.length === list.length;
   return (
@@ -63,11 +69,17 @@ const Table = memo(function Table({ list, title, selected, onToggle, onToggleAll
         )}
       </div>
       {list.length === 0 ? (
-        <div className="bg-white border-2 border-dashed border-gray-200 rounded-2xl p-10 text-center text-gray-400 text-sm">
-          No hay tareas en esta sección
+        <div
+          onDrop={onDrop} onDragOver={onDragOver} onDragLeave={onDragLeave}
+          className={`border-2 border-dashed rounded-2xl p-10 text-center text-sm transition-colors ${isDropTarget ? "border-[#07C3F8] bg-[#07C3F8]/5 text-[#07C3F8]" : "border-gray-200 bg-white text-gray-400"}`}
+        >
+          {isDropTarget ? "Suelta aquí" : "No hay tareas en esta sección"}
         </div>
       ) : (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+        <div
+          onDrop={onDrop} onDragOver={onDragOver} onDragLeave={onDragLeave}
+          className={`bg-white rounded-2xl shadow-sm border overflow-hidden transition-colors ${isDropTarget ? "border-[#07C3F8] ring-2 ring-[#07C3F8]/30" : "border-gray-200"}`}
+        >
           <table className="min-w-full">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
@@ -87,7 +99,12 @@ const Table = memo(function Table({ list, title, selected, onToggle, onToggleAll
             </thead>
             <tbody className="divide-y divide-gray-100">
               {list.map(task => (
-                <tr key={task.id} className={`transition-colors ${selected.has(task.id) ? "bg-[#07C3F8]/5" : "hover:bg-gray-50"}`}>
+                <tr
+                  key={task.id}
+                  draggable
+                  onDragStart={() => onRowDragStart?.(task)}
+                  className={`transition-colors cursor-grab active:cursor-grabbing ${selected.has(task.id) ? "bg-[#07C3F8]/5" : "hover:bg-gray-50"}`}
+                >
                   <td className="p-3">
                     <input
                       type="checkbox"
@@ -151,13 +168,15 @@ export default function TasksPage() {
   const [page, setPage] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
   const [editing, setEditing] = useState<Task | null>(null);
-  const [form, setForm] = useState<Omit<Task, "id">>({ name: "", phone: "", description: "", status: "Pending", vehicle: "", customer_id: undefined, vehicle_id: undefined });
+  const [form, setForm] = useState<Omit<Task, "id">>({ name: "", phone: "", description: "", status: "Pending", vehicle: "", customer_id: undefined, vehicle_id: undefined, notes: "" });
   const [customerVehicles, setCustomerVehicles] = useState<{ id: string; description: string }[]>([]);
   const [isNewVehicle, setIsNewVehicle] = useState(true);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [userEmail, setUserEmail] = useState<string | undefined>(undefined);
+  const [draggingTask, setDraggingTask] = useState<Task | null>(null);
+  const [dropTarget, setDropTarget] = useState<"pending" | "quoted" | null>(null);
 
   const fetchTasks = useCallback(async (p = 0, s = "") => {
     const from = p * PAGE_SIZE;
@@ -230,7 +249,7 @@ export default function TasksPage() {
   };
 
   const resetForm = () => {
-    setForm({ name: "", phone: "", description: "", status: "Pending", vehicle: "", customer_id: undefined, vehicle_id: undefined });
+    setForm({ name: "", phone: "", description: "", status: "Pending", vehicle: "", customer_id: undefined, vehicle_id: undefined, notes: "" });
     setCustomerVehicles([]);
     setIsNewVehicle(true);
   };
@@ -268,6 +287,17 @@ export default function TasksPage() {
       return logAction(supabase, { table_name: "pending_tasks", record_id: id, action: "delete", description: t ? `Cotización de ${t.name}` : undefined, user_email: userEmail });
     }));
     setSelected(p => { const n = new Set(p); ids.forEach(id => n.delete(id)); return n; }); fetchTasks(page, search);
+  };
+  const handleDrop = async (target: "pending" | "quoted") => {
+    setDropTarget(null);
+    if (!draggingTask) return;
+    const isAlreadyThere = target === "quoted" ? draggingTask.status === "Quoted" : draggingTask.status !== "Quoted";
+    if (isAlreadyThere) { setDraggingTask(null); return; }
+    const newStatus: Task["status"] = target === "quoted" ? "Quoted" : "Pending";
+    setTasks(prev => prev.map(t => t.id === draggingTask.id ? { ...t, status: newStatus } : t));
+    await supabase.from("pending_tasks").update({ status: newStatus }).eq("id", draggingTask.id);
+    await logAction(supabase, { table_name: "pending_tasks", record_id: draggingTask.id, action: "update", description: `Cotización de ${draggingTask.name} → ${statusLabel[newStatus]}`, user_email: userEmail });
+    setDraggingTask(null);
   };
   const toggle = (id: string) => setSelected(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const toggleAll = (list: Task[], all: boolean) => setSelected(p => {
@@ -313,12 +343,12 @@ export default function TasksPage() {
     <div className="p-6 max-w-6xl mx-auto">
       <div className="flex justify-between items-center mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Cotizaciones pendientes</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Cotizaciones</h1>
           <p className="text-sm text-gray-500 mt-0.5">Gestiona las cotizaciones y su estado</p>
         </div>
         <div className="flex items-center gap-3">
           <button
-            onClick={() => exportCsv(tasks.map(t => ({ Nombre: t.name, Teléfono: t.phone, Descripción: t.description, Estado: t.status })), "cotizaciones.csv")}
+            onClick={() => exportCsv(tasks.map(t => ({ Nombre: t.name, Teléfono: t.phone, Vehículo: t.vehicle ?? "", Descripción: t.description, Notas: t.notes ?? "", Estado: t.status })), "cotizaciones.csv")}
             className="flex items-center gap-2 bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 font-semibold px-4 py-2.5 rounded-xl transition-colors"
           >
             <Download size={16} aria-hidden="true" /> Exportar
@@ -327,7 +357,7 @@ export default function TasksPage() {
             onClick={() => { setEditing(null); resetForm(); setIsOpen(true); }}
             className="flex items-center gap-2 bg-[#07C3F8] hover:bg-[#06aad9] text-white font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-colors"
           >
-            <Plus size={16} aria-hidden="true" /> Nueva tarea
+            <Plus size={16} aria-hidden="true" /> Nueva cotización
           </button>
         </div>
       </div>
@@ -358,7 +388,7 @@ export default function TasksPage() {
         onBulkDelete={bulkDel}
         onEdit={async (task) => {
           setEditing(task);
-          setForm({ name: task.name, phone: task.phone, description: task.description, status: task.status, vehicle: task.vehicle ?? "", customer_id: task.customer_id, vehicle_id: task.vehicle_id });
+          setForm({ name: task.name, phone: task.phone, description: task.description, status: task.status, vehicle: task.vehicle ?? "", customer_id: task.customer_id, vehicle_id: task.vehicle_id, notes: task.notes ?? "" });
           if (task.customer_id) {
             const vehicles = await getCustomerVehicles(supabase, task.customer_id);
             setCustomerVehicles(vehicles);
@@ -367,6 +397,11 @@ export default function TasksPage() {
           setIsOpen(true);
         }}
         onDelete={del}
+        isDropTarget={dropTarget === "pending"}
+        onRowDragStart={setDraggingTask}
+        onDrop={() => handleDrop("pending")}
+        onDragOver={e => { e.preventDefault(); setDropTarget("pending"); }}
+        onDragLeave={() => setDropTarget(null)}
       />
       <Table
         list={tasks.filter(t => t.status === "Quoted")}
@@ -377,7 +412,7 @@ export default function TasksPage() {
         onBulkDelete={bulkDel}
         onEdit={async (task) => {
           setEditing(task);
-          setForm({ name: task.name, phone: task.phone, description: task.description, status: task.status, vehicle: task.vehicle ?? "", customer_id: task.customer_id, vehicle_id: task.vehicle_id });
+          setForm({ name: task.name, phone: task.phone, description: task.description, status: task.status, vehicle: task.vehicle ?? "", customer_id: task.customer_id, vehicle_id: task.vehicle_id, notes: task.notes ?? "" });
           if (task.customer_id) {
             const vehicles = await getCustomerVehicles(supabase, task.customer_id);
             setCustomerVehicles(vehicles);
@@ -386,6 +421,11 @@ export default function TasksPage() {
           setIsOpen(true);
         }}
         onDelete={del}
+        isDropTarget={dropTarget === "quoted"}
+        onRowDragStart={setDraggingTask}
+        onDrop={() => handleDrop("quoted")}
+        onDragOver={e => { e.preventDefault(); setDropTarget("quoted"); }}
+        onDragLeave={() => setDropTarget(null)}
       />
 
       {/* Pagination */}
@@ -417,7 +457,7 @@ export default function TasksPage() {
       )}
 
       {isOpen && (
-        <Modal isOpen={isOpen} onClose={() => setIsOpen(false)} title={editing ? "Editar tarea" : "Nueva tarea"}>
+        <Modal isOpen={isOpen} onClose={() => setIsOpen(false)} title={editing ? "Editar cotización" : "Nueva cotización"}>
           <div className="space-y-4">
             <div>
               <label className={lbl}>Teléfono</label>
@@ -437,6 +477,7 @@ export default function TasksPage() {
               )}
             </div>
             <div><label className={lbl}>Descripción</label><input className={inp} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} /></div>
+            <div><label className={lbl}>Notas</label><textarea className={`${inp} resize-none`} rows={3} value={form.notes ?? ""} onChange={e => setForm({ ...form, notes: e.target.value })} /></div>
             <div>
               <label className={lbl}>Estado</label>
               <select className={inp} value={form.status} onChange={e => setForm({ ...form, status: e.target.value as Task["status"] })}>
