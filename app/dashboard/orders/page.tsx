@@ -57,7 +57,9 @@ export default function OrdersPage() {
   const [historyOrder, setHistoryOrder] = useState<Order | null>(null);
   const [historyLogs, setHistoryLogs] = useState<AuditEntry[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<OrderStatus | "">("");
+  const [statusFilter, setStatusFilter] = useState<OrderStatus | "">("") ;
+  const [formError, setFormError] = useState("");
+  const [saving, setSaving] = useState(false);
 
   const fetchOrders = useCallback(async (p = 0, s = search, owb = onlyWithBalance, sf = statusFilter) => {
     const from = p * PAGE_SIZE;
@@ -97,32 +99,42 @@ export default function OrdersPage() {
   };
 
   const save = async () => {
-    const remaining = Number(form.total_amount) - Number(form.initial_payment);
-    let customerId = form.customer_id;
-    const phone = String(form.phone || "").trim();
-    if (phone && form.customer_name) {
-      const c = await findOrCreateCustomer(supabase, phone, form.customer_name);
-      if (c) customerId = c;
+    const name = form.customer_name.trim();
+    if (!name) { setFormError("Nombre es obligatorio."); return; }
+    setFormError("");
+    setSaving(true);
+    try {
+      let customerId = form.customer_id;
+      const phone = String(form.phone || "").trim();
+      if (phone && name) {
+        const c = await findOrCreateCustomer(supabase, phone, name);
+        if (c) customerId = c;
+      }
+      const payload = {
+        customer_name: name,
+        phone: phone,
+        product_description: form.product_description?.trim() || null,
+        total_amount: Number(form.total_amount) || 0,
+        initial_payment: Number(form.initial_payment) || 0,
+        status: form.status,
+        customer_id: customerId || null,
+      };
+      if (editing) {
+        const { error } = await supabase.from("orders").update(payload).eq("id", editing.id);
+        if (error) throw new Error(error.message);
+        await logAction(supabase, { table_name: "orders", record_id: editing.id, action: "update", description: `Pedido de ${name}`, user_email: userEmail });
+      } else {
+        const id = uuidv4();
+        const { error } = await supabase.from("orders").insert({ id, order_date: new Date().toISOString().split("T")[0], ...payload });
+        if (error) throw new Error(error.message);
+        await logAction(supabase, { table_name: "orders", record_id: id, action: "create", description: `Pedido de ${name}`, user_email: userEmail });
+      }
+      setIsOpen(false); setForm(emptyForm); setEditing(null); fetchOrders(0);
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : "Error al guardar. Intenta de nuevo.");
+    } finally {
+      setSaving(false);
     }
-    const payload = {
-      customer_name: form.customer_name,
-      phone: form.phone,
-      product_description: form.product_description,
-      total_amount: Number(form.total_amount),
-      initial_payment: Number(form.initial_payment),
-      remaining,
-      status: form.status,
-      customer_id: customerId || null,
-    };
-    if (editing) {
-      await supabase.from("orders").update(payload).eq("id", editing.id);
-      await logAction(supabase, { table_name: "orders", record_id: editing.id, action: "update", description: `Pedido de ${form.customer_name}`, user_email: userEmail });
-    } else {
-      const id = uuidv4();
-      await supabase.from("orders").insert({ id, order_date: new Date().toISOString().split("T")[0], ...payload });
-      await logAction(supabase, { table_name: "orders", record_id: id, action: "create", description: `Pedido de ${form.customer_name}`, user_email: userEmail });
-    }
-    setIsOpen(false); setForm(emptyForm); setEditing(null); fetchOrders(0);
   };
 
   const toggle = (id: string) => setSelected(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
@@ -318,7 +330,7 @@ export default function OrdersPage() {
 
       {/* Modal */}
       {isOpen && (
-        <Modal isOpen={isOpen} onClose={() => setIsOpen(false)} title={editing ? "Editar pedido" : "Nuevo pedido"}>
+        <Modal isOpen={isOpen} onClose={() => { setIsOpen(false); setFormError(""); }} title={editing ? "Editar pedido" : "Nuevo pedido"}>
           <div className="space-y-4">
             <div>
               <label className={lbl}>Teléfono</label>
@@ -342,8 +354,11 @@ export default function OrdersPage() {
               <div><label className={lbl}>Monto total</label><input type="number" className={inp} value={form.total_amount} onChange={e => setForm({ ...form, total_amount: parseFloat(e.target.value) })} /></div>
               <div><label className={lbl}>Abono</label><input type="number" className={inp} value={form.initial_payment} onChange={e => setForm({ ...form, initial_payment: parseFloat(e.target.value) })} /></div>
             </div>
+            {formError && <p className="text-sm text-red-600">{formError}</p>}
             <div className="flex justify-end pt-2">
-              <button onClick={save} className="px-5 py-2 text-sm font-semibold rounded-xl bg-[#07C3F8] hover:bg-[#06aad9] text-white transition-colors">Guardar</button>
+              <button onClick={save} disabled={saving} className="px-5 py-2 text-sm font-semibold rounded-xl bg-[#07C3F8] hover:bg-[#06aad9] text-white transition-colors disabled:opacity-60">
+                {saving ? "Guardando..." : "Guardar"}
+              </button>
             </div>
           </div>
         </Modal>
