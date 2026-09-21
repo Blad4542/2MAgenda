@@ -7,6 +7,7 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale/es";
 import { waUrl, WaIcon } from "@/utils/wa";
 import { inp, lbl } from "@/utils/styles";
+import { buildVehicleDescription } from "@/utils/customers";
 
 interface Customer {
   id: string;
@@ -19,6 +20,9 @@ interface Customer {
 interface Vehicle {
   id: string;
   description: string;
+  make?: string | null;
+  model?: string | null;
+  year?: number | null;
   plate?: string;
   created_at: string;
 }
@@ -265,7 +269,7 @@ export default function CustomerProfilePage() {
 
   // Add vehicle
   const [vehicleFormOpen, setVehicleFormOpen] = useState(false);
-  const [vehicleForm, setVehicleForm] = useState({ description: "", plate: "" });
+  const [vehicleForm, setVehicleForm] = useState({ make: "", model: "", year: "", plate: "" });
   const [savingVehicle, setSavingVehicle] = useState(false);
 
   const fetchAll = useCallback(async () => {
@@ -303,17 +307,25 @@ export default function CustomerProfilePage() {
   };
 
   const saveVehicle = async () => {
-    if (!vehicleForm.description.trim()) return;
+    const desc = buildVehicleDescription(vehicleForm.make, vehicleForm.model, vehicleForm.year);
+    if (!desc.trim()) return;
     setSavingVehicle(true);
     const { data } = await supabase
       .from("vehicles")
-      .insert({ customer_id: id, description: vehicleForm.description.trim(), plate: vehicleForm.plate.trim() || null })
+      .insert({
+        customer_id: id,
+        description: desc,
+        make: vehicleForm.make.trim() || null,
+        model: vehicleForm.model.trim() || null,
+        year: vehicleForm.year ? Number(vehicleForm.year) : null,
+        plate: vehicleForm.plate.trim() || null,
+      })
       .select("*")
       .single();
     setSavingVehicle(false);
     if (data) setVehicles(prev => [...prev, data as Vehicle]);
     setVehicleFormOpen(false);
-    setVehicleForm({ description: "", plate: "" });
+    setVehicleForm({ make: "", model: "", year: "", plate: "" });
   };
 
   const deleteVehicle = async (vehicleId: string) => {
@@ -445,8 +457,12 @@ export default function CustomerProfilePage() {
         {vehicleFormOpen && (
           <div className="px-5 py-4 bg-gray-50 border-b border-gray-100 space-y-3">
             <div>
-              <label className={lbl}>Descripción</label>
-              <input className={inp} placeholder="Ej: Toyota Corolla 2019" value={vehicleForm.description} onChange={e => setVehicleForm({ ...vehicleForm, description: e.target.value })} />
+              <label className={lbl}>Vehículo</label>
+              <div className="grid grid-cols-3 gap-2">
+                <input className={inp} placeholder="Marca" value={vehicleForm.make} onChange={e => setVehicleForm({ ...vehicleForm, make: e.target.value })} />
+                <input className={inp} placeholder="Modelo" value={vehicleForm.model} onChange={e => setVehicleForm({ ...vehicleForm, model: e.target.value })} />
+                <input className={inp} placeholder="Año" value={vehicleForm.year} onChange={e => setVehicleForm({ ...vehicleForm, year: e.target.value })} />
+              </div>
             </div>
             <div>
               <label className={lbl}>Placa (opcional)</label>
@@ -455,12 +471,12 @@ export default function CustomerProfilePage() {
             <div className="flex gap-2">
               <button
                 onClick={saveVehicle}
-                disabled={savingVehicle || !vehicleForm.description.trim()}
+                disabled={savingVehicle || !buildVehicleDescription(vehicleForm.make, vehicleForm.model, vehicleForm.year).trim()}
                 className="px-3 py-1.5 text-sm font-semibold rounded-xl bg-[#07C3F8] hover:bg-[#06aad9] text-white transition-colors disabled:opacity-50"
               >
                 {savingVehicle ? "Guardando..." : "Guardar"}
               </button>
-              <button onClick={() => { setVehicleFormOpen(false); setVehicleForm({ description: "", plate: "" }); }} className="px-3 py-1.5 text-sm font-medium rounded-xl hover:bg-gray-100 text-gray-600 transition-colors">
+              <button onClick={() => { setVehicleFormOpen(false); setVehicleForm({ make: "", model: "", year: "", plate: "" }); }} className="px-3 py-1.5 text-sm font-medium rounded-xl hover:bg-gray-100 text-gray-600 transition-colors">
                 Cancelar
               </button>
             </div>
@@ -472,12 +488,13 @@ export default function CustomerProfilePage() {
         ) : (
           <ul className="divide-y divide-gray-50">
             {vehicles.map(v => {
-              const apptCount = appointments.filter(a => a.vehicle === v.description).length;
+              const label = v.make || v.model ? [v.make, v.model, v.year].filter(Boolean).join(" ") : v.description;
+              const apptCount = appointments.filter(a => a.vehicle === v.description || a.vehicle === label).length;
               return (
                 <li key={v.id} className="flex items-center gap-3 px-5 py-3">
                   <Car size={14} className="text-gray-300 shrink-0" aria-hidden="true" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-800">{v.description}</p>
+                    <p className="text-sm font-medium text-gray-800">{label}</p>
                     {v.plate && <p className="text-xs text-gray-400 font-mono">{v.plate}</p>}
                   </div>
                   <span className="text-xs text-gray-400">{apptCount} cita{apptCount !== 1 ? "s" : ""}</span>

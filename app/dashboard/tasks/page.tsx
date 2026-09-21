@@ -1,6 +1,6 @@
 "use client";
 import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
-import { Plus, Edit, Trash2, ChevronLeft, ChevronRight, Search, X, Download } from "lucide-react";
+import { Plus, Edit, Trash2, ChevronLeft, ChevronRight, Search, X, Download, ListChecks } from "lucide-react";
 import Modal from "@/components/Modal";
 import { createClient } from "@/utils/supabase/client";
 import { v4 as uuidv4 } from "uuid";
@@ -9,7 +9,7 @@ import { logAction } from "@/utils/auditLog";
 import { waUrl, WaIcon } from "@/utils/wa";
 import { useRequireRole } from "@/hooks/useRequireRole";
 import { inp, lbl } from "@/utils/styles";
-import { lookupCustomer, getCustomerVehicles, findOrCreateCustomer, findOrCreateVehicle } from "@/utils/customers";
+import { lookupCustomer, getCustomerVehicles, findOrCreateCustomer, findOrCreateVehicle, buildVehicleDescription, vehicleLabel, type VehicleRecord } from "@/utils/customers";
 
 interface Task {
   id: string;
@@ -21,6 +21,12 @@ interface Task {
   customer_id?: string;
   vehicle_id?: string;
   notes?: string;
+}
+
+interface QuoteItem {
+  id: string;
+  task_id: string;
+  description: string;
 }
 
 const PAGE_SIZE = 50;
@@ -42,11 +48,13 @@ interface TableProps {
   list: Task[];
   title: string;
   selected: Set<string>;
+  itemCounts: Record<string, number>;
   onToggle: (id: string) => void;
   onToggleAll: (list: Task[], all: boolean) => void;
   onBulkDelete: (ids: string[]) => void;
   onEdit: (task: Task) => void;
   onDelete: (id: string) => void;
+  onRowClick: (task: Task) => void;
   isDropTarget?: boolean;
   onRowDragStart?: (task: Task) => void;
   onDrop?: () => void;
@@ -54,7 +62,7 @@ interface TableProps {
   onDragLeave?: () => void;
 }
 
-const Table = memo(function Table({ list, title, selected, onToggle, onToggleAll, onBulkDelete, onEdit, onDelete, isDropTarget, onRowDragStart, onDrop, onDragOver, onDragLeave }: TableProps) {
+const Table = memo(function Table({ list, title, selected, itemCounts, onToggle, onToggleAll, onBulkDelete, onEdit, onDelete, onRowClick, isDropTarget, onRowDragStart, onDrop, onDragOver, onDragLeave }: TableProps) {
   const sel = list.map(t => t.id).filter(id => selected.has(id));
   const all = list.length > 0 && sel.length === list.length;
   return (
@@ -105,9 +113,10 @@ const Table = memo(function Table({ list, title, selected, onToggle, onToggleAll
                   key={task.id}
                   draggable
                   onDragStart={() => onRowDragStart?.(task)}
-                  className={`transition-colors cursor-grab active:cursor-grabbing ${selected.has(task.id) ? "bg-[#07C3F8]/5" : "hover:bg-gray-50"}`}
+                  onClick={() => onRowClick(task)}
+                  className={`transition-colors cursor-pointer cursor-grab active:cursor-grabbing ${selected.has(task.id) ? "bg-[#07C3F8]/5" : "hover:bg-gray-50"}`}
                 >
-                  <td className="p-3">
+                  <td className="p-3" onClick={e => e.stopPropagation()}>
                     <input
                       type="checkbox"
                       checked={selected.has(task.id)}
@@ -116,12 +125,21 @@ const Table = memo(function Table({ list, title, selected, onToggle, onToggleAll
                       className="cursor-pointer accent-[#07C3F8] w-4 h-4"
                     />
                   </td>
-                  <td className="p-3 text-sm font-medium text-gray-900">{task.name}</td>
+                  <td className="p-3 text-sm font-medium text-gray-900">
+                    <div className="flex items-center gap-2">
+                      {task.name}
+                      {(itemCounts[task.id] ?? 0) > 0 && (
+                        <span className="flex items-center gap-0.5 bg-[#07C3F8]/10 text-[#07C3F8] text-xs font-semibold px-1.5 py-0.5 rounded-full">
+                          <ListChecks size={10} /> {itemCounts[task.id]}
+                        </span>
+                      )}
+                    </div>
+                  </td>
                   <td className="p-3 text-sm text-gray-500">
                     <div className="flex items-center gap-1.5">
                       <span>{task.phone}</span>
                       {task.phone && (
-                        <a href={waUrl(task.phone)} target="_blank" rel="noopener noreferrer" aria-label={`WhatsApp a ${task.name}`} className="shrink-0 opacity-60 hover:opacity-100 transition-opacity">
+                        <a href={waUrl(task.phone)} target="_blank" rel="noopener noreferrer" aria-label={`WhatsApp a ${task.name}`} className="shrink-0 opacity-60 hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
                           <WaIcon />
                         </a>
                       )}
@@ -135,7 +153,7 @@ const Table = memo(function Table({ list, title, selected, onToggle, onToggleAll
                       {statusLabel[task.status]}
                     </span>
                   </td>
-                  <td className="p-3">
+                  <td className="p-3" onClick={e => e.stopPropagation()}>
                     <div className="flex items-center gap-1 justify-end">
                       <button
                         onClick={() => onEdit(task)}
@@ -172,14 +190,21 @@ export default function TasksPage() {
   const [isOpen, setIsOpen] = useState(false);
   const [editing, setEditing] = useState<Task | null>(null);
   const [form, setForm] = useState<Omit<Task, "id">>({ name: "", phone: "", description: "", status: "Pending", vehicle: "", customer_id: undefined, vehicle_id: undefined, notes: "" });
-  const [customerVehicles, setCustomerVehicles] = useState<{ id: string; description: string }[]>([]);
+  const [formError, setFormError] = useState("");
+  const [customerVehicles, setCustomerVehicles] = useState<VehicleRecord[]>([]);
   const [isNewVehicle, setIsNewVehicle] = useState(true);
+  const [vehicleFields, setVehicleFields] = useState({ make: "", model: "", year: "" });
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [userEmail, setUserEmail] = useState<string | undefined>(undefined);
   const [draggingTask, setDraggingTask] = useState<Task | null>(null);
   const [dropTarget, setDropTarget] = useState<"pending" | "quoted" | "waiting" | null>(null);
+  const [itemCounts, setItemCounts] = useState<Record<string, number>>({});
+  const [detailTask, setDetailTask] = useState<Task | null>(null);
+  const [detailItems, setDetailItems] = useState<QuoteItem[]>([]);
+  const [newItemText, setNewItemText] = useState("");
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
 
   const fetchTasks = useCallback(async (p = 0, s = "") => {
     const from = p * PAGE_SIZE;
@@ -197,11 +222,22 @@ export default function TasksPage() {
         const { data: custs } = await supabase.from("customers").select("id, name, phone").in("id", customerIds);
         if (custs) custs.forEach(c => { nameMap[c.id] = { name: c.name, phone: c.phone }; });
       }
-      setTasks(data.map(t =>
+      const mapped = data.map(t =>
         t.customer_id && nameMap[t.customer_id]
           ? { ...t, name: nameMap[t.customer_id].name, phone: nameMap[t.customer_id].phone }
           : t
-      ) as Task[]);
+      ) as Task[];
+      setTasks(mapped);
+
+      const ids = mapped.map(t => t.id);
+      if (ids.length > 0) {
+        const { data: items } = await supabase.from("quote_items").select("task_id").in("task_id", ids);
+        if (items) {
+          const counts: Record<string, number> = {};
+          for (const item of items) counts[item.task_id] = (counts[item.task_id] ?? 0) + 1;
+          setItemCounts(counts);
+        }
+      }
     }
     if (count !== null) setTotal(count);
     setIsLoading(false);
@@ -233,37 +269,54 @@ export default function TasksPage() {
     const vehicles = await getCustomerVehicles(supabase, match.id);
     setCustomerVehicles(vehicles);
     setIsNewVehicle(vehicles.length === 0);
+    const firstV = vehicles[0];
+    if (firstV) setVehicleFields({ make: firstV.make ?? "", model: firstV.model ?? "", year: firstV.year ? String(firstV.year) : "" });
     setForm(f => ({
       ...f,
       name: f.name || match.name,
       customer_id: match.id,
-      vehicle_id: vehicles[0]?.id ?? undefined,
-      vehicle: vehicles[0]?.description ?? f.vehicle,
+      vehicle_id: firstV?.id ?? undefined,
+      vehicle: firstV ? vehicleLabel(firstV) : f.vehicle,
     }));
   };
 
   const onVehicleSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const val = e.target.value;
-    if (val === "__new__") { setIsNewVehicle(true); setForm(f => ({ ...f, vehicle: "", vehicle_id: undefined })); }
-    else {
+    if (val === "__new__") {
+      setIsNewVehicle(true);
+      setVehicleFields({ make: "", model: "", year: "" });
+      setForm(f => ({ ...f, vehicle: "", vehicle_id: undefined }));
+    } else {
       const found = customerVehicles.find(v => v.id === val);
-      if (found) { setIsNewVehicle(false); setForm(f => ({ ...f, vehicle: found.description, vehicle_id: found.id })); }
+      if (found) {
+        setIsNewVehicle(false);
+        setVehicleFields({ make: found.make ?? "", model: found.model ?? "", year: found.year ? String(found.year) : "" });
+        setForm(f => ({ ...f, vehicle: vehicleLabel(found), vehicle_id: found.id }));
+      }
     }
   };
 
   const resetForm = () => {
     setForm({ name: "", phone: "", description: "", status: "Pending", vehicle: "", customer_id: undefined, vehicle_id: undefined, notes: "" });
+    setFormError("");
+    setVehicleFields({ make: "", model: "", year: "" });
     setCustomerVehicles([]);
     setIsNewVehicle(true);
   };
 
   const save = async () => {
+    if (!form.name.trim() || !form.phone.trim()) {
+      setFormError("Nombre y teléfono son obligatorios.");
+      return;
+    }
+    setFormError("");
     let customerId = form.customer_id;
     let vehicleId = form.vehicle_id;
     try {
       if (form.phone.replace(/\D/g, "").length >= 6) {
         customerId = await findOrCreateCustomer(supabase, form.phone, form.name);
-        if (form.vehicle?.trim()) vehicleId = await findOrCreateVehicle(supabase, customerId, form.vehicle);
+        const vDesc = buildVehicleDescription(vehicleFields.make, vehicleFields.model, vehicleFields.year) || form.vehicle;
+        if (vDesc.trim()) vehicleId = await findOrCreateVehicle(supabase, customerId, { make: vehicleFields.make, model: vehicleFields.model, year: vehicleFields.year, description: vDesc });
       }
     } catch { /* non-fatal */ }
 
@@ -277,6 +330,7 @@ export default function TasksPage() {
     }
     setIsOpen(false); resetForm(); setEditing(null); fetchTasks(page, search);
   };
+
   const del = async (id: string) => {
     const task = tasks.find(t => t.id === id);
     await supabase.from("pending_tasks").delete().eq("id", id);
@@ -302,12 +356,68 @@ export default function TasksPage() {
     await logAction(supabase, { table_name: "pending_tasks", record_id: draggingTask.id, action: "update", description: `Cotización de ${draggingTask.name} → ${statusLabel[newStatus]}`, user_email: userEmail });
     setDraggingTask(null);
   };
+
+  const openDetail = async (task: Task) => {
+    setDetailTask(task);
+    setNewItemText("");
+    const { data } = await supabase.from("quote_items").select("id, task_id, description").eq("task_id", task.id).order("created_at", { ascending: true });
+    setDetailItems((data ?? []) as QuoteItem[]);
+    setIsDetailOpen(true);
+  };
+
+  const addItem = async () => {
+    if (!newItemText.trim() || !detailTask) return;
+    const id = uuidv4();
+    const item: QuoteItem = { id, task_id: detailTask.id, description: newItemText.trim() };
+    await supabase.from("quote_items").insert({ id, task_id: detailTask.id, description: newItemText.trim() });
+    setDetailItems(prev => [...prev, item]);
+    setItemCounts(prev => ({ ...prev, [detailTask.id]: (prev[detailTask.id] ?? 0) + 1 }));
+    setNewItemText("");
+  };
+
+  const removeItem = async (itemId: string) => {
+    if (!detailTask) return;
+    await supabase.from("quote_items").delete().eq("id", itemId);
+    setDetailItems(prev => prev.filter(i => i.id !== itemId));
+    setItemCounts(prev => ({ ...prev, [detailTask.id]: Math.max(0, (prev[detailTask.id] ?? 1) - 1) }));
+  };
+
   const toggle = (id: string) => setSelected(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const toggleAll = (list: Task[], all: boolean) => setSelected(p => {
     const n = new Set(p); all ? list.forEach(t => n.delete(t.id)) : list.forEach(t => n.add(t.id)); return n;
   });
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
+
+  const sharedTableProps = {
+    selected, itemCounts, onToggle: toggle, onToggleAll: toggleAll, onBulkDelete: bulkDel, onRowClick: openDetail,
+    onRowDragStart: setDraggingTask,
+  };
+
+  const makeEditHandler = () => async (task: Task) => {
+    setEditing(task);
+    setForm({ name: task.name, phone: task.phone, description: task.description, status: task.status, vehicle: task.vehicle ?? "", customer_id: task.customer_id, vehicle_id: task.vehicle_id, notes: task.notes ?? "" });
+    // Parse vehicle description into structured fields (best-effort)
+    const vDesc = task.vehicle ?? "";
+    const parts = vDesc.trim().split(/\s+/);
+    const last = parts[parts.length - 1];
+    const isYear = /^\d{4}$/.test(last) && Number(last) >= 1900 && Number(last) <= 2100;
+    if (isYear && parts.length >= 3) setVehicleFields({ make: parts[0], model: parts.slice(1, -1).join(" "), year: last });
+    else if (parts.length >= 2) setVehicleFields({ make: parts[0], model: parts.slice(1).join(" "), year: "" });
+    else setVehicleFields({ make: vDesc, model: "", year: "" });
+    if (task.customer_id) {
+      const vehicles = await getCustomerVehicles(supabase, task.customer_id);
+      setCustomerVehicles(vehicles);
+      setIsNewVehicle(!task.vehicle_id);
+      // If vehicle exists with structured data, use that
+      if (task.vehicle_id) {
+        const veh = vehicles.find(v => v.id === task.vehicle_id);
+        if (veh?.make) setVehicleFields({ make: veh.make ?? "", model: veh.model ?? "", year: veh.year ? String(veh.year) : "" });
+      }
+    } else { setCustomerVehicles([]); setIsNewVehicle(true); }
+    setFormError("");
+    setIsOpen(true);
+  };
 
   if (isLoading) return (
     <div className="p-6 max-w-6xl mx-auto animate-pulse">
@@ -383,73 +493,34 @@ export default function TasksPage() {
       </div>
 
       <Table
+        {...sharedTableProps}
         list={tasks.filter(t => t.status !== "Quoted" && t.status !== "Waiting")}
         title="Pendientes / Cotizando"
-        selected={selected}
-        onToggle={toggle}
-        onToggleAll={toggleAll}
-        onBulkDelete={bulkDel}
-        onEdit={async (task) => {
-          setEditing(task);
-          setForm({ name: task.name, phone: task.phone, description: task.description, status: task.status, vehicle: task.vehicle ?? "", customer_id: task.customer_id, vehicle_id: task.vehicle_id, notes: task.notes ?? "" });
-          if (task.customer_id) {
-            const vehicles = await getCustomerVehicles(supabase, task.customer_id);
-            setCustomerVehicles(vehicles);
-            setIsNewVehicle(!task.vehicle_id);
-          } else { setCustomerVehicles([]); setIsNewVehicle(true); }
-          setIsOpen(true);
-        }}
+        onEdit={makeEditHandler()}
         onDelete={del}
         isDropTarget={dropTarget === "pending"}
-        onRowDragStart={setDraggingTask}
         onDrop={() => handleDrop("pending")}
         onDragOver={e => { e.preventDefault(); setDropTarget("pending"); }}
         onDragLeave={() => setDropTarget(null)}
       />
       <Table
+        {...sharedTableProps}
         list={tasks.filter(t => t.status === "Quoted")}
         title="Cotizadas"
-        selected={selected}
-        onToggle={toggle}
-        onToggleAll={toggleAll}
-        onBulkDelete={bulkDel}
-        onEdit={async (task) => {
-          setEditing(task);
-          setForm({ name: task.name, phone: task.phone, description: task.description, status: task.status, vehicle: task.vehicle ?? "", customer_id: task.customer_id, vehicle_id: task.vehicle_id, notes: task.notes ?? "" });
-          if (task.customer_id) {
-            const vehicles = await getCustomerVehicles(supabase, task.customer_id);
-            setCustomerVehicles(vehicles);
-            setIsNewVehicle(!task.vehicle_id);
-          } else { setCustomerVehicles([]); setIsNewVehicle(true); }
-          setIsOpen(true);
-        }}
+        onEdit={makeEditHandler()}
         onDelete={del}
         isDropTarget={dropTarget === "quoted"}
-        onRowDragStart={setDraggingTask}
         onDrop={() => handleDrop("quoted")}
         onDragOver={e => { e.preventDefault(); setDropTarget("quoted"); }}
         onDragLeave={() => setDropTarget(null)}
       />
       <Table
+        {...sharedTableProps}
         list={tasks.filter(t => t.status === "Waiting")}
         title="Lista de espera"
-        selected={selected}
-        onToggle={toggle}
-        onToggleAll={toggleAll}
-        onBulkDelete={bulkDel}
-        onEdit={async (task) => {
-          setEditing(task);
-          setForm({ name: task.name, phone: task.phone, description: task.description, status: task.status, vehicle: task.vehicle ?? "", customer_id: task.customer_id, vehicle_id: task.vehicle_id, notes: task.notes ?? "" });
-          if (task.customer_id) {
-            const vehicles = await getCustomerVehicles(supabase, task.customer_id);
-            setCustomerVehicles(vehicles);
-            setIsNewVehicle(!task.vehicle_id);
-          } else { setCustomerVehicles([]); setIsNewVehicle(true); }
-          setIsOpen(true);
-        }}
+        onEdit={makeEditHandler()}
         onDelete={del}
         isDropTarget={dropTarget === "waiting"}
-        onRowDragStart={setDraggingTask}
         onDrop={() => handleDrop("waiting")}
         onDragOver={e => { e.preventDefault(); setDropTarget("waiting"); }}
         onDragLeave={() => setDropTarget(null)}
@@ -483,8 +554,9 @@ export default function TasksPage() {
         </div>
       )}
 
+      {/* Create / Edit modal */}
       {isOpen && (
-        <Modal isOpen={isOpen} onClose={() => setIsOpen(false)} title={editing ? "Editar cotización" : "Nueva cotización"}>
+        <Modal isOpen={isOpen} onClose={() => { setIsOpen(false); resetForm(); setEditing(null); }} title={editing ? "Editar cotización" : "Nueva cotización"}>
           <div className="space-y-4">
             <div>
               <label className={lbl}>Teléfono</label>
@@ -495,12 +567,16 @@ export default function TasksPage() {
               <label className={lbl}>Vehículo</label>
               {customerVehicles.length > 0 && (
                 <select className={inp} value={isNewVehicle ? "__new__" : (form.vehicle_id ?? "")} onChange={onVehicleSelect}>
-                  {customerVehicles.map(v => <option key={v.id} value={v.id}>{v.description}</option>)}
+                  {customerVehicles.map(v => <option key={v.id} value={v.id}>{vehicleLabel(v)}</option>)}
                   <option value="__new__">+ Nuevo vehículo</option>
                 </select>
               )}
               {(customerVehicles.length === 0 || isNewVehicle) && (
-                <input className={`${inp} ${customerVehicles.length > 0 ? "mt-2" : ""}`} placeholder="Ej: Toyota Corolla 2019" value={form.vehicle ?? ""} onChange={e => setForm({ ...form, vehicle: e.target.value })} />
+                <div className={`grid grid-cols-3 gap-2 ${customerVehicles.length > 0 ? "mt-2" : ""}`}>
+                  <input className={inp} placeholder="Marca" value={vehicleFields.make} onChange={e => { const u = { ...vehicleFields, make: e.target.value }; setVehicleFields(u); setForm(f => ({ ...f, vehicle: buildVehicleDescription(u.make, u.model, u.year) })); }} />
+                  <input className={inp} placeholder="Modelo" value={vehicleFields.model} onChange={e => { const u = { ...vehicleFields, model: e.target.value }; setVehicleFields(u); setForm(f => ({ ...f, vehicle: buildVehicleDescription(u.make, u.model, u.year) })); }} />
+                  <input className={inp} placeholder="Año" value={vehicleFields.year} onChange={e => { const u = { ...vehicleFields, year: e.target.value }; setVehicleFields(u); setForm(f => ({ ...f, vehicle: buildVehicleDescription(u.make, u.model, u.year) })); }} />
+                </div>
               )}
             </div>
             <div><label className={lbl}>Descripción</label><input className={inp} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} /></div>
@@ -514,6 +590,7 @@ export default function TasksPage() {
                 <option value="Waiting">Lista de espera</option>
               </select>
             </div>
+            {formError && <p className="text-sm text-red-600">{formError}</p>}
             <div className="flex justify-end gap-2 pt-2">
               {editing && (
                 <button onClick={() => { del(editing.id); setIsOpen(false); }} className="px-4 py-2 text-sm font-medium rounded-xl bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 transition-colors">
@@ -523,6 +600,64 @@ export default function TasksPage() {
               <button onClick={save} className="px-5 py-2 text-sm font-semibold rounded-xl bg-[#07C3F8] hover:bg-[#06aad9] text-white transition-colors">
                 Guardar
               </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Detail / items modal */}
+      {isDetailOpen && detailTask && (
+        <Modal isOpen={isDetailOpen} onClose={() => { setIsDetailOpen(false); setDetailTask(null); setDetailItems([]); setNewItemText(""); }} title={`${detailTask.name} — ${detailTask.vehicle || "Sin vehículo"}`}>
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold ${statusStyle[detailTask.status]}`}>{statusLabel[detailTask.status]}</span>
+              {detailTask.phone && (
+                <a href={waUrl(detailTask.phone)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-sm text-gray-500 hover:text-green-600 transition-colors">
+                  <WaIcon /> {detailTask.phone}
+                </a>
+              )}
+            </div>
+            {detailTask.description && <p className="text-sm text-gray-600">{detailTask.description}</p>}
+            {detailTask.notes && <p className="text-sm text-gray-500 italic">{detailTask.notes}</p>}
+
+            <div className="border-t border-gray-100 pt-4">
+              <h3 className="text-sm font-semibold text-gray-700 mb-3">Tareas</h3>
+              {detailItems.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-4">No hay tareas aún</p>
+              ) : (
+                <ul className="space-y-1.5">
+                  {detailItems.map((item, idx) => (
+                    <li key={item.id} className="flex items-center gap-2 group">
+                      <span className="text-xs text-gray-400 w-5 text-right shrink-0">{idx + 1}.</span>
+                      <span className="flex-1 text-sm text-gray-700">{item.description}</span>
+                      <button
+                        onClick={() => removeItem(item.id)}
+                        aria-label="Eliminar tarea"
+                        className="opacity-0 group-hover:opacity-100 p-1 rounded text-gray-400 hover:text-red-500 transition-all"
+                      >
+                        <X size={13} />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              <div className="flex gap-2 mt-3">
+                <input
+                  className={`${inp} flex-1`}
+                  placeholder="Nueva tarea..."
+                  value={newItemText}
+                  onChange={e => setNewItemText(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addItem(); } }}
+                />
+                <button
+                  onClick={addItem}
+                  disabled={!newItemText.trim()}
+                  className="px-3 py-2 rounded-xl bg-[#07C3F8] hover:bg-[#06aad9] text-white text-sm font-semibold disabled:opacity-40 transition-colors"
+                >
+                  <Plus size={15} />
+                </button>
+              </div>
             </div>
           </div>
         </Modal>

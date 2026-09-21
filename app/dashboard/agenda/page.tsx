@@ -332,7 +332,7 @@ const Agenda = () => {
     await fetchNotesForSelectedDate();
   };
 
-  const handleSaveNote = async (pendingTasks?: { text: string; price?: number }[]) => {
+  const handleSaveNote = async (pendingTasks?: { text: string; price?: number }[], vehicleData?: { make: string; model: string; year: string }) => {
     if (!currentTask.name.trim() || !currentTask.phone.trim() || (!currentTask.vehicle.trim() && !currentTask.vehicle_id)) { setErrorMessage("Nombre, teléfono y vehículo son obligatorios."); return; }
     if (currentTask.phone.replace(/\D/g, "").length < 8) { setErrorMessage("El teléfono debe tener al menos 8 dígitos."); return; }
     if (isNewTask && (!pendingTasks || pendingTasks.length === 0)) { setErrorMessage("Agrega al menos una tarea."); return; }
@@ -354,7 +354,7 @@ const Agenda = () => {
         .gte("appointment_date", dayStart.toISOString())
         .lte("appointment_date", dayEnd.toISOString())
         .neq("status", "cancelled");
-      const filtered = (conflicts ?? []).filter(a => isNewTask || a.id !== currentTask.id);
+      const filtered = (conflicts ?? []).filter(a => isNewTask || String(a.id) !== String(currentTask.id));
       if (filtered.some(a => timesOverlap(currentTask.start_time, currentTask.end_time, a.start_time, a.end_time))) {
         setErrorMessage(`${currentTask.assigned_person} ya tiene una cita en ese horario.`);
         return;
@@ -365,7 +365,7 @@ const Agenda = () => {
     let vehicleId = currentTask.vehicle_id;
     try {
       customerId = await findOrCreateCustomer(supabase, currentTask.phone, currentTask.name);
-      vehicleId = await findOrCreateVehicle(supabase, customerId, currentTask.vehicle);
+      vehicleId = await findOrCreateVehicle(supabase, customerId, vehicleData ?? currentTask.vehicle);
     } catch {
       // Non-fatal: appointment still saves without customer link
     }

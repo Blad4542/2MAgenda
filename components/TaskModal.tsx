@@ -7,7 +7,7 @@ import { es } from "date-fns/locale/es";
 import { waUrl } from "@/utils/wa";
 import { inp, lbl } from "@/utils/styles";
 import { TIME_OPTIONS } from "@/utils/timeOptions";
-import { lookupCustomer, getCustomerVehicles } from "@/utils/customers";
+import { lookupCustomer, getCustomerVehicles, buildVehicleDescription, vehicleLabel, type VehicleRecord } from "@/utils/customers";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 interface TaskFormState {
@@ -75,7 +75,7 @@ const TaskModal = ({
   businessPhone = "", appointmentDate, supabase, initialPendingTasks = [], onMoveToWaiting, staffList = [], onCancel,
   hideFinancials = false, readOnly = false,
 }: {
-  isOpen: boolean; onClose: () => void; onSave: (pendingTasks?: PendingTask[]) => void;
+  isOpen: boolean; onClose: () => void; onSave: (pendingTasks?: PendingTask[], vehicleData?: { make: string; model: string; year: string }) => void;
   onDelete?: (id: number | string) => void; task: TaskFormState; setTask: (t: TaskFormState) => void;
   isNewTask: boolean; errorMessage?: string;
   businessPhone?: string; appointmentDate?: Date;
@@ -87,8 +87,9 @@ const TaskModal = ({
   hideFinancials?: boolean;
   readOnly?: boolean;
 }) => {
-  const [customerVehicles, setCustomerVehicles] = useState<{ id: string; description: string }[]>([]);
+  const [customerVehicles, setCustomerVehicles] = useState<VehicleRecord[]>([]);
   const [isNewVehicle, setIsNewVehicle] = useState(true);
+  const [vehicleFields, setVehicleFields] = useState({ make: "", model: "", year: "" });
   const [phoneError, setPhoneError] = useState("");
   const [cancelMode, setCancelMode] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
@@ -102,7 +103,24 @@ const TaskModal = ({
   const [pendingTasks, setPendingTasks] = useState<PendingTask[]>(initialPendingTasks ?? []);
 
   useEffect(() => {
-    if (isOpen) { setCancelMode(false); setCancelReason(""); setDeleteConfirm(false); }
+    if (isOpen) {
+      setCancelMode(false); setCancelReason(""); setDeleteConfirm(false);
+      // Init vehicle fields from existing task.vehicle (best-effort parse)
+      if (task.vehicle) {
+        const parts = task.vehicle.trim().split(/\s+/);
+        const last = parts[parts.length - 1];
+        const isYear = /^\d{4}$/.test(last) && Number(last) >= 1900 && Number(last) <= 2100;
+        if (isYear && parts.length >= 3) {
+          setVehicleFields({ make: parts[0], model: parts.slice(1, -1).join(" "), year: last });
+        } else if (parts.length >= 2) {
+          setVehicleFields({ make: parts[0], model: parts.slice(1).join(" "), year: "" });
+        } else {
+          setVehicleFields({ make: task.vehicle, model: "", year: "" });
+        }
+      } else {
+        setVehicleFields({ make: "", model: "", year: "" });
+      }
+    }
     if (isOpen && isNewTask) { setPendingTasks(initialPendingTasks ?? []); setNewTaskText(""); setNewTaskPrice(""); }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, isNewTask]);
@@ -128,12 +146,16 @@ const TaskModal = ({
     const vehicles = await getCustomerVehicles(supabase, match.id);
     setCustomerVehicles(vehicles);
     setIsNewVehicle(vehicles.length === 0);
+    const firstV = vehicles[0];
+    if (firstV) {
+      setVehicleFields({ make: firstV.make ?? "", model: firstV.model ?? "", year: firstV.year ? String(firstV.year) : "" });
+    }
     setTask({
       ...task,
       name: task.name || match.name,
       customer_id: match.id,
-      vehicle_id: vehicles[0]?.id ?? undefined,
-      vehicle: vehicles[0]?.description ?? task.vehicle,
+      vehicle_id: firstV?.id ?? undefined,
+      vehicle: firstV ? vehicleLabel(firstV) : task.vehicle,
     });
   }, [supabase, isNewTask, task, setTask]);
 
@@ -141,12 +163,14 @@ const TaskModal = ({
     const val = e.target.value;
     if (val === "__new__") {
       setIsNewVehicle(true);
+      setVehicleFields({ make: "", model: "", year: "" });
       setTask({ ...task, vehicle: "", vehicle_id: undefined });
     } else {
       const found = customerVehicles.find(v => v.id === val);
       if (found) {
         setIsNewVehicle(false);
-        setTask({ ...task, vehicle: found.description, vehicle_id: found.id });
+        setVehicleFields({ make: found.make ?? "", model: found.model ?? "", year: found.year ? String(found.year) : "" });
+        setTask({ ...task, vehicle: vehicleLabel(found), vehicle_id: found.id });
       }
     }
   };
@@ -294,31 +318,61 @@ const TaskModal = ({
               <input id="task-name" type="text" name="name" placeholder="Nombre" className={inp} value={task.name} onChange={onChange} disabled={readOnly} />
             </div>
             <div className="mb-3">
-              <label htmlFor="task-vehicle" className={lbl}>Vehículo</label>
-              {isNewTask && customerVehicles.length > 0 ? (
+              <label className={lbl}>Vehículo</label>
+              {isNewTask && customerVehicles.length > 0 && (
                 <select
-                  id="task-vehicle-select"
                   className={inp}
                   value={isNewVehicle ? "__new__" : (task.vehicle_id ?? "")}
                   onChange={onVehicleSelect}
                 >
                   {customerVehicles.map(v => (
-                    <option key={v.id} value={v.id}>{v.description}</option>
+                    <option key={v.id} value={v.id}>{vehicleLabel(v)}</option>
                   ))}
                   <option value="__new__">+ Nuevo vehículo</option>
                 </select>
-              ) : null}
-              {(!isNewTask || customerVehicles.length === 0 || isNewVehicle) && (
-                <input
-                  id="task-vehicle"
-                  type="text"
-                  name="vehicle"
-                  placeholder="Vehículo"
-                  className={`${inp} ${isNewTask && customerVehicles.length > 0 ? "mt-2" : ""}`}
-                  value={task.vehicle}
-                  onChange={onChange}
-                  disabled={readOnly}
-                />
+              )}
+              {(customerVehicles.length === 0 || isNewVehicle) && (
+                <div className={`grid grid-cols-3 gap-2 ${isNewTask && customerVehicles.length > 0 ? "mt-2" : ""}`}>
+                  <input
+                    type="text"
+                    placeholder="Marca"
+                    className={inp}
+                    value={vehicleFields.make}
+                    disabled={readOnly}
+                    onChange={e => {
+                      const updated = { ...vehicleFields, make: e.target.value };
+                      setVehicleFields(updated);
+                      setTask({ ...task, vehicle: buildVehicleDescription(updated.make, updated.model, updated.year) });
+                    }}
+                  />
+                  <input
+                    type="text"
+                    placeholder="Modelo"
+                    className={inp}
+                    value={vehicleFields.model}
+                    disabled={readOnly}
+                    onChange={e => {
+                      const updated = { ...vehicleFields, model: e.target.value };
+                      setVehicleFields(updated);
+                      setTask({ ...task, vehicle: buildVehicleDescription(updated.make, updated.model, updated.year) });
+                    }}
+                  />
+                  <input
+                    type="text"
+                    placeholder="Año"
+                    className={inp}
+                    value={vehicleFields.year}
+                    disabled={readOnly}
+                    onChange={e => {
+                      const updated = { ...vehicleFields, year: e.target.value };
+                      setVehicleFields(updated);
+                      setTask({ ...task, vehicle: buildVehicleDescription(updated.make, updated.model, updated.year) });
+                    }}
+                  />
+                </div>
+              )}
+              {!isNewTask && customerVehicles.length > 0 && !isNewVehicle && (
+                <p className="mt-1 text-sm text-gray-600">{task.vehicle}</p>
               )}
             </div>
             <div className="mb-3">
@@ -668,7 +722,7 @@ const TaskModal = ({
               </>
             )}
             {!readOnly && !cancelMode && !deleteConfirm && (
-              <button onClick={() => onSave(isNewTask ? pendingTasks : undefined)} className="px-4 py-2 text-sm font-semibold rounded-xl bg-[#07C3F8] hover:bg-[#06aad9] text-white transition-colors">
+              <button onClick={() => onSave(isNewTask ? pendingTasks : undefined, vehicleFields)} className="px-4 py-2 text-sm font-semibold rounded-xl bg-[#07C3F8] hover:bg-[#06aad9] text-white transition-colors">
                 Guardar
               </button>
             )}

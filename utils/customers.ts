@@ -4,6 +4,25 @@ function normalizePhone(phone: string): string {
   return phone.replace(/\D/g, "");
 }
 
+export interface VehicleRecord {
+  id: string;
+  description: string;
+  make?: string | null;
+  model?: string | null;
+  year?: number | null;
+}
+
+export function buildVehicleDescription(make: string, model: string, year: string | number): string {
+  return [make.trim(), model.trim(), String(year).trim()].filter(Boolean).join(" ");
+}
+
+export function vehicleLabel(v: VehicleRecord): string {
+  if (v.make || v.model) {
+    return [v.make, v.model, v.year].filter(Boolean).join(" ");
+  }
+  return v.description;
+}
+
 export async function findOrCreateCustomer(
   supabase: SupabaseClient,
   phone: string,
@@ -33,21 +52,37 @@ export async function findOrCreateCustomer(
 export async function findOrCreateVehicle(
   supabase: SupabaseClient,
   customerId: string,
-  description: string
+  data: string | { make?: string; model?: string; year?: string | number; description?: string }
 ): Promise<string> {
-  const { data } = await supabase
+  const isString = typeof data === "string";
+  const make = isString ? "" : (data.make?.trim() ?? "");
+  const model = isString ? "" : (data.model?.trim() ?? "");
+  const year = isString ? "" : (data.year ? String(data.year) : "");
+  const desc = isString
+    ? data
+    : (data.description ?? buildVehicleDescription(make, model, year));
+
+  if (!desc.trim()) throw new Error("Vehicle description is empty");
+
+  const { data: found } = await supabase
     .from("vehicles")
     .select("id")
     .eq("customer_id", customerId)
-    .ilike("description", description)
+    .ilike("description", desc)
     .limit(1)
     .maybeSingle();
 
-  if (data?.id) return data.id as string;
+  if (found?.id) return found.id as string;
 
   const { data: created, error } = await supabase
     .from("vehicles")
-    .insert({ customer_id: customerId, description })
+    .insert({
+      customer_id: customerId,
+      description: desc,
+      make: make || null,
+      model: model || null,
+      year: year ? Number(year) : null,
+    })
     .select("id")
     .single();
 
@@ -75,12 +110,12 @@ export async function lookupCustomer(
 export async function getCustomerVehicles(
   supabase: SupabaseClient,
   customerId: string
-): Promise<{ id: string; description: string }[]> {
+): Promise<VehicleRecord[]> {
   const { data } = await supabase
     .from("vehicles")
-    .select("id, description")
+    .select("id, description, make, model, year")
     .eq("customer_id", customerId)
     .order("created_at", { ascending: true });
 
-  return (data ?? []) as { id: string; description: string }[];
+  return (data ?? []) as VehicleRecord[];
 }
