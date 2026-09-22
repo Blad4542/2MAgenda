@@ -65,6 +65,11 @@ interface TableProps {
 }
 
 const Table = memo(function Table({ list, title, selected, itemCounts, taskDescriptions, onToggle, onToggleAll, onBulkDelete, onEdit, onDelete, onRowClick, isDropTarget, onRowDragStart, onDrop, onDragOver, onDragLeave }: TableProps) {
+  const [page, setPage] = React.useState(0);
+  const totalPages = Math.ceil(list.length / PAGE_SIZE);
+  const paginated = list.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  // Reset page when list changes (e.g. search)
+  React.useEffect(() => { setPage(0); }, [list.length]);
   const sel = list.map(t => t.id).filter(id => selected.has(id));
   const all = list.length > 0 && sel.length === list.length;
   return (
@@ -94,7 +99,7 @@ const Table = memo(function Table({ list, title, selected, itemCounts, taskDescr
         >
           {/* Mobile cards */}
           <ul className="md:hidden divide-y divide-gray-100">
-            {list.map(task => (
+            {paginated.map(task => (
               <li key={task.id} onClick={() => onRowClick(task)} className="p-4 cursor-pointer hover:bg-gray-50 active:bg-gray-100 transition-colors">
                 <div className="flex items-start justify-between gap-2 mb-1.5">
                   <span className="text-sm font-semibold text-gray-900 leading-snug">{task.name}</span>
@@ -154,7 +159,7 @@ const Table = memo(function Table({ list, title, selected, itemCounts, taskDescr
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {list.map(task => (
+              {paginated.map(task => (
                 <tr
                   key={task.id}
                   draggable
@@ -230,6 +235,21 @@ const Table = memo(function Table({ list, title, selected, itemCounts, taskDescr
             </tbody>
           </table>
           </div>
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 bg-gray-50">
+              <span className="text-xs text-gray-400">
+                {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, list.length)} de {list.length}
+              </span>
+              <div className="flex gap-1">
+                <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-200 disabled:opacity-30 transition-colors">
+                  <ChevronLeft size={16} />
+                </button>
+                <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-200 disabled:opacity-30 transition-colors">
+                  <ChevronRight size={16} />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -240,8 +260,6 @@ export default function TasksPage() {
   useRequireRole(["admin", "asistente"]);
   const supabase = useMemo(() => createClient(), []);
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
   const [editing, setEditing] = useState<Task | null>(null);
   const [form, setForm] = useState<Omit<Task, "id">>({ name: "", phone: "", description: "", status: "Pending", vehicle: "", customer_id: undefined, vehicle_id: undefined, notes: "", image_url: "" });
@@ -263,15 +281,12 @@ export default function TasksPage() {
   const [newItemText, setNewItemText] = useState("");
   const [isDetailOpen, setIsDetailOpen] = useState(false);
 
-  const fetchTasks = useCallback(async (p = 0, s = "") => {
-    const from = p * PAGE_SIZE;
-    const to = from + PAGE_SIZE - 1;
+  const fetchTasks = useCallback(async (s = "") => {
     let q = supabase
       .from("pending_tasks")
-      .select("*", { count: "exact" })
-      .range(from, to);
+      .select("*");
     if (s.trim()) q = q.or(`name.ilike.%${s.trim()}%,description.ilike.%${s.trim()}%,vehicle.ilike.%${s.trim()}%`);
-    const { data, count } = await q;
+    const { data } = await q;
     if (data) {
       const customerIds = Array.from(new Set(data.filter(t => t.customer_id).map(t => t.customer_id as string)));
       let nameMap: Record<string, { name: string; phone: string }> = {};
@@ -304,27 +319,19 @@ export default function TasksPage() {
         }
       }
     }
-    if (count !== null) setTotal(count);
     setIsLoading(false);
   }, [supabase]);
 
   const handleSearch = (value: string) => {
     setSearch(value);
-    setPage(0);
     setSelected(new Set());
-    fetchTasks(0, value);
+    fetchTasks(value);
   };
 
   useEffect(() => {
-    fetchTasks(0);
+    fetchTasks();
     supabase.auth.getSession().then(({ data }) => { if (data.session) setUserEmail(data.session.user.email); });
   }, [fetchTasks, supabase]);
-
-  const goToPage = (p: number) => {
-    setPage(p);
-    setSelected(new Set());
-    fetchTasks(p, search);
-  };
 
   const onPhoneBlur = async () => {
     const digits = form.phone.replace(/\D/g, "");
@@ -411,14 +418,14 @@ export default function TasksPage() {
       await supabase.from("pending_tasks").insert({ id, ...form, customer_id: customerId, vehicle_id: vehicleId, image_url: imageUrl });
       await logAction(supabase, { table_name: "pending_tasks", record_id: id, action: "create", description: `Cotización de ${form.name}`, user_email: userEmail });
     }
-    setIsOpen(false); resetForm(); setEditing(null); fetchTasks(page, search);
+    setIsOpen(false); resetForm(); setEditing(null); fetchTasks(search);
   };
 
   const del = async (id: string) => {
     const task = tasks.find(t => t.id === id);
     await supabase.from("pending_tasks").delete().eq("id", id);
     await logAction(supabase, { table_name: "pending_tasks", record_id: id, action: "delete", description: task ? `Cotización de ${task.name}` : undefined, user_email: userEmail });
-    setSelected(p => { const n = new Set(p); n.delete(id); return n; }); fetchTasks(page, search);
+    setSelected(p => { const n = new Set(p); n.delete(id); return n; }); fetchTasks(search);
   };
   const bulkDel = async (ids: string[]) => {
     await supabase.from("pending_tasks").delete().in("id", ids);
@@ -426,7 +433,7 @@ export default function TasksPage() {
       const t = tasks.find(x => x.id === id);
       return logAction(supabase, { table_name: "pending_tasks", record_id: id, action: "delete", description: t ? `Cotización de ${t.name}` : undefined, user_email: userEmail });
     }));
-    setSelected(p => { const n = new Set(p); ids.forEach(id => n.delete(id)); return n; }); fetchTasks(page, search);
+    setSelected(p => { const n = new Set(p); ids.forEach(id => n.delete(id)); return n; }); fetchTasks(search);
   };
   const handleDrop = async (target: "pending" | "quoted" | "waiting") => {
     setDropTarget(null);
@@ -480,8 +487,6 @@ export default function TasksPage() {
   const toggleAll = (list: Task[], all: boolean) => setSelected(p => {
     const n = new Set(p); all ? list.forEach(t => n.delete(t.id)) : list.forEach(t => n.add(t.id)); return n;
   });
-
-  const totalPages = Math.ceil(total / PAGE_SIZE);
 
   const makeEditHandler = () => async (task: Task) => {
     setEditing(task);
@@ -629,34 +634,6 @@ export default function TasksPage() {
         onDragOver={e => { e.preventDefault(); setDropTarget("waiting"); }}
         onDragLeave={() => setDropTarget(null)}
       />
-
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between mt-2">
-          <p className="text-sm text-gray-500">
-            Mostrando {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, total)} de {total}
-          </p>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => goToPage(page - 1)}
-              disabled={page === 0}
-              aria-label="Página anterior"
-              className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-            >
-              <ChevronLeft size={16} aria-hidden="true" />
-            </button>
-            <span className="text-sm text-gray-700 font-medium">{page + 1} / {totalPages}</span>
-            <button
-              onClick={() => goToPage(page + 1)}
-              disabled={page >= totalPages - 1}
-              aria-label="Página siguiente"
-              className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-            >
-              <ChevronRight size={16} aria-hidden="true" />
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Create / Edit modal */}
       {isOpen && (
