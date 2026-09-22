@@ -30,7 +30,7 @@ interface QuoteItem {
   description: string;
 }
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 10;
 
 const statusStyle: Record<Task["status"], string> = {
   Pending: "bg-amber-50 text-amber-700 border border-amber-200",
@@ -270,7 +270,7 @@ export default function TasksPage() {
       .from("pending_tasks")
       .select("*", { count: "exact" })
       .range(from, to);
-    if (s.trim()) q = q.or(`name.ilike.%${s.trim()}%,description.ilike.%${s.trim()}%`);
+    if (s.trim()) q = q.or(`name.ilike.%${s.trim()}%,description.ilike.%${s.trim()}%,vehicle.ilike.%${s.trim()}%`);
     const { data, count } = await q;
     if (data) {
       const customerIds = Array.from(new Set(data.filter(t => t.customer_id).map(t => t.customer_id as string)));
@@ -584,7 +584,7 @@ export default function TasksPage() {
         <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" aria-hidden="true" />
         <input
           type="search"
-          placeholder="Buscar por nombre o descripción..."
+          placeholder="Buscar por nombre, vehículo o descripción..."
           value={search}
           onChange={e => handleSearch(e.target.value)}
           className="w-full pl-8 pr-8 py-2.5 text-sm border border-gray-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-[#07C3F8] focus:border-transparent transition-colors"

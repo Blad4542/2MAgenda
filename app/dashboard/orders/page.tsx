@@ -25,7 +25,7 @@ interface AuditEntry {
   id: string; action: string; description: string | null; user_email: string | null; created_at: string;
 }
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 10;
 
 const actionLabel: Record<string, string> = { create: "Creado", update: "Editado", delete: "Eliminado" };
 

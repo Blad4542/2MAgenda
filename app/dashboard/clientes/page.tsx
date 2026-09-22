@@ -79,7 +79,7 @@ export default function ClientesPage() {
     return result;
   }, [customers, search, sortBy, onlyWithNotes, filterMake, filterModel, filterYear, vehicles]);
 
-  const PAGE_SIZE = 20;
+  const PAGE_SIZE = 10;
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
   const paginated = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 

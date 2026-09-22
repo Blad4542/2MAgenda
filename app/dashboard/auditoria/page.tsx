@@ -33,7 +33,7 @@ const TABLE_LABEL: Record<string, string> = {
   pending_tasks:"Cotizaciones",
 };
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 10;
 
 export default function AuditoriaPage() {
   useRequireRole(["admin"]);

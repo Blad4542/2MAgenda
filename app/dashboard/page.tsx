@@ -258,7 +258,7 @@ export default async function DashboardHome() {
             <ul className="divide-y divide-gray-50">
               {upcoming.map(a => (
                 <li key={a.id} className="px-5 py-3 flex items-start gap-3">
-                  <span className="mt-0.5 text-xs font-mono text-gray-400 w-10 shrink-0">{a.start_time}</span>
+                  <span className="mt-0.5 text-xs font-mono text-gray-400 w-11 shrink-0">{a.start_time.slice(0, 5)}</span>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-gray-900 truncate">{a.name}</p>
                     <p className="text-xs text-gray-400 truncate">{a.vehicle} · {a.assigned_person}</p>
