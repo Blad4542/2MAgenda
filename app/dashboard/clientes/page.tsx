@@ -26,14 +26,21 @@ export default function ClientesPage() {
   const [newModalOpen, setNewModalOpen] = useState(false);
   const [newForm, setNewForm] = useState({ name: "", phone: "", notes: "" });
   const [saving, setSaving] = useState(false);
+  const [sortBy, setSortBy] = useState<"recent" | "oldest" | "name_asc" | "name_desc">("recent");
+  const [onlyWithNotes, setOnlyWithNotes] = useState(false);
+  const [filterMake, setFilterMake] = useState("");
+  const [filterModel, setFilterModel] = useState("");
+  const [filterYear, setFilterYear] = useState("");
+  const [vehicles, setVehicles] = useState<{ customer_id: string; make: string | null; model: string | null; year: number | null }[]>([]);
 
   const fetchCustomers = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase
-      .from("customers")
-      .select("id, name, phone, notes, created_at")
-      .order("created_at", { ascending: false });
+    const [{ data }, { data: vData }] = await Promise.all([
+      supabase.from("customers").select("id, name, phone, notes, created_at").order("created_at", { ascending: false }),
+      supabase.from("vehicles").select("customer_id, make, model, year"),
+    ]);
     setCustomers((data ?? []) as Customer[]);
+    setVehicles((vData ?? []) as typeof vehicles);
     setLoading(false);
   }, [supabase]);
 
@@ -41,14 +48,36 @@ export default function ClientesPage() {
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
-    if (!term) return customers;
     const digits = term.replace(/\D/g, "");
-    return customers.filter(c => {
-      const nameMatch = c.name.toLowerCase().includes(term);
-      const phoneMatch = digits.length > 0 && c.phone.replace(/\D/g, "").includes(digits);
-      return nameMatch || phoneMatch;
+    const make = filterMake.trim().toLowerCase();
+    const model = filterModel.trim().toLowerCase();
+    const year = filterYear.trim();
+
+    const vehicleMatchIds = (make || model || year)
+      ? new Set(
+          vehicles.filter(v =>
+            (!make || (v.make ?? "").toLowerCase().includes(make)) &&
+            (!model || (v.model ?? "").toLowerCase().includes(model)) &&
+            (!year || String(v.year ?? "").includes(year))
+          ).map(v => v.customer_id)
+        )
+      : null;
+
+    let result = customers.filter(c => {
+      if (onlyWithNotes && !c.notes?.trim()) return false;
+      if (vehicleMatchIds && !vehicleMatchIds.has(c.id)) return false;
+      if (!term) return true;
+      return c.name.toLowerCase().includes(term) || (digits.length > 0 && c.phone.replace(/\D/g, "").includes(digits));
     });
-  }, [customers, search]);
+    result = [...result].sort((a, b) => {
+      if (sortBy === "recent") return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      if (sortBy === "oldest") return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      if (sortBy === "name_asc") return a.name.localeCompare(b.name, "es");
+      if (sortBy === "name_desc") return b.name.localeCompare(a.name, "es");
+      return 0;
+    });
+    return result;
+  }, [customers, search, sortBy, onlyWithNotes, filterMake, filterModel, filterYear, vehicles]);
 
   const PAGE_SIZE = 20;
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
@@ -87,16 +116,64 @@ export default function ClientesPage() {
         </button>
       </div>
 
-      {/* Search */}
-      <div className="relative mb-6">
-        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" aria-hidden="true" />
+      {/* Search + filters */}
+      <div className="flex flex-wrap items-center gap-3 mb-6">
+        <div className="relative flex-1 min-w-48">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" aria-hidden="true" />
+          <input
+            type="text"
+            placeholder="Buscar por nombre o teléfono..."
+            value={search}
+            onChange={e => { setSearch(e.target.value); setPage(0); }}
+            className="w-full pl-8 pr-3 py-2.5 text-sm border border-gray-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-[#07C3F8] focus:border-transparent transition-colors"
+          />
+        </div>
+        <select
+          value={sortBy}
+          onChange={e => { setSortBy(e.target.value as typeof sortBy); setPage(0); }}
+          className="text-sm border border-gray-300 rounded-xl px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-[#07C3F8]"
+        >
+          <option value="recent">Más reciente</option>
+          <option value="oldest">Más antiguo</option>
+          <option value="name_asc">Nombre A→Z</option>
+          <option value="name_desc">Nombre Z→A</option>
+        </select>
+        <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none whitespace-nowrap">
+          <input
+            type="checkbox"
+            checked={onlyWithNotes}
+            onChange={e => { setOnlyWithNotes(e.target.checked); setPage(0); }}
+            className="rounded border-gray-300 text-[#07C3F8] focus:ring-[#07C3F8]"
+          />
+          Solo con notas
+        </label>
+        <span className="text-sm text-gray-400 ml-auto whitespace-nowrap">{filtered.length} cliente{filtered.length !== 1 ? "s" : ""}</span>
+      </div>
+      {/* Vehicle filters */}
+      <div className="flex flex-wrap items-center gap-3 mb-6 -mt-3">
         <input
-          type="text"
-          placeholder="Buscar por nombre o teléfono..."
-          value={search}
-          onChange={e => { setSearch(e.target.value); setPage(0); }}
-          className="w-full pl-8 pr-3 py-2.5 text-sm border border-gray-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-[#07C3F8] focus:border-transparent transition-colors"
+          type="text" placeholder="Marca" value={filterMake}
+          onChange={e => { setFilterMake(e.target.value); setPage(0); }}
+          className="text-sm border border-gray-300 rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#07C3F8] w-32"
         />
+        <input
+          type="text" placeholder="Modelo" value={filterModel}
+          onChange={e => { setFilterModel(e.target.value); setPage(0); }}
+          className="text-sm border border-gray-300 rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#07C3F8] w-32"
+        />
+        <input
+          type="text" placeholder="Año" value={filterYear}
+          onChange={e => { setFilterYear(e.target.value); setPage(0); }}
+          className="text-sm border border-gray-300 rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#07C3F8] w-24"
+        />
+        {(filterMake || filterModel || filterYear) && (
+          <button
+            onClick={() => { setFilterMake(""); setFilterModel(""); setFilterYear(""); setPage(0); }}
+            className="text-xs text-gray-400 hover:text-gray-600 underline"
+          >
+            Limpiar vehículo
+          </button>
+        )}
       </div>
 
       {loading && (

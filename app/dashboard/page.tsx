@@ -152,7 +152,7 @@ export default async function DashboardHome() {
     .slice(0, 5);
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="p-4 sm:p-6">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900">Resumen del día</h1>
         <p className="text-sm text-gray-500 mt-0.5 capitalize">
@@ -161,7 +161,7 @@ export default async function DashboardHome() {
       </div>
 
       {/* Revenue cards */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         {[
           { label: "Ingresos hoy",    value: revenueToday },
           { label: "Ingresos semana", value: revenueWeek  },
@@ -182,7 +182,7 @@ export default async function DashboardHome() {
       </div>
 
       {/* Stat cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <Link href="/dashboard/agenda" className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between mb-3">
             <span className="text-sm font-medium text-gray-500">Citas hoy</span>

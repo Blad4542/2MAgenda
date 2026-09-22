@@ -90,8 +90,41 @@ const Table = memo(function Table({ list, title, selected, itemCounts, taskDescr
       ) : (
         <div
           onDrop={onDrop} onDragOver={onDragOver} onDragLeave={onDragLeave}
-          className={`bg-white rounded-2xl shadow-sm border overflow-x-auto transition-colors ${isDropTarget ? "border-[#07C3F8] ring-2 ring-[#07C3F8]/30" : "border-gray-200"}`}
+          className={`bg-white rounded-2xl shadow-sm border transition-colors ${isDropTarget ? "border-[#07C3F8] ring-2 ring-[#07C3F8]/30" : "border-gray-200"}`}
         >
+          {/* Mobile cards */}
+          <ul className="md:hidden divide-y divide-gray-100">
+            {list.map(task => (
+              <li key={task.id} onClick={() => onRowClick(task)} className="p-4 cursor-pointer hover:bg-gray-50 active:bg-gray-100 transition-colors">
+                <div className="flex items-start justify-between gap-2 mb-1.5">
+                  <span className="text-sm font-semibold text-gray-900 leading-snug">{task.name}</span>
+                  <span className={`shrink-0 inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${statusStyle[task.status]}`}>{statusLabel[task.status]}</span>
+                </div>
+                {task.vehicle && <p className="text-xs text-gray-500 mb-1">{task.vehicle}</p>}
+                {task.description && <p className="text-xs text-gray-600 line-clamp-2 mb-1">{task.description}</p>}
+                <div className="flex items-center justify-between mt-2">
+                  <div className="flex items-center gap-2">
+                    {task.phone && (
+                      <a href={waUrl(task.phone)} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="flex items-center gap-1 text-xs text-gray-400 hover:text-green-600">
+                        <WaIcon /> {task.phone}
+                      </a>
+                    )}
+                    {(taskDescriptions[task.id] ?? []).length > 0 && (
+                      <span className="flex items-center gap-0.5 text-[#07C3F8] text-xs font-semibold">
+                        <ListChecks size={11} /> {(taskDescriptions[task.id] ?? []).length}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                    <button onClick={() => onEdit(task)} className="p-1.5 rounded-lg text-gray-400 hover:text-[#07C3F8] hover:bg-[#07C3F8]/10 transition-colors"><Edit size={14} /></button>
+                    <button onClick={() => onDelete(task.id)} className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"><Trash2 size={14} /></button>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+          {/* Desktop table */}
+          <div className="hidden md:block overflow-x-auto">
           <table className="w-full table-fixed">
             <colgroup>
               <col style={{width: "40px"}} />
@@ -196,6 +229,7 @@ const Table = memo(function Table({ list, title, selected, itemCounts, taskDescr
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>
