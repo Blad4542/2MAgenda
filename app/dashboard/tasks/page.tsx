@@ -416,6 +416,9 @@ export default function TasksPage() {
     } else {
       const id = uuidv4();
       await supabase.from("pending_tasks").insert({ id, ...form, customer_id: customerId, vehicle_id: vehicleId, image_url: imageUrl });
+      if (detailItems.length > 0) {
+        await supabase.from("quote_items").insert(detailItems.map(item => ({ id: item.id, task_id: id, description: item.description })));
+      }
       await logAction(supabase, { table_name: "pending_tasks", record_id: id, action: "create", description: `Cotización de ${form.name}`, user_email: userEmail });
     }
     setIsOpen(false); resetForm(); setEditing(null); fetchTasks(search);
@@ -456,31 +459,35 @@ export default function TasksPage() {
   };
 
   const addItem = async () => {
-    if (!newItemText.trim() || !detailTask) return;
+    if (!newItemText.trim()) return;
     const id = uuidv4();
     const desc = newItemText.trim();
-    const item: QuoteItem = { id, task_id: detailTask.id, description: desc };
-    await supabase.from("quote_items").insert({ id, task_id: detailTask.id, description: desc });
-    setDetailItems(prev => [...prev, item]);
-    setItemCounts(prev => ({ ...prev, [detailTask.id]: (prev[detailTask.id] ?? 0) + 1 }));
-    setTaskDescriptions(prev => ({ ...prev, [detailTask.id]: [...(prev[detailTask.id] ?? []), desc] }));
+    if (detailTask) {
+      // editing existing — save to DB immediately
+      await supabase.from("quote_items").insert({ id, task_id: detailTask.id, description: desc });
+      setItemCounts(prev => ({ ...prev, [detailTask.id]: (prev[detailTask.id] ?? 0) + 1 }));
+      setTaskDescriptions(prev => ({ ...prev, [detailTask.id]: [...(prev[detailTask.id] ?? []), desc] }));
+    }
+    // creating new — store locally; save() will persist after insert
+    setDetailItems(prev => [...prev, { id, task_id: detailTask?.id ?? "", description: desc }]);
     setNewItemText("");
   };
 
   const removeItem = async (itemId: string) => {
-    if (!detailTask) return;
-    const removed = detailItems.find(i => i.id === itemId);
-    await supabase.from("quote_items").delete().eq("id", itemId);
-    setDetailItems(prev => prev.filter(i => i.id !== itemId));
-    setItemCounts(prev => ({ ...prev, [detailTask.id]: Math.max(0, (prev[detailTask.id] ?? 1) - 1) }));
-    if (removed) {
-      setTaskDescriptions(prev => {
-        const arr = [...(prev[detailTask.id] ?? [])];
-        const idx = arr.indexOf(removed.description);
-        if (idx > -1) arr.splice(idx, 1);
-        return { ...prev, [detailTask.id]: arr };
-      });
+    if (detailTask) {
+      const removed = detailItems.find(i => i.id === itemId);
+      await supabase.from("quote_items").delete().eq("id", itemId);
+      setItemCounts(prev => ({ ...prev, [detailTask.id]: Math.max(0, (prev[detailTask.id] ?? 1) - 1) }));
+      if (removed) {
+        setTaskDescriptions(prev => {
+          const arr = [...(prev[detailTask.id] ?? [])];
+          const idx = arr.indexOf(removed.description);
+          if (idx > -1) arr.splice(idx, 1);
+          return { ...prev, [detailTask.id]: arr };
+        });
+      }
     }
+    setDetailItems(prev => prev.filter(i => i.id !== itemId));
   };
 
   const toggle = (id: string) => setSelected(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
@@ -660,6 +667,38 @@ export default function TasksPage() {
                 </div>
               )}
             </div>
+            {/* Tareas */}
+            <div className="border-t border-gray-100 pt-4">
+              <h3 className="text-sm font-semibold text-gray-700 mb-3">Tareas</h3>
+              {detailItems.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-3">Sin tareas aún</p>
+              ) : (
+                <ul className="space-y-1.5 mb-3">
+                  {detailItems.map((item, idx) => (
+                    <li key={item.id} className="flex items-center gap-2 group">
+                      <span className="text-xs text-gray-400 w-5 text-right shrink-0">{idx + 1}.</span>
+                      <span className="flex-1 text-sm text-gray-700">{item.description}</span>
+                      <button onClick={() => removeItem(item.id)} aria-label="Eliminar tarea" className="opacity-0 group-hover:opacity-100 p-1 rounded text-gray-400 hover:text-red-500 transition-all">
+                        <X size={13} />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <div className="flex gap-2">
+                <input
+                  className={`${inp} flex-1`}
+                  placeholder="Nueva tarea..."
+                  value={newItemText}
+                  onChange={e => setNewItemText(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addItem(); } }}
+                />
+                <button onClick={addItem} disabled={!newItemText.trim()} className="px-3 py-2 rounded-xl bg-[#07C3F8] hover:bg-[#06aad9] text-white text-sm font-semibold disabled:opacity-40 transition-colors">
+                  <Plus size={15} />
+                </button>
+              </div>
+            </div>
+
             <div><label className={lbl}>Descripción</label><input className={inp} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} /></div>
             <div><label className={lbl}>Notas</label><textarea className={`${inp} resize-none`} rows={2} value={form.notes ?? ""} onChange={e => setForm({ ...form, notes: e.target.value })} /></div>
             <div>
@@ -697,38 +736,6 @@ export default function TasksPage() {
                 className="block w-full text-sm text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-[#07C3F8]/10 file:text-[#07C3F8] hover:file:bg-[#07C3F8]/20 cursor-pointer"
                 onChange={e => { const f = e.target.files?.[0] ?? null; setImageFile(f); }}
               />
-            </div>
-
-            {/* Tareas */}
-            <div className="border-t border-gray-100 pt-4">
-              <h3 className="text-sm font-semibold text-gray-700 mb-3">Tareas</h3>
-              {detailItems.length === 0 ? (
-                <p className="text-sm text-gray-400 text-center py-3">Sin tareas aún</p>
-              ) : (
-                <ul className="space-y-1.5 mb-3">
-                  {detailItems.map((item, idx) => (
-                    <li key={item.id} className="flex items-center gap-2 group">
-                      <span className="text-xs text-gray-400 w-5 text-right shrink-0">{idx + 1}.</span>
-                      <span className="flex-1 text-sm text-gray-700">{item.description}</span>
-                      <button onClick={() => removeItem(item.id)} aria-label="Eliminar tarea" className="opacity-0 group-hover:opacity-100 p-1 rounded text-gray-400 hover:text-red-500 transition-all">
-                        <X size={13} />
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <div className="flex gap-2">
-                <input
-                  className={`${inp} flex-1`}
-                  placeholder="Nueva tarea..."
-                  value={newItemText}
-                  onChange={e => setNewItemText(e.target.value)}
-                  onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addItem(); } }}
-                />
-                <button onClick={addItem} disabled={!newItemText.trim()} className="px-3 py-2 rounded-xl bg-[#07C3F8] hover:bg-[#06aad9] text-white text-sm font-semibold disabled:opacity-40 transition-colors">
-                  <Plus size={15} />
-                </button>
-              </div>
             </div>
 
             {formError && <p className="text-sm text-red-600">{formError}</p>}

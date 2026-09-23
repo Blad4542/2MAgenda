@@ -151,7 +151,7 @@ const Agenda = () => {
     }
     return all;
   }, [staff, role, staffId]);
-  const GRID_COLS = useMemo(() => `72px repeat(${PEOPLE.length}, minmax(120px, 1fr))`, [PEOPLE]);
+  const GRID_COLS = useMemo(() => `72px repeat(${PEOPLE.length}, minmax(160px, 1fr))`, [PEOPLE]);
   const staffMap = useMemo(() => new Map(staff.map(s => [s.name, s])), [staff]);
 
   const [userEmail, setUserEmail] = useState<string | undefined>(undefined);
@@ -485,6 +485,7 @@ const Agenda = () => {
 
   const handleModalClose = () => {
     setErrorMessage("");
+    setSaving(false);
     pendingWaitingIdRef.current = null;
     setPendingTasksForModal([]);
     if (channelRef.current && currentSlotRef.current) { channelRef.current.send({ type: "broadcast", event: "slot-reserved", payload: { action: "release", slot: currentSlotRef.current, user } }); currentSlotRef.current = null; }
@@ -700,7 +701,7 @@ const Agenda = () => {
               )}
             </div>
           ) : (
-            <div className="rounded-xl border border-gray-200 overflow-clip shadow-sm mb-8" style={{ minWidth: `calc(72px + ${PEOPLE.length} * 120px)` }}>
+            <div className="rounded-xl border border-gray-200 overflow-clip shadow-sm mb-8" style={{ minWidth: `calc(72px + ${PEOPLE.length} * 160px)` }}>
               {/* Grid header */}
               <div className="grid sticky top-0 z-[50] bg-gray-50 border-b border-gray-200" style={{ gridTemplateColumns: GRID_COLS }}>
                 <div className="text-center py-3 border-r border-gray-200 sticky left-0 z-[60] bg-gray-50 text-xs font-semibold text-gray-400 uppercase tracking-wider">Hora</div>

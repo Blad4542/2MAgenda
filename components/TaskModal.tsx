@@ -445,7 +445,7 @@ const TaskModal = ({
                     <ul className="space-y-1.5">
                       {pendingTasks.map((pt, idx) => (
                         <li key={idx} className="flex items-center gap-1.5">
-                          <span className="flex-1 text-sm text-gray-700 truncate">{pt.text}</span>
+                          <span className="flex-1 text-sm text-gray-700 break-words min-w-0">{pt.text}</span>
                           {!hideFinancials && (
                           <input
                             type="number"
@@ -512,7 +512,7 @@ const TaskModal = ({
                           onChange={e => toggleTask(t.id, e.target.checked)}
                           className="w-4 h-4 rounded accent-[#07C3F8] cursor-pointer shrink-0"
                         />
-                        <span className={`flex-1 text-sm truncate ${t.completed ? "line-through text-gray-400" : "text-gray-700"}`}>
+                        <span className={`flex-1 text-sm break-words min-w-0 ${t.completed ? "line-through text-gray-400" : "text-gray-700"}`}>
                           {t.description}
                         </span>
                         {!hideFinancials && (
