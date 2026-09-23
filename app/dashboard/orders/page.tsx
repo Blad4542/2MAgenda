@@ -31,6 +31,7 @@ interface OrderItem {
   order_id: string;
   description: string;
   price?: number | null;
+  completed?: boolean;
 }
 
 const PAGE_SIZE = 10;
@@ -272,6 +273,11 @@ export default function OrdersPage() {
     if (orderId) await supabase.from("order_items").update({ price }).eq("id", itemId);
   };
 
+  const toggleItemCompleted = async (itemId: string, completed: boolean, orderId?: string) => {
+    setDetailItems(prev => prev.map(i => i.id === itemId ? { ...i, completed } : i));
+    if (orderId) await supabase.from("order_items").update({ completed }).eq("id", itemId);
+  };
+
   const removeItem = async (itemId: string, orderId?: string) => {
     if (orderId) {
       const removed = detailItems.find(i => i.id === itemId);
@@ -303,7 +309,7 @@ export default function OrdersPage() {
     setDetailItems([]);
     setNewItemText("");
     setNewItemPrice("");
-    const { data: items } = await supabase.from("order_items").select("id, order_id, description, price").eq("order_id", o.id);
+    const { data: items } = await supabase.from("order_items").select("id, order_id, description, price, completed").eq("order_id", o.id);
     setDetailItems((items ?? []) as OrderItem[]);
     if (o.customer_id) {
       const vehicles = await getCustomerVehicles(supabase, o.customer_id);
@@ -519,7 +525,13 @@ export default function OrdersPage() {
                     <ul className="space-y-1.5 mb-3">
                       {detailItems.map((item) => (
                         <li key={item.id} className="flex items-center gap-2 group">
-                          <span className="flex-1 text-sm text-gray-700 min-w-0 break-words">{item.description}</span>
+                          <input
+                            type="checkbox"
+                            checked={item.completed ?? false}
+                            onChange={e => toggleItemCompleted(item.id, e.target.checked, editing?.id)}
+                            className="w-4 h-4 rounded accent-[#07C3F8] cursor-pointer shrink-0"
+                          />
+                          <span className={`flex-1 text-sm min-w-0 break-words ${item.completed ? "line-through text-gray-400" : "text-gray-700"}`}>{item.description}</span>
                           <input
                             type="number"
                             value={item.price ?? ""}

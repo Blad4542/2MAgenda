@@ -621,17 +621,6 @@ export default function TasksPage() {
       />
       <Table
         {...sharedTableProps}
-        list={tasks.filter(t => t.status === "Quoted")}
-        title="Cotizadas"
-        onEdit={editTask}
-        onDelete={del}
-        isDropTarget={dropTarget === "quoted"}
-        onDrop={() => handleDrop("quoted")}
-        onDragOver={e => { e.preventDefault(); setDropTarget("quoted"); }}
-        onDragLeave={() => setDropTarget(null)}
-      />
-      <Table
-        {...sharedTableProps}
         list={tasks.filter(t => t.status === "Waiting")}
         title="Lista de espera"
         onEdit={editTask}
@@ -639,6 +628,17 @@ export default function TasksPage() {
         isDropTarget={dropTarget === "waiting"}
         onDrop={() => handleDrop("waiting")}
         onDragOver={e => { e.preventDefault(); setDropTarget("waiting"); }}
+        onDragLeave={() => setDropTarget(null)}
+      />
+      <Table
+        {...sharedTableProps}
+        list={tasks.filter(t => t.status === "Quoted")}
+        title="Cotizadas"
+        onEdit={editTask}
+        onDelete={del}
+        isDropTarget={dropTarget === "quoted"}
+        onDrop={() => handleDrop("quoted")}
+        onDragOver={e => { e.preventDefault(); setDropTarget("quoted"); }}
         onDragLeave={() => setDropTarget(null)}
       />
 
