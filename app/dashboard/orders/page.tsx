@@ -30,6 +30,7 @@ interface OrderItem {
   id: string;
   order_id: string;
   description: string;
+  price?: number | null;
 }
 
 const PAGE_SIZE = 10;
@@ -181,6 +182,7 @@ export default function OrdersPage() {
   const [saving, setSaving] = useState(false);
   const [detailItems, setDetailItems] = useState<OrderItem[]>([]);
   const [newItemText, setNewItemText] = useState("");
+  const [newItemPrice, setNewItemPrice] = useState("");
   const [orderItemDescriptions, setOrderItemDescriptions] = useState<Record<string, string[]>>({});
 
   const fetchOrders = useCallback(async (s = search, owb = onlyWithBalance) => {
@@ -255,12 +257,19 @@ export default function OrdersPage() {
     if (!newItemText.trim()) return;
     const id = uuidv4();
     const desc = newItemText.trim();
+    const price = newItemPrice !== "" ? parseFloat(newItemPrice) : null;
     if (orderId) {
-      await supabase.from("order_items").insert({ id, order_id: orderId, description: desc });
+      await supabase.from("order_items").insert({ id, order_id: orderId, description: desc, price });
       setOrderItemDescriptions(prev => ({ ...prev, [orderId]: [...(prev[orderId] ?? []), desc] }));
     }
-    setDetailItems(prev => [...prev, { id, order_id: orderId ?? "", description: desc }]);
+    setDetailItems(prev => [...prev, { id, order_id: orderId ?? "", description: desc, price }]);
     setNewItemText("");
+    setNewItemPrice("");
+  };
+
+  const updateItemPrice = async (itemId: string, price: number | null, orderId?: string) => {
+    setDetailItems(prev => prev.map(i => i.id === itemId ? { ...i, price } : i));
+    if (orderId) await supabase.from("order_items").update({ price }).eq("id", itemId);
   };
 
   const removeItem = async (itemId: string, orderId?: string) => {
@@ -293,7 +302,8 @@ export default function OrdersPage() {
     setIsNewVehicle(true);
     setDetailItems([]);
     setNewItemText("");
-    const { data: items } = await supabase.from("order_items").select("id, order_id, description").eq("order_id", o.id);
+    setNewItemPrice("");
+    const { data: items } = await supabase.from("order_items").select("id, order_id, description, price").eq("order_id", o.id);
     setDetailItems((items ?? []) as OrderItem[]);
     if (o.customer_id) {
       const vehicles = await getCustomerVehicles(supabase, o.customer_id);
@@ -347,7 +357,7 @@ export default function OrdersPage() {
         const { error } = await supabase.from("orders").insert({ id, order_date: new Date().toISOString().split("T")[0], ...payload });
         if (error) throw new Error(error.message);
         if (detailItems.length > 0) {
-          await supabase.from("order_items").insert(detailItems.map(item => ({ id: item.id, order_id: id, description: item.description })));
+          await supabase.from("order_items").insert(detailItems.map(item => ({ id: item.id, order_id: id, description: item.description, price: item.price ?? null })));
         }
         await logAction(supabase, { table_name: "orders", record_id: id, action: "create", description: `Pedido de ${name}`, user_email: userEmail });
       }
@@ -358,6 +368,7 @@ export default function OrdersPage() {
       setVehicleFields({ make: "", model: "", year: "" });
       setDetailItems([]);
       setNewItemText("");
+      setNewItemPrice("");
       fetchOrders();
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "Error al guardar. Intenta de nuevo.");
@@ -435,7 +446,7 @@ export default function OrdersPage() {
             <Download size={16} /> Exportar
           </button>
           <button
-            onClick={() => { setEditing(null); setForm(emptyForm); setCustomerVehicles([]); setVehicleFields({ make: "", model: "", year: "" }); setIsNewVehicle(true); setFormError(""); setDetailItems([]); setNewItemText(""); setIsOpen(true); }}
+            onClick={() => { setEditing(null); setForm(emptyForm); setCustomerVehicles([]); setVehicleFields({ make: "", model: "", year: "" }); setIsNewVehicle(true); setFormError(""); setDetailItems([]); setNewItemText(""); setNewItemPrice(""); setIsOpen(true); }}
             className="flex items-center gap-2 bg-[#07C3F8] hover:bg-[#06aad9] text-white font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-colors"
           >
             <Plus size={16} /> Nuevo pedido
@@ -497,36 +508,62 @@ export default function OrdersPage() {
               )}
             </div>
             {/* Tareas */}
-            <div className="border-t border-gray-100 pt-4">
-              <h3 className="text-sm font-semibold text-gray-700 mb-3">Tareas</h3>
-              {detailItems.length === 0 ? (
-                <p className="text-sm text-gray-400 text-center py-3">Sin tareas aún</p>
-              ) : (
-                <ul className="space-y-1.5 mb-3">
-                  {detailItems.map((item, idx) => (
-                    <li key={item.id} className="flex items-center gap-2 group">
-                      <span className="text-xs text-gray-400 w-5 text-right shrink-0">{idx + 1}.</span>
-                      <span className="flex-1 text-sm text-gray-700">{item.description}</span>
-                      <button onClick={() => removeItem(item.id, editing?.id)} aria-label="Eliminar tarea" className="opacity-0 group-hover:opacity-100 p-1 rounded text-gray-400 hover:text-red-500 transition-all">
-                        <X size={13} />
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <div className="flex gap-2">
-                <input
-                  className={`${inp} flex-1`}
-                  placeholder="Nueva tarea..."
-                  value={newItemText}
-                  onChange={e => setNewItemText(e.target.value)}
-                  onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addItem(editing?.id); } }}
-                />
-                <button onClick={() => addItem(editing?.id)} disabled={!newItemText.trim()} className="px-3 py-2 rounded-xl bg-[#07C3F8] hover:bg-[#06aad9] text-white text-sm font-semibold disabled:opacity-40 transition-colors">
-                  <Plus size={15} />
-                </button>
-              </div>
-            </div>
+            {(() => {
+              const subtotal = detailItems.reduce((s, i) => s + (i.price ?? 0), 0);
+              return (
+                <div className="border-t border-gray-100 pt-4">
+                  <h3 className="text-sm font-semibold text-gray-700 mb-3">Tareas</h3>
+                  {detailItems.length === 0 ? (
+                    <p className="text-sm text-gray-400 text-center py-3">Sin tareas aún</p>
+                  ) : (
+                    <ul className="space-y-1.5 mb-3">
+                      {detailItems.map((item) => (
+                        <li key={item.id} className="flex items-center gap-2 group">
+                          <span className="flex-1 text-sm text-gray-700 min-w-0 break-words">{item.description}</span>
+                          <input
+                            type="number"
+                            value={item.price ?? ""}
+                            onChange={e => updateItemPrice(item.id, e.target.value !== "" ? parseFloat(e.target.value) : null, editing?.id)}
+                            placeholder="₡"
+                            min="0"
+                            className="w-24 text-sm border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-[#07C3F8]"
+                          />
+                          <button onClick={() => removeItem(item.id, editing?.id)} aria-label="Eliminar tarea" className="opacity-0 group-hover:opacity-100 p-1 rounded text-gray-400 hover:text-red-500 transition-all shrink-0">
+                            <X size={13} />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {subtotal > 0 && (
+                    <div className="flex justify-between text-sm font-semibold text-gray-700 mb-3 px-0.5">
+                      <span>Subtotal tareas</span>
+                      <span>₡{subtotal.toLocaleString("es-CR")}</span>
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <input
+                      className={`${inp} flex-1`}
+                      placeholder="Nueva tarea..."
+                      value={newItemText}
+                      onChange={e => setNewItemText(e.target.value)}
+                      onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addItem(editing?.id); } }}
+                    />
+                    <input
+                      type="number"
+                      value={newItemPrice}
+                      onChange={e => setNewItemPrice(e.target.value)}
+                      placeholder="₡ Precio"
+                      min="0"
+                      className="w-24 text-sm border border-gray-300 rounded-xl px-2 py-2 focus:outline-none focus:ring-2 focus:ring-[#07C3F8]"
+                    />
+                    <button onClick={() => addItem(editing?.id)} disabled={!newItemText.trim()} className="px-3 py-2 rounded-xl bg-[#07C3F8] hover:bg-[#06aad9] text-white text-sm font-semibold disabled:opacity-40 transition-colors shrink-0">
+                      <Plus size={15} />
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
             <div>
               <label className={lbl}>Estado</label>
               <select className={inp} value={form.status} onChange={e => setForm({ ...form, status: e.target.value as OrderStatus })}>
