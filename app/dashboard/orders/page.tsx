@@ -309,7 +309,7 @@ export default function OrdersPage() {
     setDetailItems([]);
     setNewItemText("");
     setNewItemPrice("");
-    const { data: items } = await supabase.from("order_items").select("id, order_id, description, price, completed").eq("order_id", o.id);
+    const { data: items } = await supabase.from("order_items").select("*").eq("order_id", o.id);
     setDetailItems((items ?? []) as OrderItem[]);
     if (o.customer_id) {
       const vehicles = await getCustomerVehicles(supabase, o.customer_id);
