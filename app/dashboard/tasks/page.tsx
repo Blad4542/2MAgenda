@@ -699,7 +699,6 @@ export default function TasksPage() {
               </div>
             </div>
 
-            <div><label className={lbl}>Descripción</label><input className={inp} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} /></div>
             <div><label className={lbl}>Notas</label><textarea className={`${inp} resize-none`} rows={2} value={form.notes ?? ""} onChange={e => setForm({ ...form, notes: e.target.value })} /></div>
             <div>
               <label className={lbl}>Estado</label>

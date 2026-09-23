@@ -26,6 +26,12 @@ interface AuditEntry {
   id: string; action: string; description: string | null; user_email: string | null; created_at: string;
 }
 
+interface OrderItem {
+  id: string;
+  order_id: string;
+  description: string;
+}
+
 const PAGE_SIZE = 10;
 
 const actionLabel: Record<string, string> = { create: "Creado", update: "Editado", delete: "Eliminado" };
@@ -46,8 +52,9 @@ const emptyForm = {
   customer_id: "", vehicle: "", vehicle_id: "",
 };
 
-function OrderTable({ list, title, onEdit, onDelete, onHistory }: {
+function OrderTable({ list, title, orderItemDescriptions, onEdit, onDelete, onHistory }: {
   list: Order[]; title: string;
+  orderItemDescriptions: Record<string, string[]>;
   onEdit: (o: Order) => void; onDelete: (o: Order) => void; onHistory: (o: Order) => void;
 }) {
   const [page, setPage] = useState(0);
@@ -72,7 +79,7 @@ function OrderTable({ list, title, onEdit, onDelete, onHistory }: {
             <table className="min-w-full">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200">
-                  {["Fecha", "Nombre", "Teléfono", "Vehículo", "Descripción", "Estado", "Monto", "Abono", "Restante", ""].map(h => (
+                  {["Fecha", "Nombre", "Teléfono", "Vehículo", "Tareas", "Estado", "Monto", "Abono", "Restante", ""].map(h => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -93,7 +100,23 @@ function OrderTable({ list, title, onEdit, onDelete, onHistory }: {
                       </div>
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-500 max-w-[120px] truncate">{o.vehicle || "—"}</td>
-                    <td className="px-4 py-3 text-sm text-gray-500 max-w-xs truncate">{o.product_description || "—"}</td>
+                    <td className="px-4 py-3 text-sm text-gray-500 max-w-xs">
+                      {(orderItemDescriptions[o.id] ?? []).length > 0 ? (
+                        <div className="space-y-0.5">
+                          {(orderItemDescriptions[o.id] ?? []).slice(0, 3).map((d, i) => (
+                            <div key={i} className="flex items-start gap-1 text-xs text-gray-600">
+                              <span className="text-gray-400 shrink-0">•</span>
+                              <span className="truncate">{d}</span>
+                            </div>
+                          ))}
+                          {(orderItemDescriptions[o.id] ?? []).length > 3 && (
+                            <span className="text-xs text-[#07C3F8]">+{(orderItemDescriptions[o.id] ?? []).length - 3} más</span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-gray-400 text-xs">{o.product_description || "—"}</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3">
                       {o.status && (
                         <span className={`text-xs font-semibold px-2.5 py-1 rounded-full whitespace-nowrap ${STATUS_STYLES[o.status] ?? "bg-gray-50 text-gray-500 border border-gray-200"}`}>
@@ -156,13 +179,30 @@ export default function OrdersPage() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [formError, setFormError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [detailItems, setDetailItems] = useState<OrderItem[]>([]);
+  const [newItemText, setNewItemText] = useState("");
+  const [orderItemDescriptions, setOrderItemDescriptions] = useState<Record<string, string[]>>({});
 
   const fetchOrders = useCallback(async (s = search, owb = onlyWithBalance) => {
     let q = supabase.from("orders").select("*").order("order_date", { ascending: false });
     if (s.trim()) q = q.or(`customer_name.ilike.%${s.trim()}%,phone.ilike.%${s.trim()}%,vehicle.ilike.%${s.trim()}%`);
     if (owb) q = q.gt("remaining", 0);
     const { data } = await q;
-    if (data) setOrders(data as Order[]);
+    if (data) {
+      setOrders(data as Order[]);
+      const ids = (data as Order[]).map(o => o.id);
+      if (ids.length > 0) {
+        const { data: items } = await supabase.from("order_items").select("order_id, description").in("order_id", ids);
+        if (items) {
+          const descs: Record<string, string[]> = {};
+          for (const item of items) {
+            if (!descs[item.order_id]) descs[item.order_id] = [];
+            descs[item.order_id].push(item.description);
+          }
+          setOrderItemDescriptions(descs);
+        }
+      }
+    }
     setIsLoading(false);
   }, [supabase, search, onlyWithBalance]);
 
@@ -211,6 +251,34 @@ export default function OrdersPage() {
     }
   };
 
+  const addItem = async (orderId?: string) => {
+    if (!newItemText.trim()) return;
+    const id = uuidv4();
+    const desc = newItemText.trim();
+    if (orderId) {
+      await supabase.from("order_items").insert({ id, order_id: orderId, description: desc });
+      setOrderItemDescriptions(prev => ({ ...prev, [orderId]: [...(prev[orderId] ?? []), desc] }));
+    }
+    setDetailItems(prev => [...prev, { id, order_id: orderId ?? "", description: desc }]);
+    setNewItemText("");
+  };
+
+  const removeItem = async (itemId: string, orderId?: string) => {
+    if (orderId) {
+      const removed = detailItems.find(i => i.id === itemId);
+      await supabase.from("order_items").delete().eq("id", itemId);
+      if (removed) {
+        setOrderItemDescriptions(prev => {
+          const arr = [...(prev[orderId] ?? [])];
+          const idx = arr.indexOf(removed.description);
+          if (idx > -1) arr.splice(idx, 1);
+          return { ...prev, [orderId]: arr };
+        });
+      }
+    }
+    setDetailItems(prev => prev.filter(i => i.id !== itemId));
+  };
+
   const openEdit = async (o: Order) => {
     setEditing(o);
     setForm({
@@ -223,6 +291,10 @@ export default function OrdersPage() {
     setVehicleFields({ make: "", model: "", year: "" });
     setCustomerVehicles([]);
     setIsNewVehicle(true);
+    setDetailItems([]);
+    setNewItemText("");
+    const { data: items } = await supabase.from("order_items").select("id, order_id, description").eq("order_id", o.id);
+    setDetailItems((items ?? []) as OrderItem[]);
     if (o.customer_id) {
       const vehicles = await getCustomerVehicles(supabase, o.customer_id);
       setCustomerVehicles(vehicles);
@@ -274,6 +346,9 @@ export default function OrdersPage() {
         const id = uuidv4();
         const { error } = await supabase.from("orders").insert({ id, order_date: new Date().toISOString().split("T")[0], ...payload });
         if (error) throw new Error(error.message);
+        if (detailItems.length > 0) {
+          await supabase.from("order_items").insert(detailItems.map(item => ({ id: item.id, order_id: id, description: item.description })));
+        }
         await logAction(supabase, { table_name: "orders", record_id: id, action: "create", description: `Pedido de ${name}`, user_email: userEmail });
       }
       setIsOpen(false);
@@ -281,6 +356,8 @@ export default function OrdersPage() {
       setEditing(null);
       setCustomerVehicles([]);
       setVehicleFields({ make: "", model: "", year: "" });
+      setDetailItems([]);
+      setNewItemText("");
       fetchOrders();
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "Error al guardar. Intenta de nuevo.");
@@ -358,7 +435,7 @@ export default function OrdersPage() {
             <Download size={16} /> Exportar
           </button>
           <button
-            onClick={() => { setEditing(null); setForm(emptyForm); setCustomerVehicles([]); setVehicleFields({ make: "", model: "", year: "" }); setIsNewVehicle(true); setFormError(""); setIsOpen(true); }}
+            onClick={() => { setEditing(null); setForm(emptyForm); setCustomerVehicles([]); setVehicleFields({ make: "", model: "", year: "" }); setIsNewVehicle(true); setFormError(""); setDetailItems([]); setNewItemText(""); setIsOpen(true); }}
             className="flex items-center gap-2 bg-[#07C3F8] hover:bg-[#06aad9] text-white font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-colors"
           >
             <Plus size={16} /> Nuevo pedido
@@ -388,8 +465,8 @@ export default function OrdersPage() {
         <span className="text-sm text-gray-400 ml-auto whitespace-nowrap">{filtered.length} resultado{filtered.length !== 1 ? "s" : ""}</span>
       </div>
 
-      <OrderTable list={activeOrders} title="Activos" onEdit={openEdit} onDelete={deleteOne} onHistory={openHistory} />
-      <OrderTable list={deliveredOrders} title="Entregados" onEdit={openEdit} onDelete={deleteOne} onHistory={openHistory} />
+      <OrderTable list={activeOrders} title="Activos" orderItemDescriptions={orderItemDescriptions} onEdit={openEdit} onDelete={deleteOne} onHistory={openHistory} />
+      <OrderTable list={deliveredOrders} title="Entregados" orderItemDescriptions={orderItemDescriptions} onEdit={openEdit} onDelete={deleteOne} onHistory={openHistory} />
 
       {/* Modal */}
       {isOpen && (
@@ -419,9 +496,36 @@ export default function OrdersPage() {
                 </div>
               )}
             </div>
-            <div>
-              <label className={lbl}>Descripción</label>
-              <input className={inp} value={form.product_description} onChange={e => setForm({ ...form, product_description: e.target.value })} />
+            {/* Tareas */}
+            <div className="border-t border-gray-100 pt-4">
+              <h3 className="text-sm font-semibold text-gray-700 mb-3">Tareas</h3>
+              {detailItems.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-3">Sin tareas aún</p>
+              ) : (
+                <ul className="space-y-1.5 mb-3">
+                  {detailItems.map((item, idx) => (
+                    <li key={item.id} className="flex items-center gap-2 group">
+                      <span className="text-xs text-gray-400 w-5 text-right shrink-0">{idx + 1}.</span>
+                      <span className="flex-1 text-sm text-gray-700">{item.description}</span>
+                      <button onClick={() => removeItem(item.id, editing?.id)} aria-label="Eliminar tarea" className="opacity-0 group-hover:opacity-100 p-1 rounded text-gray-400 hover:text-red-500 transition-all">
+                        <X size={13} />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <div className="flex gap-2">
+                <input
+                  className={`${inp} flex-1`}
+                  placeholder="Nueva tarea..."
+                  value={newItemText}
+                  onChange={e => setNewItemText(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addItem(editing?.id); } }}
+                />
+                <button onClick={() => addItem(editing?.id)} disabled={!newItemText.trim()} className="px-3 py-2 rounded-xl bg-[#07C3F8] hover:bg-[#06aad9] text-white text-sm font-semibold disabled:opacity-40 transition-colors">
+                  <Plus size={15} />
+                </button>
+              </div>
             </div>
             <div>
               <label className={lbl}>Estado</label>
