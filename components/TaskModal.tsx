@@ -73,7 +73,7 @@ Quedo atenta a su confirmación.`;
 const TaskModal = ({
   isOpen, onClose, onSave, onDelete, task, setTask, isNewTask, errorMessage,
   businessPhone = "", appointmentDate, supabase, initialPendingTasks = [], onMoveToWaiting, staffList = [], onCancel,
-  hideFinancials = false, readOnly = false,
+  hideFinancials = false, readOnly = false, saving = false,
 }: {
   isOpen: boolean; onClose: () => void; onSave: (pendingTasks?: PendingTask[], vehicleData?: { make: string; model: string; year: string }) => void;
   onDelete?: (id: number | string) => void; task: TaskFormState; setTask: (t: TaskFormState) => void;
@@ -86,6 +86,7 @@ const TaskModal = ({
   onCancel?: (reason: string) => void;
   hideFinancials?: boolean;
   readOnly?: boolean;
+  saving?: boolean;
 }) => {
   const [customerVehicles, setCustomerVehicles] = useState<VehicleRecord[]>([]);
   const [isNewVehicle, setIsNewVehicle] = useState(true);
@@ -263,9 +264,9 @@ const TaskModal = ({
     <Dialog open={isOpen} onClose={onClose} className="relative z-[100]">
       <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" aria-hidden="true" />
       <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-        <Dialog.Panel className={`bg-white rounded-2xl w-full shadow-2xl overflow-hidden ${isNewTask ? "max-w-sm" : "max-w-md"}`}>
+        <Dialog.Panel className={`bg-white rounded-2xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[90vh] ${isNewTask ? "max-w-sm" : "max-w-md"}`}>
           {/* Header */}
-          <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 bg-gray-50">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 bg-gray-50 shrink-0">
             <Dialog.Title className="text-base font-semibold text-gray-900">
               {isNewTask ? "Nueva cita" : readOnly ? "Ver cita" : "Editar cita"}
             </Dialog.Title>
@@ -279,7 +280,7 @@ const TaskModal = ({
           </div>
 
           {/* Body */}
-          <div className="px-5 py-4 overflow-y-auto max-h-[70vh]">
+          <div className="px-5 py-4 overflow-y-auto flex-1">
             <div className="mb-3">
               <label htmlFor="task-phone" className={lbl}>Teléfono</label>
               <div className="flex items-center gap-2">
@@ -722,8 +723,8 @@ const TaskModal = ({
               </>
             )}
             {!readOnly && !cancelMode && !deleteConfirm && (
-              <button onClick={() => onSave(isNewTask ? pendingTasks : undefined, vehicleFields)} className="px-4 py-2 text-sm font-semibold rounded-xl bg-[#07C3F8] hover:bg-[#06aad9] text-white transition-colors">
-                Guardar
+              <button onClick={() => onSave(isNewTask ? pendingTasks : undefined, vehicleFields)} disabled={saving} className="px-4 py-2 text-sm font-semibold rounded-xl bg-[#07C3F8] hover:bg-[#06aad9] text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                {saving ? "Guardando..." : "Guardar"}
               </button>
             )}
             {readOnly && (

@@ -125,6 +125,7 @@ const Agenda = () => {
   const canCreateNew = canEdit && role !== "tecnico";
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [errorMessage, setErrorMessage] = useState("");
+  const [saving, setSaving] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentTask, setCurrentTask] = useState<{
     id?: string | number; start_time: string; end_time: string; assigned_person: string; staff_id?: string; name: string;
@@ -333,6 +334,7 @@ const Agenda = () => {
   };
 
   const handleSaveNote = async (pendingTasks?: { text: string; price?: number }[], vehicleData?: { make: string; model: string; year: string }) => {
+    if (saving) return;
     if (!currentTask.name.trim() || !currentTask.phone.trim() || (!currentTask.vehicle.trim() && !currentTask.vehicle_id)) { setErrorMessage("Nombre, teléfono y vehículo son obligatorios."); return; }
     if (currentTask.phone.replace(/\D/g, "").length < 8) { setErrorMessage("El teléfono debe tener al menos 8 dígitos."); return; }
     if (isNewTask && (!pendingTasks || pendingTasks.length === 0)) { setErrorMessage("Agrega al menos una tarea."); return; }
@@ -342,6 +344,7 @@ const Agenda = () => {
       return;
     }
     setErrorMessage("");
+    setSaving(true);
     // Overlap check
     if (currentTask.start_time && currentTask.end_time && currentTask.assigned_person) {
       const apptDate = isNewTask ? selectedDate : new Date(currentTask.appointment_date);
@@ -357,6 +360,7 @@ const Agenda = () => {
       const filtered = (conflicts ?? []).filter(a => isNewTask || String(a.id) !== String(currentTask.id));
       if (filtered.some(a => timesOverlap(currentTask.start_time, currentTask.end_time, a.start_time, a.end_time))) {
         setErrorMessage(`${currentTask.assigned_person} ya tiene una cita en ese horario.`);
+        setSaving(false);
         return;
       }
     }
@@ -371,7 +375,7 @@ const Agenda = () => {
     }
     if (isNewTask) {
       const result = await addNoteToSupabase({ ...currentTask, appointment_date: selectedDate.toISOString(), customer_id: customerId, vehicle_id: vehicleId });
-      if (result.error) { setErrorMessage(`Error: ${result.error.message}`); return; }
+      if (result.error) { setErrorMessage(`Error: ${result.error.message}`); setSaving(false); return; }
       const insertedId = String(result.data?.[0]?.id ?? "");
       await logAction(supabase, { table_name: "appointments", record_id: insertedId, action: "create", description: desc, user_email: userEmail });
       if (pendingTasks && pendingTasks.length > 0 && insertedId) {
@@ -381,7 +385,7 @@ const Agenda = () => {
       }
     } else {
       const result = await updateNoteInSupabase({ ...currentTask, customer_id: customerId, vehicle_id: vehicleId });
-      if (result.error) { setErrorMessage(`Error: ${result.error.message}`); return; }
+      if (result.error) { setErrorMessage(`Error: ${result.error.message}`); setSaving(false); return; }
       await logAction(supabase, { table_name: "appointments", record_id: String(currentTask.id ?? ""), action: "update", description: desc, user_email: userEmail });
     }
     if (channelRef.current && currentSlotRef.current) { channelRef.current.send({ type: "broadcast", event: "slot-reserved", payload: { action: "release", slot: currentSlotRef.current, user } }); currentSlotRef.current = null; }
@@ -392,6 +396,7 @@ const Agenda = () => {
       pendingWaitingIdRef.current = null;
       fetchWaitingList();
     }
+    setSaving(false);
     setIsModalOpen(false);
     await fetchNotesForSelectedDate();
     setCurrentTask({ start_time: "", end_time: "", assigned_person: "", staff_id: undefined, name: "", phone: "", description: "", vehicle: "", placa: "", abono: undefined, status: "pending", appointment_date: new Date().toISOString(), customer_id: undefined, vehicle_id: undefined });
@@ -971,7 +976,7 @@ const Agenda = () => {
       </div>
 
       {isModalOpen && (
-        <TaskModal isOpen={isModalOpen} onClose={handleModalClose} onSave={handleSaveNote} task={currentTask} setTask={setCurrentTask} isNewTask={isNewTask} onDelete={canEdit && role !== "tecnico" ? handleDeleteNote : undefined} hideFinancials={role === "tecnico"} readOnly={role === "tecnico" && !isNewTask} errorMessage={errorMessage} businessPhone={businessPhone} appointmentDate={selectedDate} supabase={supabase} initialPendingTasks={pendingTasksForModal} onMoveToWaiting={!isNewTask ? handleMoveToWaiting : undefined} staffList={PEOPLE} onCancel={!isNewTask ? handleCancelAppointment : undefined} />
+        <TaskModal isOpen={isModalOpen} onClose={handleModalClose} onSave={handleSaveNote} task={currentTask} setTask={setCurrentTask} isNewTask={isNewTask} onDelete={canEdit && role !== "tecnico" ? handleDeleteNote : undefined} hideFinancials={role === "tecnico"} readOnly={role === "tecnico" && !isNewTask} errorMessage={errorMessage} businessPhone={businessPhone} appointmentDate={selectedDate} supabase={supabase} initialPendingTasks={pendingTasksForModal} onMoveToWaiting={!isNewTask ? handleMoveToWaiting : undefined} staffList={PEOPLE} onCancel={!isNewTask ? handleCancelAppointment : undefined} saving={saving} />
       )}
 
       {/* Settings modal */}

@@ -256,14 +256,14 @@ export default function ClientesPage() {
       {/* New customer modal */}
       {newModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 bg-gray-50">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 bg-gray-50 shrink-0">
               <h2 className="text-base font-semibold text-gray-900">Nuevo cliente</h2>
               <button onClick={() => setNewModalOpen(false)} className="text-gray-400 hover:text-gray-700 p-1.5 rounded-lg hover:bg-gray-200 transition-colors">
                 <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
               </button>
             </div>
-            <div className="px-5 py-4 space-y-3">
+            <div className="px-5 py-4 space-y-3 overflow-y-auto flex-1">
               <div>
                 <label className={lbl}>Nombre</label>
                 <input className={inp} value={newForm.name} onChange={e => setNewForm({ ...newForm, name: e.target.value })} placeholder="Nombre completo" />
@@ -277,7 +277,7 @@ export default function ClientesPage() {
                 <textarea className={inp} value={newForm.notes} onChange={e => setNewForm({ ...newForm, notes: e.target.value })} placeholder="Observaciones generales" rows={2} />
               </div>
             </div>
-            <div className="flex justify-end gap-2 px-5 py-4 border-t border-gray-100 bg-gray-50">
+            <div className="flex justify-end gap-2 px-5 py-4 border-t border-gray-100 bg-gray-50 shrink-0">
               <button onClick={() => setNewModalOpen(false)} className="px-4 py-2 text-sm font-medium rounded-xl text-gray-600 hover:bg-gray-100 transition-colors">
                 Cancelar
               </button>

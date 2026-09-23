@@ -15,8 +15,8 @@ export default function Modal({ isOpen, onClose, title, children }: ModalProps) 
     <Dialog open={isOpen} onClose={onClose} className="relative z-50">
       <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" aria-hidden="true" />
       <div className="fixed inset-0 flex items-center justify-center p-4">
-        <Dialog.Panel className="bg-white rounded-2xl w-full max-w-xl shadow-2xl overflow-hidden">
-          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50">
+        <Dialog.Panel className="bg-white rounded-2xl w-full max-w-xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50 shrink-0">
             {title && (
               <Dialog.Title className="text-base font-semibold text-gray-900">
                 {title}
@@ -30,7 +30,7 @@ export default function Modal({ isOpen, onClose, title, children }: ModalProps) 
               <X className="w-4 h-4" aria-hidden="true" />
             </button>
           </div>
-          <div className="px-6 py-5">{children}</div>
+          <div className="px-6 py-5 overflow-y-auto flex-1">{children}</div>
         </Dialog.Panel>
       </div>
     </Dialog>
