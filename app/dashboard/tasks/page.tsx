@@ -387,6 +387,10 @@ export default function TasksPage() {
       setFormError("Nombre y teléfono son obligatorios.");
       return;
     }
+    if (detailItems.length === 0) {
+      setFormError("Debes agregar al menos una tarea.");
+      return;
+    }
     setFormError("");
     setSaving(true);
     try {
