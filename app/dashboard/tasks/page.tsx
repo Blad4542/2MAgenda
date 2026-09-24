@@ -270,6 +270,7 @@ export default function TasksPage() {
   const [vehicleFields, setVehicleFields] = useState({ make: "", model: "", year: "" });
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
   const [userEmail, setUserEmail] = useState<string | undefined>(undefined);
   const [draggingTask, setDraggingTask] = useState<Task | null>(null);
@@ -381,47 +382,56 @@ export default function TasksPage() {
   };
 
   const save = async () => {
+    if (saving) return;
     if (!form.name.trim() || !form.phone.trim()) {
       setFormError("Nombre y teléfono son obligatorios.");
       return;
     }
     setFormError("");
-    let customerId = form.customer_id;
-    let vehicleId = form.vehicle_id;
-    let imageUrl = form.image_url ?? "";
+    setSaving(true);
     try {
-      if (form.phone.replace(/\D/g, "").length >= 6) {
-        customerId = await findOrCreateCustomer(supabase, form.phone, form.name);
-        const vDesc = buildVehicleDescription(vehicleFields.make, vehicleFields.model, vehicleFields.year) || form.vehicle || "";
-        if (vDesc.trim()) vehicleId = await findOrCreateVehicle(supabase, customerId, { make: vehicleFields.make, model: vehicleFields.model, year: vehicleFields.year, description: vDesc });
-      }
-    } catch { /* non-fatal */ }
-
-    if (imageFile) {
+      let customerId = form.customer_id;
+      let vehicleId = form.vehicle_id;
+      let imageUrl = form.image_url ?? "";
       try {
+        if (form.phone.replace(/\D/g, "").length >= 6) {
+          customerId = await findOrCreateCustomer(supabase, form.phone, form.name);
+          const vDesc = buildVehicleDescription(vehicleFields.make, vehicleFields.model, vehicleFields.year) || form.vehicle || "";
+          if (vDesc.trim()) vehicleId = await findOrCreateVehicle(supabase, customerId, { make: vehicleFields.make, model: vehicleFields.model, year: vehicleFields.year, description: vDesc });
+        }
+      } catch { /* non-fatal */ }
+
+      if (imageFile) {
         const ext = imageFile.name.split(".").pop() ?? "jpg";
-        const taskId = editing?.id ?? uuidv4();
-        const path = `${taskId}_${Date.now()}.${ext}`;
+        const newId = editing?.id ?? uuidv4();
+        const path = `${newId}_${Date.now()}.${ext}`;
         const { data: uploaded, error: upErr } = await supabase.storage.from("task-images").upload(path, imageFile, { upsert: true });
-        if (!upErr && uploaded) {
+        if (upErr) {
+          setFormError(`Error al subir imagen: ${upErr.message}`);
+          setSaving(false);
+          return;
+        }
+        if (uploaded) {
           const { data: { publicUrl } } = supabase.storage.from("task-images").getPublicUrl(uploaded.path);
           imageUrl = publicUrl;
         }
-      } catch { /* non-fatal */ }
-    }
-
-    if (editing) {
-      await supabase.from("pending_tasks").update({ ...form, customer_id: customerId, vehicle_id: vehicleId, image_url: imageUrl }).eq("id", editing.id);
-      await logAction(supabase, { table_name: "pending_tasks", record_id: editing.id, action: "update", description: `Cotización de ${form.name}`, user_email: userEmail });
-    } else {
-      const id = uuidv4();
-      await supabase.from("pending_tasks").insert({ id, ...form, customer_id: customerId, vehicle_id: vehicleId, image_url: imageUrl });
-      if (detailItems.length > 0) {
-        await supabase.from("quote_items").insert(detailItems.map(item => ({ id: item.id, task_id: id, description: item.description })));
       }
-      await logAction(supabase, { table_name: "pending_tasks", record_id: id, action: "create", description: `Cotización de ${form.name}`, user_email: userEmail });
+
+      if (editing) {
+        await supabase.from("pending_tasks").update({ ...form, customer_id: customerId, vehicle_id: vehicleId, image_url: imageUrl }).eq("id", editing.id);
+        await logAction(supabase, { table_name: "pending_tasks", record_id: editing.id, action: "update", description: `Cotización de ${form.name}`, user_email: userEmail });
+      } else {
+        const id = uuidv4();
+        await supabase.from("pending_tasks").insert({ id, ...form, customer_id: customerId, vehicle_id: vehicleId, image_url: imageUrl });
+        if (detailItems.length > 0) {
+          await supabase.from("quote_items").insert(detailItems.map(item => ({ id: item.id, task_id: id, description: item.description })));
+        }
+        await logAction(supabase, { table_name: "pending_tasks", record_id: id, action: "create", description: `Cotización de ${form.name}`, user_email: userEmail });
+      }
+      setIsOpen(false); resetForm(); setEditing(null); fetchTasks(search);
+    } finally {
+      setSaving(false);
     }
-    setIsOpen(false); resetForm(); setEditing(null); fetchTasks(search);
   };
 
   const del = async (id: string) => {
@@ -744,8 +754,8 @@ export default function TasksPage() {
                   Eliminar
                 </button>
               )}
-              <button onClick={save} className="px-5 py-2 text-sm font-semibold rounded-xl bg-[#07C3F8] hover:bg-[#06aad9] text-white transition-colors">
-                Guardar
+              <button onClick={save} disabled={saving} className="px-5 py-2 text-sm font-semibold rounded-xl bg-[#07C3F8] hover:bg-[#06aad9] text-white transition-colors disabled:opacity-60 disabled:cursor-not-allowed">
+                {saving ? "Guardando..." : "Guardar"}
               </button>
             </div>
           </div>
