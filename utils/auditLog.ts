@@ -6,6 +6,7 @@ interface LogParams {
   action: "create" | "update" | "delete";
   description?: string;
   user_email?: string;
+  before_data?: Record<string, unknown>;
 }
 
 export async function logAction(supabase: SupabaseClient, params: LogParams) {
@@ -20,5 +21,6 @@ export async function logAction(supabase: SupabaseClient, params: LogParams) {
     description: params.description ?? null,
     user_email: params.user_email ?? null,
     user_name,
+    before_data: params.before_data ?? null,
   });
 }

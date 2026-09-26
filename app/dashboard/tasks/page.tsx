@@ -422,8 +422,9 @@ export default function TasksPage() {
       }
 
       if (editing) {
+        const { data: before } = await supabase.from("pending_tasks").select("*").eq("id", editing.id).single();
         await supabase.from("pending_tasks").update({ ...form, customer_id: customerId, vehicle_id: vehicleId, image_url: imageUrl }).eq("id", editing.id);
-        await logAction(supabase, { table_name: "pending_tasks", record_id: editing.id, action: "update", description: `Cotización de ${form.name}`, user_email: userEmail });
+        await logAction(supabase, { table_name: "pending_tasks", record_id: editing.id, action: "update", description: `Cotización de ${form.name}`, user_email: userEmail, before_data: before ?? undefined });
       } else {
         const id = uuidv4();
         await supabase.from("pending_tasks").insert({ id, ...form, customer_id: customerId, vehicle_id: vehicleId, image_url: imageUrl });

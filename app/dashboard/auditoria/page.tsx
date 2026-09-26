@@ -16,6 +16,7 @@ interface AuditEntry {
   user_email: string | null;
   user_name: string | null;
   created_at: string;
+  before_data: Record<string, unknown> | null;
 }
 
 const ACTION_LABEL: Record<string, { label: string; style: string }> = {
@@ -46,6 +47,7 @@ export default function AuditoriaPage() {
   const [search, setSearch] = useState("");
   const [filterAction, setFilterAction] = useState("");
   const [filterTable, setFilterTable] = useState("");
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   const fetchLogs = useCallback(async () => {
     setLoading(true);
@@ -131,32 +133,68 @@ export default function AuditoriaPage() {
                   <th className="px-4 py-3 text-left">Usuario</th>
                   <th className="px-4 py-3 text-left">Acción</th>
                   <th className="px-4 py-3 text-left">Módulo</th>
-                  <th className="px-4 py-3 text-left">Descripción</th>
+                  <th className="px-4 py-3 text-left">Descripción / Antes</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {logs.map(log => {
                   const action = ACTION_LABEL[log.action] ?? { label: log.action, style: "bg-gray-100 text-gray-600" };
+                  const hasBefore = log.action === "update" && log.before_data;
+                  const isExpanded = expanded.has(log.id);
+                  const FIELD_LABELS: Record<string, string> = {
+                    customer_name: "Nombre", phone: "Teléfono", vehicle: "Vehículo",
+                    status: "Estado", total_amount: "Monto", initial_payment: "Abono",
+                    remaining: "Saldo", product_description: "Descripción",
+                    name: "Nombre", description: "Descripción", notes: "Notas",
+                    image_url: "Imagen",
+                  };
                   return (
-                    <tr key={log.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
-                        {format(new Date(log.created_at), "dd MMM yyyy, HH:mm", { locale: es })}
-                      </td>
-                      <td className="px-4 py-3 text-gray-700 max-w-[160px] truncate" title={log.user_email ?? ""}>
-                        {log.user_name ?? log.user_email ?? "—"}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold ${action.style}`}>
-                          {action.label}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-gray-600">
-                        {TABLE_LABEL[log.table_name] ?? log.table_name}
-                      </td>
-                      <td className="px-4 py-3 text-gray-600 max-w-xs truncate" title={log.description ?? ""}>
-                        {log.description ?? "—"}
-                      </td>
-                    </tr>
+                    <>
+                      <tr key={log.id} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
+                          {format(new Date(log.created_at), "dd MMM yyyy, HH:mm", { locale: es })}
+                        </td>
+                        <td className="px-4 py-3 text-gray-700 max-w-[160px] truncate" title={log.user_email ?? ""}>
+                          {log.user_name ?? log.user_email ?? "—"}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold ${action.style}`}>
+                            {action.label}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-gray-600">
+                          {TABLE_LABEL[log.table_name] ?? log.table_name}
+                        </td>
+                        <td className="px-4 py-3 text-gray-600">
+                          <div className="flex items-center gap-2">
+                            <span className="truncate max-w-xs" title={log.description ?? ""}>{log.description ?? "—"}</span>
+                            {hasBefore && (
+                              <button
+                                onClick={() => setExpanded(prev => { const n = new Set(prev); n.has(log.id) ? n.delete(log.id) : n.add(log.id); return n; })}
+                                className="shrink-0 text-xs text-blue-500 hover:text-blue-700 underline whitespace-nowrap"
+                              >
+                                {isExpanded ? "Ocultar antes" : "Ver antes"}
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                      {hasBefore && isExpanded && (
+                        <tr key={`${log.id}-before`} className="bg-amber-50">
+                          <td colSpan={5} className="px-4 py-3">
+                            <p className="text-xs font-semibold text-amber-700 mb-2">Estado anterior:</p>
+                            <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-1">
+                              {Object.entries(log.before_data!).filter(([k, v]) => v !== null && !["id","customer_id","vehicle_id","created_at","updated_at"].includes(k)).map(([k, v]) => (
+                                <div key={k} className="flex gap-1 text-xs">
+                                  <span className="text-gray-500 shrink-0">{FIELD_LABELS[k] ?? k}:</span>
+                                  <span className="text-gray-800 truncate">{String(v)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </>
                   );
                 })}
               </tbody>

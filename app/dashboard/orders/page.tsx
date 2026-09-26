@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale/es";
 import { createClient } from "@/utils/supabase/client";
-import { Plus, Trash2, Edit, ChevronLeft, ChevronRight, Search, X, Download, Clock, Printer } from "lucide-react";
+import { Plus, Trash2, Edit, ChevronLeft, ChevronRight, Search, X, Download, Clock, Printer, Eye } from "lucide-react";
 import { exportCsv } from "@/utils/exportCsv";
 import { logAction } from "@/utils/auditLog";
 import Modal from "@/components/Modal";
@@ -54,10 +54,10 @@ const emptyForm = {
   customer_id: "", vehicle: "", vehicle_id: "",
 };
 
-function OrderTable({ list, title, orderItemDescriptions, onEdit, onDelete, onHistory, onPrint }: {
+function OrderTable({ list, title, orderItemDescriptions, onEdit, onDelete, onHistory, onPrint, onPreview }: {
   list: Order[]; title: string;
   orderItemDescriptions: Record<string, string[]>;
-  onEdit: (o: Order) => void; onDelete: (o: Order) => void; onHistory: (o: Order) => void; onPrint: (o: Order) => void;
+  onEdit: (o: Order) => void; onDelete: (o: Order) => void; onHistory: (o: Order) => void; onPrint: (o: Order) => void; onPreview: (o: Order) => void;
 }) {
   const [page, setPage] = useState(0);
   const totalPages = Math.ceil(list.length / PAGE_SIZE);
@@ -82,16 +82,16 @@ function OrderTable({ list, title, orderItemDescriptions, onEdit, onDelete, onHi
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200">
                   {["Fecha", "Nombre", "Teléfono", "Vehículo", "Tareas", "Estado", "Monto", "Abono", "Restante", ""].map(h => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
+                    <th key={h} className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {paginated.map(o => (
                   <tr key={o.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-4 py-3 text-sm text-gray-500 whitespace-nowrap">{format(new Date(o.order_date), "dd/MM/yyyy", { locale: es })}</td>
-                    <td className="px-4 py-3 text-sm font-medium text-gray-900 whitespace-nowrap">{o.customer_name}</td>
-                    <td className="px-4 py-3 text-sm text-gray-500">
+                    <td className="px-3 py-3 text-sm text-gray-500 whitespace-nowrap">{format(new Date(o.order_date), "dd/MM/yyyy", { locale: es })}</td>
+                    <td className="px-3 py-3 text-sm font-medium text-gray-900 whitespace-nowrap">{o.customer_name}</td>
+                    <td className="px-3 py-3 text-sm text-gray-500">
                       <div className="flex items-center gap-1.5">
                         <span className="whitespace-nowrap">{o.phone}</span>
                         {o.phone && (
@@ -101,8 +101,8 @@ function OrderTable({ list, title, orderItemDescriptions, onEdit, onDelete, onHi
                         )}
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-500 max-w-[120px] truncate">{o.vehicle || "—"}</td>
-                    <td className="px-4 py-3 text-sm text-gray-500 max-w-xs">
+                    <td className="px-3 py-3 text-sm text-gray-500 max-w-[100px] truncate">{o.vehicle || "—"}</td>
+                    <td className="px-3 py-3 text-sm text-gray-500 max-w-[160px]">
                       {(orderItemDescriptions[o.id] ?? []).length > 0 ? (
                         <div className="space-y-0.5">
                           {(orderItemDescriptions[o.id] ?? []).slice(0, 3).map((d, i) => (
@@ -119,22 +119,23 @@ function OrderTable({ list, title, orderItemDescriptions, onEdit, onDelete, onHi
                         <span className="text-gray-400 text-xs">{o.product_description || "—"}</span>
                       )}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-3">
                       {o.status && (
-                        <span className={`text-xs font-semibold px-2.5 py-1 rounded-full whitespace-nowrap ${STATUS_STYLES[o.status] ?? "bg-gray-50 text-gray-500 border border-gray-200"}`}>
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${STATUS_STYLES[o.status] ?? "bg-gray-50 text-gray-500 border border-gray-200"}`}>
                           {o.status}
                         </span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-900 font-mono whitespace-nowrap">₡{o.total_amount.toLocaleString("es-CR")}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900 font-mono whitespace-nowrap">₡{o.initial_payment.toLocaleString("es-CR")}</td>
-                    <td className="px-4 py-3 text-sm font-semibold text-[#07C3F8] font-mono whitespace-nowrap">₡{o.remaining.toLocaleString("es-CR")}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-1">
-                        <button onClick={() => onPrint(o)} className="p-1.5 rounded-lg text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"><Printer size={14} /></button>
-                        <button onClick={() => onHistory(o)} className="p-1.5 rounded-lg text-gray-400 hover:text-violet-500 hover:bg-violet-50 transition-colors"><Clock size={14} /></button>
-                        <button onClick={() => onEdit(o)} className="p-1.5 rounded-lg text-gray-400 hover:text-[#07C3F8] hover:bg-[#07C3F8]/10 transition-colors"><Edit size={14} /></button>
-                        <button onClick={() => onDelete(o)} className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"><Trash2 size={14} /></button>
+                    <td className="px-3 py-3 text-sm text-gray-900 font-mono whitespace-nowrap">₡{o.total_amount.toLocaleString("es-CR")}</td>
+                    <td className="px-3 py-3 text-sm text-gray-900 font-mono whitespace-nowrap">₡{o.initial_payment.toLocaleString("es-CR")}</td>
+                    <td className="px-3 py-3 text-sm font-semibold text-[#07C3F8] font-mono whitespace-nowrap">₡{o.remaining.toLocaleString("es-CR")}</td>
+                    <td className="px-2 py-3">
+                      <div className="flex items-center gap-0.5">
+                        <button onClick={() => onPreview(o)} title="Vista previa" className="p-1 rounded-lg text-gray-400 hover:text-sky-500 hover:bg-sky-50 transition-colors"><Eye size={13} /></button>
+                        <button onClick={() => onPrint(o)} title="Imprimir" className="p-1 rounded-lg text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"><Printer size={13} /></button>
+                        <button onClick={() => onHistory(o)} title="Historial" className="p-1 rounded-lg text-gray-400 hover:text-violet-500 hover:bg-violet-50 transition-colors"><Clock size={13} /></button>
+                        <button onClick={() => onEdit(o)} title="Editar" className="p-1 rounded-lg text-gray-400 hover:text-[#07C3F8] hover:bg-[#07C3F8]/10 transition-colors"><Edit size={13} /></button>
+                        <button onClick={() => onDelete(o)} title="Eliminar" className="p-1 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"><Trash2 size={13} /></button>
                       </div>
                     </td>
                   </tr>
@@ -180,6 +181,8 @@ export default function OrdersPage() {
   const [historyOrder, setHistoryOrder] = useState<Order | null>(null);
   const [historyLogs, setHistoryLogs] = useState<AuditEntry[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [previewOrder, setPreviewOrder] = useState<Order | null>(null);
+  const [previewHtml, setPreviewHtml] = useState("");
   const [formError, setFormError] = useState("");
   const [saving, setSaving] = useState(false);
   const [detailItems, setDetailItems] = useState<OrderItem[]>([]);
@@ -331,37 +334,30 @@ export default function OrdersPage() {
     setIsOpen(true);
   };
 
-  const printOrder = async (o: Order) => {
-    const { data: items } = await supabase.from("order_items").select("description, price, completed").eq("order_id", o.id).order("created_at", { ascending: true });
-    const orderItems = (items ?? []) as { description: string; price: number | null; completed: boolean }[];
+  const fetchReceiptItems = async (orderId: string) =>
+    ((await supabase.from("order_items").select("description, price, completed").eq("order_id", orderId).order("created_at", { ascending: true })).data ?? []) as { description: string; price: number | null; completed: boolean }[];
+
+  const buildReceiptHtml = (o: Order, orderItems: { description: string; price: number | null; completed: boolean }[]) => {
     const subtotal = orderItems.reduce((s, i) => s + (i.price ?? 0), 0);
     const fecha = format(new Date(o.order_date), "dd/MM/yyyy", { locale: es });
-    const LINE = "--------------------------------";
-    const fmt = (n: number) => `\u20A1${n.toLocaleString("es-CR")}`;
-
+    const fmt = (n: number) => `₡${n.toLocaleString("es-CR")}`;
     const itemsHtml = orderItems.length > 0
-      ? orderItems.map((item, i) => `
-          <tr>
-            <td style="padding:2px 0;vertical-align:top">${i + 1}. ${item.completed ? "<s>" + item.description + "</s>" : item.description}</td>
-            <td style="padding:2px 0;text-align:right;white-space:nowrap;vertical-align:top">${item.price ? fmt(item.price) : ""}</td>
-          </tr>`).join("")
+      ? orderItems.map((item, i) => `<tr><td style="padding:2px 0;vertical-align:top">${i + 1}. ${item.completed ? "<s>" + item.description + "</s>" : item.description}</td><td style="padding:2px 0;text-align:right;white-space:nowrap;vertical-align:top">${item.price ? fmt(item.price) : ""}</td></tr>`).join("")
       : `<tr><td colspan="2" style="color:#888">Sin tareas</td></tr>`;
-
-    const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+    return `<!DOCTYPE html><html><head><meta charset="utf-8">
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
-      body { font-family: monospace; font-size: 11px; width: 58mm; padding: 4mm 3mm; color: #000; }
+      body { font-family: monospace; font-size: 11px; width: 58mm; padding: 4mm 3mm; color: #000; background: #fff; }
       h1 { font-size: 13px; text-align: center; font-weight: bold; margin-bottom: 2px; }
       .center { text-align: center; }
       .line { border-top: 1px dashed #000; margin: 4px 0; }
       table { width: 100%; border-collapse: collapse; }
       td { font-size: 11px; }
-      .total-row td { font-weight: bold; font-size: 12px; padding-top: 3px; }
       .saldo td { font-size: 13px; font-weight: bold; }
       @media print { @page { margin: 0; size: 58mm auto; } body { padding: 2mm; } }
     </style></head><body>
     <h1>AUTODECORACION 2M</h1>
-    <p class="center" style="font-size:10px;margin-bottom:4px;">Pedido de repuestos</p>
+    <p class="center" style="font-size:10px;margin-bottom:4px;">Orden de pedido</p>
     <div class="line"></div>
     <table><tbody>
       <tr><td>Fecha:</td><td style="text-align:right">${fecha}</td></tr>
@@ -372,7 +368,7 @@ export default function OrdersPage() {
     <table><tbody>
       <tr><td>Nombre:</td><td style="text-align:right">${o.customer_name}</td></tr>
       ${o.phone ? `<tr><td>Tel:</td><td style="text-align:right">${o.phone}</td></tr>` : ""}
-      ${o.vehicle ? `<tr><td>Veh&iacute;culo:</td><td style="text-align:right">${o.vehicle}</td></tr>` : ""}
+      ${o.vehicle ? `<tr><td>Vehículo:</td><td style="text-align:right">${o.vehicle}</td></tr>` : ""}
     </tbody></table>
     <div class="line"></div>
     <p style="font-weight:bold;margin-bottom:3px">TAREAS</p>
@@ -385,15 +381,24 @@ export default function OrdersPage() {
       <tr class="saldo"><td>SALDO:</td><td style="text-align:right">${fmt(o.remaining)}</td></tr>
     </tbody></table>
     <div class="line"></div>
-    <p class="center" style="font-size:10px;margin-top:4px;">Gracias por su preferencia</p>
     </body></html>`;
+  };
 
+  const printOrder = async (o: Order) => {
+    const orderItems = await fetchReceiptItems(o.id);
+    const html = buildReceiptHtml(o, orderItems);
     const win = window.open("", "_blank", "width=320,height=600,toolbar=0,menubar=0");
     if (!win) return;
     win.document.write(html);
     win.document.close();
     win.focus();
     setTimeout(() => { win.print(); win.close(); }, 300);
+  };
+
+  const openPreview = async (o: Order) => {
+    const orderItems = await fetchReceiptItems(o.id);
+    setPreviewHtml(buildReceiptHtml(o, orderItems));
+    setPreviewOrder(o);
   };
 
   const save = async () => {
@@ -421,9 +426,10 @@ export default function OrdersPage() {
         vehicle: vehicleText || null, vehicle_id: vehicleId || null,
       };
       if (editing) {
+        const { data: before } = await supabase.from("orders").select("*").eq("id", editing.id).single();
         const { error } = await supabase.from("orders").update(payload).eq("id", editing.id);
         if (error) throw new Error(error.message);
-        await logAction(supabase, { table_name: "orders", record_id: editing.id, action: "update", description: `Pedido de ${name}`, user_email: userEmail });
+        await logAction(supabase, { table_name: "orders", record_id: editing.id, action: "update", description: `Pedido de ${name}`, user_email: userEmail, before_data: before ?? undefined });
       } else {
         const id = uuidv4();
         const { error } = await supabase.from("orders").insert({ id, order_date: new Date().toISOString().split("T")[0], ...payload });
@@ -548,8 +554,8 @@ export default function OrdersPage() {
         <span className="text-sm text-gray-400 ml-auto whitespace-nowrap">{filtered.length} resultado{filtered.length !== 1 ? "s" : ""}</span>
       </div>
 
-      <OrderTable list={activeOrders} title="Activos" orderItemDescriptions={orderItemDescriptions} onEdit={openEdit} onDelete={deleteOne} onHistory={openHistory} onPrint={printOrder} />
-      <OrderTable list={deliveredOrders} title="Entregados" orderItemDescriptions={orderItemDescriptions} onEdit={openEdit} onDelete={deleteOne} onHistory={openHistory} onPrint={printOrder} />
+      <OrderTable list={activeOrders} title="Activos" orderItemDescriptions={orderItemDescriptions} onEdit={openEdit} onDelete={deleteOne} onHistory={openHistory} onPrint={printOrder} onPreview={openPreview} />
+      <OrderTable list={deliveredOrders} title="Entregados" orderItemDescriptions={orderItemDescriptions} onEdit={openEdit} onDelete={deleteOne} onHistory={openHistory} onPrint={printOrder} onPreview={openPreview} />
 
       {/* Modal */}
       {isOpen && (
@@ -688,6 +694,44 @@ export default function OrdersPage() {
             </ul>
           )}
         </Modal>
+      )}
+
+      {/* Preview modal */}
+      {previewOrder && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden max-h-[90vh]" style={{width: "340px"}}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 bg-gray-50 shrink-0">
+              <h2 className="text-base font-semibold text-gray-900">Vista previa — {previewOrder.customer_name}</h2>
+              <button onClick={() => setPreviewOrder(null)} className="text-gray-400 hover:text-gray-700 p-1.5 rounded-lg hover:bg-gray-200 transition-colors">
+                <X size={16} />
+              </button>
+            </div>
+            <div className="overflow-y-auto flex-1 bg-gray-100 p-4 flex justify-center">
+              <iframe
+                srcDoc={previewHtml}
+                title="Vista previa recibo"
+                style={{ width: "220px", minHeight: "400px", border: "1px solid #e5e7eb", background: "#fff", borderRadius: "4px" }}
+                scrolling="no"
+                onLoad={e => {
+                  const iframe = e.currentTarget;
+                  const body = iframe.contentDocument?.body;
+                  if (body) iframe.style.height = body.scrollHeight + 16 + "px";
+                }}
+              />
+            </div>
+            <div className="flex justify-end gap-2 px-5 py-4 border-t border-gray-100 bg-gray-50 shrink-0">
+              <button onClick={() => setPreviewOrder(null)} className="px-4 py-2 text-sm font-medium rounded-xl text-gray-600 hover:bg-gray-100 transition-colors">
+                Cerrar
+              </button>
+              <button
+                onClick={() => { setPreviewOrder(null); printOrder(previewOrder); }}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white transition-colors"
+              >
+                <Printer size={14} /> Imprimir
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
