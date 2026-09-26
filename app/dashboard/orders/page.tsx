@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale/es";
 import { createClient } from "@/utils/supabase/client";
-import { Plus, Trash2, Edit, ChevronLeft, ChevronRight, Search, X, Download, Clock } from "lucide-react";
+import { Plus, Trash2, Edit, ChevronLeft, ChevronRight, Search, X, Download, Clock, Printer } from "lucide-react";
 import { exportCsv } from "@/utils/exportCsv";
 import { logAction } from "@/utils/auditLog";
 import Modal from "@/components/Modal";
@@ -54,10 +54,10 @@ const emptyForm = {
   customer_id: "", vehicle: "", vehicle_id: "",
 };
 
-function OrderTable({ list, title, orderItemDescriptions, onEdit, onDelete, onHistory }: {
+function OrderTable({ list, title, orderItemDescriptions, onEdit, onDelete, onHistory, onPrint }: {
   list: Order[]; title: string;
   orderItemDescriptions: Record<string, string[]>;
-  onEdit: (o: Order) => void; onDelete: (o: Order) => void; onHistory: (o: Order) => void;
+  onEdit: (o: Order) => void; onDelete: (o: Order) => void; onHistory: (o: Order) => void; onPrint: (o: Order) => void;
 }) {
   const [page, setPage] = useState(0);
   const totalPages = Math.ceil(list.length / PAGE_SIZE);
@@ -131,6 +131,7 @@ function OrderTable({ list, title, orderItemDescriptions, onEdit, onDelete, onHi
                     <td className="px-4 py-3 text-sm font-semibold text-[#07C3F8] font-mono whitespace-nowrap">₡{o.remaining.toLocaleString("es-CR")}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1">
+                        <button onClick={() => onPrint(o)} className="p-1.5 rounded-lg text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"><Printer size={14} /></button>
                         <button onClick={() => onHistory(o)} className="p-1.5 rounded-lg text-gray-400 hover:text-violet-500 hover:bg-violet-50 transition-colors"><Clock size={14} /></button>
                         <button onClick={() => onEdit(o)} className="p-1.5 rounded-lg text-gray-400 hover:text-[#07C3F8] hover:bg-[#07C3F8]/10 transition-colors"><Edit size={14} /></button>
                         <button onClick={() => onDelete(o)} className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"><Trash2 size={14} /></button>
@@ -330,6 +331,71 @@ export default function OrdersPage() {
     setIsOpen(true);
   };
 
+  const printOrder = async (o: Order) => {
+    const { data: items } = await supabase.from("order_items").select("description, price, completed").eq("order_id", o.id).order("created_at", { ascending: true });
+    const orderItems = (items ?? []) as { description: string; price: number | null; completed: boolean }[];
+    const subtotal = orderItems.reduce((s, i) => s + (i.price ?? 0), 0);
+    const fecha = format(new Date(o.order_date), "dd/MM/yyyy", { locale: es });
+    const LINE = "--------------------------------";
+    const fmt = (n: number) => `\u20A1${n.toLocaleString("es-CR")}`;
+
+    const itemsHtml = orderItems.length > 0
+      ? orderItems.map((item, i) => `
+          <tr>
+            <td style="padding:2px 0;vertical-align:top">${i + 1}. ${item.completed ? "<s>" + item.description + "</s>" : item.description}</td>
+            <td style="padding:2px 0;text-align:right;white-space:nowrap;vertical-align:top">${item.price ? fmt(item.price) : ""}</td>
+          </tr>`).join("")
+      : `<tr><td colspan="2" style="color:#888">Sin tareas</td></tr>`;
+
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body { font-family: monospace; font-size: 11px; width: 58mm; padding: 4mm 3mm; color: #000; }
+      h1 { font-size: 13px; text-align: center; font-weight: bold; margin-bottom: 2px; }
+      .center { text-align: center; }
+      .line { border-top: 1px dashed #000; margin: 4px 0; }
+      table { width: 100%; border-collapse: collapse; }
+      td { font-size: 11px; }
+      .total-row td { font-weight: bold; font-size: 12px; padding-top: 3px; }
+      .saldo td { font-size: 13px; font-weight: bold; }
+      @media print { @page { margin: 0; size: 58mm auto; } body { padding: 2mm; } }
+    </style></head><body>
+    <h1>AUTODECORACION 2M</h1>
+    <p class="center" style="font-size:10px;margin-bottom:4px;">Pedido de repuestos</p>
+    <div class="line"></div>
+    <table><tbody>
+      <tr><td>Fecha:</td><td style="text-align:right">${fecha}</td></tr>
+      <tr><td>Estado:</td><td style="text-align:right">${o.status ?? ""}</td></tr>
+    </tbody></table>
+    <div class="line"></div>
+    <p style="font-weight:bold;margin-bottom:3px">CLIENTE</p>
+    <table><tbody>
+      <tr><td>Nombre:</td><td style="text-align:right">${o.customer_name}</td></tr>
+      ${o.phone ? `<tr><td>Tel:</td><td style="text-align:right">${o.phone}</td></tr>` : ""}
+      ${o.vehicle ? `<tr><td>Veh&iacute;culo:</td><td style="text-align:right">${o.vehicle}</td></tr>` : ""}
+    </tbody></table>
+    <div class="line"></div>
+    <p style="font-weight:bold;margin-bottom:3px">TAREAS</p>
+    <table><tbody>${itemsHtml}</tbody></table>
+    <div class="line"></div>
+    <table><tbody>
+      ${subtotal > 0 ? `<tr><td>Subtotal:</td><td style="text-align:right">${fmt(subtotal)}</td></tr>` : ""}
+      <tr><td>Total:</td><td style="text-align:right">${fmt(o.total_amount)}</td></tr>
+      <tr><td>Abono:</td><td style="text-align:right">${fmt(o.initial_payment)}</td></tr>
+      <tr class="saldo"><td>SALDO:</td><td style="text-align:right">${fmt(o.remaining)}</td></tr>
+    </tbody></table>
+    <div class="line"></div>
+    <p class="center" style="font-size:10px;margin-top:4px;">Gracias por su preferencia</p>
+    </body></html>`;
+
+    const win = window.open("", "_blank", "width=320,height=600,toolbar=0,menubar=0");
+    if (!win) return;
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    setTimeout(() => { win.print(); win.close(); }, 300);
+  };
+
   const save = async () => {
     const name = form.customer_name.trim();
     if (!name) { setFormError("Nombre es obligatorio."); return; }
@@ -482,8 +548,8 @@ export default function OrdersPage() {
         <span className="text-sm text-gray-400 ml-auto whitespace-nowrap">{filtered.length} resultado{filtered.length !== 1 ? "s" : ""}</span>
       </div>
 
-      <OrderTable list={activeOrders} title="Activos" orderItemDescriptions={orderItemDescriptions} onEdit={openEdit} onDelete={deleteOne} onHistory={openHistory} />
-      <OrderTable list={deliveredOrders} title="Entregados" orderItemDescriptions={orderItemDescriptions} onEdit={openEdit} onDelete={deleteOne} onHistory={openHistory} />
+      <OrderTable list={activeOrders} title="Activos" orderItemDescriptions={orderItemDescriptions} onEdit={openEdit} onDelete={deleteOne} onHistory={openHistory} onPrint={printOrder} />
+      <OrderTable list={deliveredOrders} title="Entregados" orderItemDescriptions={orderItemDescriptions} onEdit={openEdit} onDelete={deleteOne} onHistory={openHistory} onPrint={printOrder} />
 
       {/* Modal */}
       {isOpen && (
