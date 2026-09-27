@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { useRequireRole } from "@/hooks/useRequireRole";
 import { format } from "date-fns";
@@ -149,8 +149,8 @@ export default function AuditoriaPage() {
                     image_url: "Imagen",
                   };
                   return (
-                    <>
-                      <tr key={log.id} className="hover:bg-gray-50 transition-colors">
+                    <React.Fragment key={log.id}>
+                      <tr className="hover:bg-gray-50 transition-colors">
                         <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
                           {format(new Date(log.created_at), "dd MMM yyyy, HH:mm", { locale: es })}
                         </td>
@@ -194,7 +194,7 @@ export default function AuditoriaPage() {
                           </td>
                         </tr>
                       )}
-                    </>
+                    </React.Fragment>
                   );
                 })}
               </tbody>
