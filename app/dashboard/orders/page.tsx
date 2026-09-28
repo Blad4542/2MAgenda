@@ -361,7 +361,7 @@ export default function OrdersPage() {
       .lbl { color: #444; width: 45%; }
       .saldo td { font-size: 13px; font-weight: bold; padding-top: 4px; }
       .item-price { text-align: right; font-weight: bold; display: block; margin-top: 1px; }
-      @media print { @page { margin: 4mm; size: 58mm auto; } }
+      @media print { @page { margin: 0 3mm; size: 58mm auto; } }
     </style></head><body>
     <h1>AUTODECORACION 2M</h1>
     <p class="center" style="font-size:10px;margin-bottom:6px;">Orden de pedido</p>
