@@ -340,45 +340,55 @@ export default function OrdersPage() {
   const buildReceiptHtml = (o: Order, orderItems: { description: string; price: number | null; completed: boolean }[]) => {
     const subtotal = orderItems.reduce((s, i) => s + (i.price ?? 0), 0);
     const fecha = format(new Date(o.order_date), "dd/MM/yyyy", { locale: es });
-    const fmt = (n: number) => `₡${n.toLocaleString("es-CR")}`;
+    const fmt = (n: number) => `&#x20A1;${n.toLocaleString("es-CR")}`;
     const itemsHtml = orderItems.length > 0
-      ? orderItems.map((item, i) => `<tr><td style="padding:2px 0;vertical-align:top">${i + 1}. ${item.completed ? "<s>" + item.description + "</s>" : item.description}</td><td style="padding:2px 0;text-align:right;white-space:nowrap;vertical-align:top">${item.price ? fmt(item.price) : ""}</td></tr>`).join("")
-      : `<tr><td colspan="2" style="color:#888">Sin tareas</td></tr>`;
+      ? orderItems.map((item, i) => {
+          const desc = item.completed ? `<s>${item.description}</s>` : item.description;
+          const price = item.price ? `<div style="text-align:right;font-weight:bold">${fmt(item.price)}</div>` : "";
+          return `<tr><td style="padding:4px 0 2px;border-bottom:1px dotted #ccc"><span style="font-weight:bold">${i + 1}.</span> ${desc}${price}</td></tr>`;
+        }).join("")
+      : `<tr><td style="color:#888;padding:4px 0">Sin tareas</td></tr>`;
     return `<!DOCTYPE html><html><head><meta charset="utf-8">
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
-      body { font-family: monospace; font-size: 11px; width: 58mm; padding: 4mm 3mm; color: #000; background: #fff; }
-      h1 { font-size: 13px; text-align: center; font-weight: bold; margin-bottom: 2px; }
+      html, body { margin: 0; padding: 0; }
+      body { font-family: monospace; font-size: 12px; width: 58mm; padding: 4mm 5mm; color: #000; background: #fff; }
+      h1 { font-size: 14px; text-align: center; font-weight: bold; letter-spacing: 0.5px; margin-bottom: 2px; }
       .center { text-align: center; }
-      .line { border-top: 1px dashed #000; margin: 4px 0; }
+      .line { border-top: 1px dashed #000; margin: 6px 0; }
       table { width: 100%; border-collapse: collapse; }
-      td { font-size: 11px; }
-      .saldo td { font-size: 13px; font-weight: bold; }
-      @media print { @page { margin: 0; size: 58mm auto; } body { padding: 2mm; } }
+      td { font-size: 12px; padding: 2px 0; vertical-align: top; }
+      td.r { text-align: right; }
+      .lbl { color: #444; }
+      .saldo td { font-size: 13px; font-weight: bold; padding-top: 4px; }
+      @media print { @page { margin: 0; size: 58mm auto; } body { padding: 3mm 5mm; } }
     </style></head><body>
     <h1>AUTODECORACION 2M</h1>
-    <p class="center" style="font-size:10px;margin-bottom:4px;">Orden de pedido</p>
+    <p class="center" style="font-size:10px;margin-bottom:6px;">Orden de pedido</p>
     <div class="line"></div>
     <table><tbody>
-      <tr><td>Fecha:</td><td style="text-align:right">${fecha}</td></tr>
-      <tr><td>Estado:</td><td style="text-align:right">${o.status ?? ""}</td></tr>
+      <tr><td class="lbl">Fecha:</td><td class="r">${fecha}</td></tr>
+      <tr><td class="lbl">Estado:</td><td class="r">${o.status ?? ""}</td></tr>
     </tbody></table>
     <div class="line"></div>
-    <p style="font-weight:bold;margin-bottom:3px">CLIENTE</p>
+    <p style="font-weight:bold;margin-bottom:4px;font-size:11px;letter-spacing:0.5px">CLIENTE</p>
     <table><tbody>
-      <tr><td>Nombre:</td><td style="text-align:right">${o.customer_name}</td></tr>
-      ${o.phone ? `<tr><td>Tel:</td><td style="text-align:right">${o.phone}</td></tr>` : ""}
-      ${o.vehicle ? `<tr><td>Vehículo:</td><td style="text-align:right">${o.vehicle}</td></tr>` : ""}
+      <tr><td class="lbl">Nombre:</td><td class="r">${o.customer_name}</td></tr>
+      ${o.phone ? `<tr><td class="lbl">Tel:</td><td class="r">${o.phone}</td></tr>` : ""}
+      ${o.vehicle ? `<tr><td class="lbl">Vehículo:</td><td class="r" style="word-break:break-word">${o.vehicle}</td></tr>` : ""}
     </tbody></table>
     <div class="line"></div>
-    <p style="font-weight:bold;margin-bottom:3px">TAREAS</p>
+    <p style="font-weight:bold;margin-bottom:4px;font-size:11px;letter-spacing:0.5px">TAREAS</p>
     <table><tbody>${itemsHtml}</tbody></table>
     <div class="line"></div>
     <table><tbody>
-      ${subtotal > 0 ? `<tr><td>Subtotal:</td><td style="text-align:right">${fmt(subtotal)}</td></tr>` : ""}
-      <tr><td>Total:</td><td style="text-align:right">${fmt(o.total_amount)}</td></tr>
-      <tr><td>Abono:</td><td style="text-align:right">${fmt(o.initial_payment)}</td></tr>
-      <tr class="saldo"><td>SALDO:</td><td style="text-align:right">${fmt(o.remaining)}</td></tr>
+      ${subtotal > 0 ? `<tr><td class="lbl">Subtotal:</td><td class="r">${fmt(subtotal)}</td></tr>` : ""}
+      <tr><td class="lbl">Total:</td><td class="r">${fmt(o.total_amount)}</td></tr>
+      <tr><td class="lbl">Abono:</td><td class="r">${fmt(o.initial_payment)}</td></tr>
+    </tbody></table>
+    <div class="line"></div>
+    <table><tbody>
+      <tr class="saldo"><td>SALDO:</td><td class="r">${fmt(o.remaining)}</td></tr>
     </tbody></table>
     <div class="line"></div>
     </body></html>`;
