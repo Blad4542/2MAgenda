@@ -391,6 +391,7 @@ export default function OrdersPage() {
       <tr class="saldo"><td>SALDO:</td><td class="r">${fmt(o.remaining)}</td></tr>
     </tbody></table>
     <div class="line"></div>
+    <div style="height:20mm"></div>
     </body></html>`;
   };
 
