@@ -344,24 +344,24 @@ export default function OrdersPage() {
     const itemsHtml = orderItems.length > 0
       ? orderItems.map((item, i) => {
           const desc = item.completed ? `<s>${item.description}</s>` : item.description;
-          const price = item.price ? `<div style="text-align:right;font-weight:bold">${fmt(item.price)}</div>` : "";
+          const price = item.price ? `<span class="item-price">${fmt(item.price)}</span>` : "";
           return `<tr><td style="padding:4px 0 2px;border-bottom:1px dotted #ccc"><span style="font-weight:bold">${i + 1}.</span> ${desc}${price}</td></tr>`;
         }).join("")
       : `<tr><td style="color:#888;padding:4px 0">Sin tareas</td></tr>`;
     return `<!DOCTYPE html><html><head><meta charset="utf-8">
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
-      html, body { margin: 0; padding: 0; }
-      body { font-family: monospace; font-size: 12px; width: 58mm; padding: 4mm 5mm; color: #000; background: #fff; }
+      body { font-family: monospace; font-size: 12px; width: 100%; color: #000; background: #fff; }
       h1 { font-size: 14px; text-align: center; font-weight: bold; letter-spacing: 0.5px; margin-bottom: 2px; }
       .center { text-align: center; }
       .line { border-top: 1px dashed #000; margin: 6px 0; }
       table { width: 100%; border-collapse: collapse; }
       td { font-size: 12px; padding: 2px 0; vertical-align: top; }
-      td.r { text-align: right; }
-      .lbl { color: #444; }
+      td.r { text-align: right; white-space: nowrap; }
+      .lbl { color: #444; width: 45%; }
       .saldo td { font-size: 13px; font-weight: bold; padding-top: 4px; }
-      @media print { @page { margin: 0; size: 58mm auto; } body { padding: 3mm 5mm; } }
+      .item-price { text-align: right; font-weight: bold; display: block; margin-top: 1px; }
+      @media print { @page { margin: 4mm; size: 58mm auto; } }
     </style></head><body>
     <h1>AUTODECORACION 2M</h1>
     <p class="center" style="font-size:10px;margin-bottom:6px;">Orden de pedido</p>
