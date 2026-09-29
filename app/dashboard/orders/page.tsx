@@ -340,7 +340,7 @@ export default function OrdersPage() {
   const buildReceiptHtml = (o: Order, orderItems: { description: string; price: number | null; completed: boolean }[]) => {
     const subtotal = orderItems.reduce((s, i) => s + (i.price ?? 0), 0);
     const fecha = format(new Date(o.order_date), "dd/MM/yyyy", { locale: es });
-    const fmt = (n: number) => `&#x20A1;${n.toLocaleString("es-CR")}`;
+    const fmt = (n: number) => `CRC ${n.toLocaleString("es-CR")}`;
     const itemsHtml = orderItems.length > 0
       ? orderItems.map((item, i) => {
           const desc = item.completed ? `<s>${item.description}</s>` : item.description;
