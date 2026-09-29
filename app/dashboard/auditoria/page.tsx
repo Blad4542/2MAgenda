@@ -5,7 +5,7 @@ import { createClient } from "@/utils/supabase/client";
 import { useRequireRole } from "@/hooks/useRequireRole";
 import { format } from "date-fns";
 import { es } from "date-fns/locale/es";
-import { Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, ChevronLeft, ChevronRight, X } from "lucide-react";
 
 interface AuditEntry {
   id: string;
@@ -20,19 +20,29 @@ interface AuditEntry {
 }
 
 const ACTION_LABEL: Record<string, { label: string; style: string }> = {
-  create: { label: "Creación",     style: "bg-green-50 text-green-700 border border-green-200" },
+  create: { label: "Creación",      style: "bg-green-50 text-green-700 border border-green-200" },
   update: { label: "Actualización", style: "bg-blue-50 text-blue-700 border border-blue-200" },
-  delete: { label: "Eliminación",  style: "bg-red-50 text-red-600 border border-red-200" },
+  delete: { label: "Eliminación",   style: "bg-red-50 text-red-600 border border-red-200" },
 };
 
 const TABLE_LABEL: Record<string, string> = {
-  appointments: "Citas",
-  orders:       "Pedidos",
-  customers:    "Clientes",
-  vehicles:     "Vehículos",
-  staff:        "Instaladores",
-  pending_tasks:"Cotizaciones",
+  appointments:  "Citas",
+  orders:        "Pedidos",
+  customers:     "Clientes",
+  vehicles:      "Vehículos",
+  staff:         "Instaladores",
+  pending_tasks: "Cotizaciones",
 };
+
+const FIELD_LABELS: Record<string, string> = {
+  customer_name: "Nombre", phone: "Teléfono", vehicle: "Vehículo",
+  status: "Estado", total_amount: "Monto", initial_payment: "Abono",
+  remaining: "Saldo", product_description: "Descripción",
+  name: "Nombre", description: "Descripción", notes: "Notas",
+  image_url: "Imagen", order_date: "Fecha pedido",
+};
+
+const HIDDEN_FIELDS = ["id", "customer_id", "vehicle_id", "created_at", "updated_at"];
 
 const PAGE_SIZE = 10;
 
@@ -47,7 +57,7 @@ export default function AuditoriaPage() {
   const [search, setSearch] = useState("");
   const [filterAction, setFilterAction] = useState("");
   const [filterTable, setFilterTable] = useState("");
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [selectedLog, setSelectedLog] = useState<AuditEntry | null>(null);
 
   const fetchLogs = useCallback(async () => {
     setLoading(true);
@@ -71,8 +81,6 @@ export default function AuditoriaPage() {
   }, [page, search, filterAction, filterTable]);
 
   useEffect(() => { fetchLogs(); }, [fetchLogs]);
-
-  // Reset page on filter change
   useEffect(() => { setPage(0); }, [search, filterAction, filterTable]);
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
@@ -133,68 +141,42 @@ export default function AuditoriaPage() {
                   <th className="px-4 py-3 text-left">Usuario</th>
                   <th className="px-4 py-3 text-left">Acción</th>
                   <th className="px-4 py-3 text-left">Módulo</th>
-                  <th className="px-4 py-3 text-left">Descripción / Antes</th>
+                  <th className="px-4 py-3 text-left">Descripción</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {logs.map(log => {
                   const action = ACTION_LABEL[log.action] ?? { label: log.action, style: "bg-gray-100 text-gray-600" };
-                  const hasBefore = log.action === "update" && log.before_data;
-                  const isExpanded = expanded.has(log.id);
-                  const FIELD_LABELS: Record<string, string> = {
-                    customer_name: "Nombre", phone: "Teléfono", vehicle: "Vehículo",
-                    status: "Estado", total_amount: "Monto", initial_payment: "Abono",
-                    remaining: "Saldo", product_description: "Descripción",
-                    name: "Nombre", description: "Descripción", notes: "Notas",
-                    image_url: "Imagen",
-                  };
+                  const hasData = !!log.before_data;
                   return (
-                    <React.Fragment key={log.id}>
-                      <tr className="hover:bg-gray-50 transition-colors">
-                        <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
-                          {format(new Date(log.created_at), "dd MMM yyyy, HH:mm", { locale: es })}
-                        </td>
-                        <td className="px-4 py-3 text-gray-700 max-w-[160px] truncate" title={log.user_email ?? ""}>
-                          {log.user_name ?? log.user_email ?? "—"}
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold ${action.style}`}>
-                            {action.label}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-gray-600">
-                          {TABLE_LABEL[log.table_name] ?? log.table_name}
-                        </td>
-                        <td className="px-4 py-3 text-gray-600">
-                          <div className="flex items-center gap-2">
-                            <span className="truncate max-w-xs" title={log.description ?? ""}>{log.description ?? "—"}</span>
-                            {hasBefore && (
-                              <button
-                                onClick={() => setExpanded(prev => { const n = new Set(prev); n.has(log.id) ? n.delete(log.id) : n.add(log.id); return n; })}
-                                className="shrink-0 text-xs text-blue-500 hover:text-blue-700 underline whitespace-nowrap"
-                              >
-                                {isExpanded ? "Ocultar antes" : "Ver antes"}
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                      {hasBefore && isExpanded && (
-                        <tr key={`${log.id}-before`} className="bg-amber-50">
-                          <td colSpan={5} className="px-4 py-3">
-                            <p className="text-xs font-semibold text-amber-700 mb-2">Estado anterior:</p>
-                            <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-1">
-                              {Object.entries(log.before_data!).filter(([k, v]) => v !== null && !["id","customer_id","vehicle_id","created_at","updated_at"].includes(k)).map(([k, v]) => (
-                                <div key={k} className="flex gap-1 text-xs">
-                                  <span className="text-gray-500 shrink-0">{FIELD_LABELS[k] ?? k}:</span>
-                                  <span className="text-gray-800 truncate">{String(v)}</span>
-                                </div>
-                              ))}
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </React.Fragment>
+                    <tr
+                      key={log.id}
+                      onClick={() => setSelectedLog(log)}
+                      className={`transition-colors cursor-pointer hover:bg-gray-50 ${hasData ? "" : ""}`}
+                    >
+                      <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
+                        {format(new Date(log.created_at), "dd MMM yyyy, HH:mm", { locale: es })}
+                      </td>
+                      <td className="px-4 py-3 text-gray-700 max-w-[160px] truncate" title={log.user_email ?? ""}>
+                        {log.user_name ?? log.user_email ?? "—"}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold ${action.style}`}>
+                          {action.label}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-gray-600">
+                        {TABLE_LABEL[log.table_name] ?? log.table_name}
+                      </td>
+                      <td className="px-4 py-3 text-gray-600">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="truncate max-w-xs" title={log.description ?? ""}>{log.description ?? "—"}</span>
+                          {hasData && (
+                            <span className="shrink-0 text-xs text-[#07C3F8] font-medium">Ver datos</span>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
                   );
                 })}
               </tbody>
@@ -226,6 +208,81 @@ export default function AuditoriaPage() {
           </div>
         </div>
       )}
+
+      {/* Detail modal */}
+      {selectedLog && (() => {
+        const action = ACTION_LABEL[selectedLog.action] ?? { label: selectedLog.action, style: "bg-gray-100 text-gray-600" };
+        const entries = selectedLog.before_data
+          ? Object.entries(selectedLog.before_data).filter(([k, v]) => v !== null && v !== "" && !HIDDEN_FIELDS.includes(k))
+          : [];
+        return (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+            onClick={() => setSelectedLog(null)}
+          >
+            <div
+              className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[85vh] overflow-y-auto"
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+                <div className="flex items-center gap-2">
+                  <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold ${action.style}`}>
+                    {action.label}
+                  </span>
+                  <span className="text-sm font-medium text-gray-700">
+                    {TABLE_LABEL[selectedLog.table_name] ?? selectedLog.table_name}
+                  </span>
+                </div>
+                <button onClick={() => setSelectedLog(null)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 transition-colors">
+                  <X size={16} />
+                </button>
+              </div>
+
+              <div className="px-5 py-4 space-y-4">
+                {/* Meta */}
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <p className="text-xs text-gray-400 mb-0.5">Fecha</p>
+                    <p className="text-gray-800">{format(new Date(selectedLog.created_at), "dd MMM yyyy, HH:mm", { locale: es })}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-400 mb-0.5">Usuario</p>
+                    <p className="text-gray-800">{selectedLog.user_name ?? selectedLog.user_email ?? "—"}</p>
+                  </div>
+                  {selectedLog.description && (
+                    <div className="col-span-2">
+                      <p className="text-xs text-gray-400 mb-0.5">Descripción</p>
+                      <p className="text-gray-800">{selectedLog.description}</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Before data */}
+                {entries.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                      {selectedLog.action === "delete" ? "Datos eliminados" : "Estado anterior"}
+                    </p>
+                    <div className="bg-gray-50 rounded-xl p-3 grid grid-cols-2 gap-x-6 gap-y-2">
+                      {entries.map(([k, v]) => (
+                        <div key={k} className="text-xs">
+                          <p className="text-gray-400">{FIELD_LABELS[k] ?? k}</p>
+                          <p className="text-gray-800 font-medium break-words">{String(v)}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {entries.length === 0 && (
+                  <p className="text-sm text-gray-400 text-center py-2">Sin datos adicionales registrados</p>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

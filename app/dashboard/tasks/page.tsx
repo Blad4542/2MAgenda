@@ -264,6 +264,7 @@ export default function TasksPage() {
   const [editing, setEditing] = useState<Task | null>(null);
   const [form, setForm] = useState<Omit<Task, "id">>({ name: "", phone: "", description: "", status: "Pending", vehicle: "", customer_id: undefined, vehicle_id: undefined, notes: "", image_url: "" });
   const [imageFile, setImageFile] = useState<File | null>(null);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [formError, setFormError] = useState("");
   const [customerVehicles, setCustomerVehicles] = useState<VehicleRecord[]>([]);
   const [isNewVehicle, setIsNewVehicle] = useState(true);
@@ -441,8 +442,9 @@ export default function TasksPage() {
 
   const del = async (id: string) => {
     const task = tasks.find(t => t.id === id);
+    const { data: before } = await supabase.from("pending_tasks").select("*").eq("id", id).single();
     await supabase.from("pending_tasks").delete().eq("id", id);
-    await logAction(supabase, { table_name: "pending_tasks", record_id: id, action: "delete", description: task ? `Cotización de ${task.name}` : undefined, user_email: userEmail });
+    await logAction(supabase, { table_name: "pending_tasks", record_id: id, action: "delete", description: task ? `Cotización de ${task.name}` : undefined, user_email: userEmail, before_data: before ?? undefined });
     setSelected(p => { const n = new Set(p); n.delete(id); return n; }); fetchTasks(search);
   };
   const bulkDel = async (ids: string[]) => {
@@ -733,7 +735,8 @@ export default function TasksPage() {
                   <img
                     src={imageFile ? URL.createObjectURL(imageFile) : form.image_url!}
                     alt="Vista previa"
-                    className="h-32 w-auto rounded-xl border border-gray-200 object-cover"
+                    className="h-32 w-auto rounded-xl border border-gray-200 object-cover cursor-zoom-in"
+                    onClick={() => setLightboxUrl(imageFile ? URL.createObjectURL(imageFile) : form.image_url!)}
                   />
                   <button
                     onClick={() => { setImageFile(null); setForm(f => ({ ...f, image_url: "" })); }}
@@ -767,6 +770,19 @@ export default function TasksPage() {
         </Modal>
       )}
 
+      {lightboxUrl && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
+          onClick={() => setLightboxUrl(null)}
+        >
+          <img
+            src={lightboxUrl}
+            alt="Imagen ampliada"
+            className="max-h-[90vh] max-w-[90vw] rounded-xl shadow-2xl object-contain"
+            onClick={e => e.stopPropagation()}
+          />
+        </div>
+      )}
     </div>
   );
 }

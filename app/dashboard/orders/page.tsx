@@ -467,8 +467,9 @@ export default function OrdersPage() {
   };
 
   const deleteOne = async (o: Order) => {
+    const { data: before } = await supabase.from("orders").select("*").eq("id", o.id).single();
     await supabase.from("orders").delete().eq("id", o.id);
-    await logAction(supabase, { table_name: "orders", record_id: o.id, action: "delete", description: `Pedido de ${o.customer_name}`, user_email: userEmail });
+    await logAction(supabase, { table_name: "orders", record_id: o.id, action: "delete", description: `Pedido de ${o.customer_name}`, user_email: userEmail, before_data: before ?? undefined });
     fetchOrders();
   };
 
