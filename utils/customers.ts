@@ -41,7 +41,7 @@ export async function findOrCreateCustomer(
 
   const { data: created, error } = await supabase
     .from("customers")
-    .insert({ name, phone })
+    .insert({ name, phone: digits })
     .select("id")
     .single();
 
@@ -104,7 +104,20 @@ export async function lookupCustomer(
     .limit(1)
     .maybeSingle();
 
-  return data as { id: string; name: string } | null;
+  if (data) return data as { id: string; name: string };
+
+  // Fallback: split digits into halves to match phones stored with separators (e.g. "8875-8054")
+  if (digits.length === 8) {
+    const { data: data2 } = await supabase
+      .from("customers")
+      .select("id, name")
+      .ilike("phone", `%${digits.slice(0, 4)}%${digits.slice(4)}%`)
+      .limit(1)
+      .maybeSingle();
+    if (data2) return data2 as { id: string; name: string };
+  }
+
+  return null;
 }
 
 export async function getCustomerVehicles(
