@@ -15,7 +15,7 @@ interface Customer {
 }
 
 export default function ClientesPage() {
-  useRequireRole(["admin"]);
+  useRequireRole(["admin", "asistente"]);
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
 
