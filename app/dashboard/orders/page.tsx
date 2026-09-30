@@ -4,9 +4,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale/es";
 import { createClient } from "@/utils/supabase/client";
-import { Plus, Trash2, Edit, ChevronLeft, ChevronRight, Search, X, Download, Clock, Printer, Eye } from "lucide-react";
+import { Plus, Trash2, Edit, ChevronLeft, ChevronRight, Search, X, Download, Clock, Printer, Eye, CalendarPlus } from "lucide-react";
 import { exportCsv } from "@/utils/exportCsv";
 import { logAction } from "@/utils/auditLog";
+import { addNoteToSupabase } from "@/utils/index";
 import Modal from "@/components/Modal";
 import { v4 as uuidv4 } from "uuid";
 import { waUrl, WaIcon } from "@/utils/wa";
@@ -54,10 +55,10 @@ const emptyForm = {
   customer_id: "", vehicle: "", vehicle_id: "",
 };
 
-function OrderTable({ list, title, orderItemDescriptions, onEdit, onDelete, onHistory, onPrint, onPreview }: {
+function OrderTable({ list, title, orderItemDescriptions, onEdit, onDelete, onHistory, onPrint, onPreview, onAgendar }: {
   list: Order[]; title: string;
   orderItemDescriptions: Record<string, string[]>;
-  onEdit: (o: Order) => void; onDelete: (o: Order) => void; onHistory: (o: Order) => void; onPrint: (o: Order) => void; onPreview: (o: Order) => void;
+  onEdit: (o: Order) => void; onDelete: (o: Order) => void; onHistory: (o: Order) => void; onPrint: (o: Order) => void; onPreview: (o: Order) => void; onAgendar?: (o: Order) => void;
 }) {
   const [page, setPage] = useState(0);
   const totalPages = Math.ceil(list.length / PAGE_SIZE);
@@ -134,6 +135,7 @@ function OrderTable({ list, title, orderItemDescriptions, onEdit, onDelete, onHi
                         <button onClick={() => onPreview(o)} title="Vista previa" className="p-1 rounded-lg text-gray-400 hover:text-sky-500 hover:bg-sky-50 transition-colors"><Eye size={13} /></button>
                         <button onClick={() => onPrint(o)} title="Imprimir" className="p-1 rounded-lg text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"><Printer size={13} /></button>
                         <button onClick={() => onHistory(o)} title="Historial" className="p-1 rounded-lg text-gray-400 hover:text-violet-500 hover:bg-violet-50 transition-colors"><Clock size={13} /></button>
+                        {onAgendar && <button onClick={() => onAgendar(o)} title="Agendar cita" className="p-1 rounded-lg text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"><CalendarPlus size={13} /></button>}
                         <button onClick={() => onEdit(o)} title="Editar" className="p-1 rounded-lg text-gray-400 hover:text-[#07C3F8] hover:bg-[#07C3F8]/10 transition-colors"><Edit size={13} /></button>
                         <button onClick={() => onDelete(o)} title="Eliminar" className="p-1 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"><Trash2 size={13} /></button>
                       </div>
@@ -189,6 +191,11 @@ export default function OrdersPage() {
   const [newItemText, setNewItemText] = useState("");
   const [newItemPrice, setNewItemPrice] = useState("");
   const [orderItemDescriptions, setOrderItemDescriptions] = useState<Record<string, string[]>>({});
+  const [agendarOrder, setAgendarOrder] = useState<Order | null>(null);
+  const [agendarForm, setAgendarForm] = useState({ appointment_date: "", start_time: "", end_time: "", assigned_person: "" });
+  const [staffList, setStaffList] = useState<{ id: string; name: string }[]>([]);
+  const [agendarSaving, setAgendarSaving] = useState(false);
+  const [agendarError, setAgendarError] = useState("");
 
   const fetchOrders = useCallback(async (s = search, owb = onlyWithBalance) => {
     let q = supabase.from("orders").select("*").order("order_date", { ascending: false });
@@ -217,6 +224,9 @@ export default function OrdersPage() {
     fetchOrders();
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) setUserEmail(session.user.email);
+    });
+    supabase.from("staff").select("id, name").eq("active", true).order("created_at", { ascending: true }).then(({ data }) => {
+      setStaffList((data ?? []) as { id: string; name: string }[]);
     });
   }, []);
 
@@ -418,6 +428,41 @@ export default function OrdersPage() {
     setPreviewOrder(o);
   };
 
+  const openAgendar = (o: Order) => {
+    setAgendarOrder(o);
+    setAgendarError("");
+    setAgendarForm({ appointment_date: new Date().toISOString().split("T")[0], start_time: "", end_time: "", assigned_person: staffList[0]?.name ?? "" });
+  };
+
+  const scheduleOrder = async () => {
+    if (!agendarOrder || !agendarForm.appointment_date || !agendarForm.start_time || !agendarForm.end_time || !agendarForm.assigned_person) {
+      setAgendarError("Completa todos los campos.");
+      return;
+    }
+    setAgendarSaving(true);
+    setAgendarError("");
+    try {
+      const desc = (orderItemDescriptions[agendarOrder.id] ?? []).join(", ") || agendarOrder.product_description || "";
+      await addNoteToSupabase({
+        name: agendarOrder.customer_name,
+        phone: agendarOrder.phone ?? "",
+        vehicle: agendarOrder.vehicle ?? "",
+        description: desc,
+        start_time: agendarForm.start_time,
+        end_time: agendarForm.end_time,
+        assigned_person: agendarForm.assigned_person,
+        appointment_date: new Date(agendarForm.appointment_date + "T12:00:00").toISOString(),
+        status: "pending",
+        customer_id: agendarOrder.customer_id,
+      });
+      setAgendarOrder(null);
+    } catch {
+      setAgendarError("Error al crear la cita.");
+    } finally {
+      setAgendarSaving(false);
+    }
+  };
+
   const save = async () => {
     const name = form.customer_name.trim();
     if (!name) { setFormError("Nombre es obligatorio."); return; }
@@ -503,7 +548,8 @@ export default function OrdersPage() {
     });
   }, [orders, search, onlyWithBalance]);
 
-  const activeOrders = filtered.filter(o => ACTIVE_STATUSES.includes(o.status as OrderStatus));
+  const porPedirOrders = filtered.filter(o => o.status === "Por pedir");
+  const inProgressOrders = filtered.filter(o => (["Pedido", "En local"] as OrderStatus[]).includes(o.status as OrderStatus));
   const deliveredOrders = filtered.filter(o => o.status === "Entregado");
 
   if (isLoading) return (
@@ -572,7 +618,8 @@ export default function OrdersPage() {
         <span className="text-sm text-gray-400 ml-auto whitespace-nowrap">{filtered.length} resultado{filtered.length !== 1 ? "s" : ""}</span>
       </div>
 
-      <OrderTable list={activeOrders} title="Activos" orderItemDescriptions={orderItemDescriptions} onEdit={openEdit} onDelete={deleteOne} onHistory={openHistory} onPrint={printOrder} onPreview={openPreview} />
+      <OrderTable list={porPedirOrders} title="Por pedir" orderItemDescriptions={orderItemDescriptions} onEdit={openEdit} onDelete={deleteOne} onHistory={openHistory} onPrint={printOrder} onPreview={openPreview} onAgendar={openAgendar} />
+      <OrderTable list={inProgressOrders} title="En proceso" orderItemDescriptions={orderItemDescriptions} onEdit={openEdit} onDelete={deleteOne} onHistory={openHistory} onPrint={printOrder} onPreview={openPreview} onAgendar={openAgendar} />
       <OrderTable list={deliveredOrders} title="Entregados" orderItemDescriptions={orderItemDescriptions} onEdit={openEdit} onDelete={deleteOne} onHistory={openHistory} onPrint={printOrder} onPreview={openPreview} />
 
       {/* Modal */}
@@ -723,6 +770,48 @@ export default function OrdersPage() {
             </ul>
           )}
         </Modal>
+      )}
+
+      {/* Agendar modal */}
+      {agendarOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => setAgendarOrder(null)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <div>
+                <p className="text-sm font-semibold text-gray-900">Agendar cita</p>
+                <p className="text-xs text-gray-500">{agendarOrder.customer_name} — {agendarOrder.vehicle || "Sin vehículo"}</p>
+              </div>
+              <button onClick={() => setAgendarOrder(null)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400"><X size={16} /></button>
+            </div>
+            <div className="px-5 py-4 space-y-3">
+              <div>
+                <label className={lbl}>Fecha</label>
+                <input type="date" className={inp} value={agendarForm.appointment_date} onChange={e => setAgendarForm(f => ({ ...f, appointment_date: e.target.value }))} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={lbl}>Hora inicio</label>
+                  <input type="time" className={inp} value={agendarForm.start_time} onChange={e => setAgendarForm(f => ({ ...f, start_time: e.target.value }))} />
+                </div>
+                <div>
+                  <label className={lbl}>Hora fin</label>
+                  <input type="time" className={inp} value={agendarForm.end_time} onChange={e => setAgendarForm(f => ({ ...f, end_time: e.target.value }))} />
+                </div>
+              </div>
+              <div>
+                <label className={lbl}>Técnico</label>
+                <select className={inp} value={agendarForm.assigned_person} onChange={e => setAgendarForm(f => ({ ...f, assigned_person: e.target.value }))}>
+                  <option value="">Seleccionar...</option>
+                  {staffList.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+                </select>
+              </div>
+              {agendarError && <p className="text-xs text-red-600">{agendarError}</p>}
+              <button onClick={scheduleOrder} disabled={agendarSaving} className="w-full py-2 text-sm font-semibold rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white transition-colors disabled:opacity-60">
+                {agendarSaving ? "Agendando..." : "Crear cita"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Preview modal */}
