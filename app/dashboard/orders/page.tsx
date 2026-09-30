@@ -220,6 +220,12 @@ export default function OrdersPage() {
     });
   }, []);
 
+  // Auto-sum item prices into total_amount
+  useEffect(() => {
+    const sum = detailItems.reduce((s, i) => s + (i.price ?? 0), 0);
+    if (sum > 0) setForm(f => ({ ...f, total_amount: sum }));
+  }, [detailItems]);
+
   const handleSearch = (value: string) => { setSearch(value); fetchOrders(value, onlyWithBalance); };
   const handleBalanceFilter = (checked: boolean) => { setOnlyWithBalance(checked); fetchOrders(search, checked); };
 
@@ -667,7 +673,18 @@ export default function OrdersPage() {
               </select>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div><label className={lbl}>Monto total</label><input type="number" className={inp} value={form.total_amount} onChange={e => setForm({ ...form, total_amount: parseFloat(e.target.value) || 0 })} /></div>
+              <div>
+                <label className={lbl}>
+                  Monto total
+                  {detailItems.some(i => i.price) && <span className="ml-1 text-[#07C3F8] font-normal text-xs">(auto)</span>}
+                </label>
+                <input
+                  type="number" className={inp} value={form.total_amount}
+                  onChange={e => setForm({ ...form, total_amount: parseFloat(e.target.value) || 0 })}
+                  readOnly={detailItems.some(i => i.price)}
+                  style={detailItems.some(i => i.price) ? { background: "#f9fafb", cursor: "default" } : {}}
+                />
+              </div>
               <div><label className={lbl}>Abono</label><input type="number" className={inp} value={form.initial_payment} onChange={e => setForm({ ...form, initial_payment: parseFloat(e.target.value) || 0 })} /></div>
             </div>
             {formError && <p className="text-sm text-red-600">{formError}</p>}
