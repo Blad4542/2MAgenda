@@ -8,6 +8,7 @@ import { Plus, Trash2, Edit, ChevronLeft, ChevronRight, Search, X, Download, Clo
 import { exportCsv } from "@/utils/exportCsv";
 import { logAction } from "@/utils/auditLog";
 import { addNoteToSupabase } from "@/utils/index";
+import { TIME_OPTIONS } from "@/utils/timeOptions";
 import Modal from "@/components/Modal";
 import { v4 as uuidv4 } from "uuid";
 import { waUrl, WaIcon } from "@/utils/wa";
@@ -442,12 +443,11 @@ export default function OrdersPage() {
     setAgendarSaving(true);
     setAgendarError("");
     try {
-      const desc = (orderItemDescriptions[agendarOrder.id] ?? []).join(", ") || agendarOrder.product_description || "";
-      await addNoteToSupabase({
+      const result = await addNoteToSupabase({
         name: agendarOrder.customer_name,
         phone: agendarOrder.phone ?? "",
         vehicle: agendarOrder.vehicle ?? "",
-        description: desc,
+        description: "",
         start_time: agendarForm.start_time,
         end_time: agendarForm.end_time,
         assigned_person: agendarForm.assigned_person,
@@ -455,6 +455,15 @@ export default function OrdersPage() {
         status: "pending",
         customer_id: agendarOrder.customer_id,
       });
+      const insertedId = result.data?.[0]?.id;
+      if (insertedId) {
+        const items = await fetchReceiptItems(agendarOrder.id);
+        if (items.length > 0) {
+          await supabase.from("appointment_tasks").insert(
+            items.map(i => ({ appointment_id: Number(insertedId), description: i.description, price: i.price ?? null }))
+          );
+        }
+      }
       setAgendarOrder(null);
     } catch {
       setAgendarError("Error al crear la cita.");
@@ -791,11 +800,15 @@ export default function OrdersPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className={lbl}>Hora inicio</label>
-                  <input type="time" className={inp} value={agendarForm.start_time} onChange={e => setAgendarForm(f => ({ ...f, start_time: e.target.value }))} />
+                  <select className={inp} value={agendarForm.start_time} onChange={e => setAgendarForm(f => ({ ...f, start_time: e.target.value }))}>
+                    {TIME_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
                 </div>
                 <div>
                   <label className={lbl}>Hora fin</label>
-                  <input type="time" className={inp} value={agendarForm.end_time} onChange={e => setAgendarForm(f => ({ ...f, end_time: e.target.value }))} />
+                  <select className={inp} value={agendarForm.end_time} onChange={e => setAgendarForm(f => ({ ...f, end_time: e.target.value }))}>
+                    {TIME_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
                 </div>
               </div>
               <div>
