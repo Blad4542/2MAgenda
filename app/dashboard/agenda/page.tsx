@@ -414,7 +414,7 @@ const Agenda = () => {
     const is76c = paperWidth === "80mm";
     const fontFamily = is76c ? "Arial, Helvetica, sans-serif" : "monospace";
     const baseFontSize = is76c ? "13px" : "12px";
-    const paperHeight = paperWidth === "58mm" ? "250mm" : "297mm";
+    const paperHeight = paperWidth === "58mm" ? "250mm" : "auto";
     const tasksHtml = tasks.length > 0
       ? tasks.map((t, i) => {
           const desc = t.completed ? `<s>${t.description}</s>` : t.description;
