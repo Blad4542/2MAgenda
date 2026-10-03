@@ -1,11 +1,11 @@
 "use client";
 
-import { memo, useState, useEffect } from "react";
+import { memo, useState, useEffect, useRef } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/utils/supabase/client";
 import {
-  Home, Calendar, FileText, ShoppingCart, LogOut, Droplets, Menu, X, Users, HardHat, ChevronLeft, ChevronRight, ClipboardList,
+  Home, Calendar, FileText, ShoppingCart, LogOut, Droplets, Menu, X, Users, HardHat, ChevronLeft, ChevronRight, ClipboardList, Bell,
 } from "lucide-react";
 import { RoleContext, type Role } from "@/contexts/RoleContext";
 
@@ -60,6 +60,25 @@ const SidebarNav = memo(function SidebarNav({
   );
 });
 
+interface Notif {
+  id: string;
+  type: "order" | "quote";
+  message: string;
+  record_id: string | null;
+  read: boolean;
+  created_at: string;
+}
+
+function timeAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return "hace un momento";
+  if (m < 60) return `hace ${m} min`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `hace ${h} h`;
+  return "ayer";
+}
+
 export default function DashboardShell({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
@@ -67,6 +86,10 @@ export default function DashboardShell({ children }: { children: React.ReactNode
   const [roleLoaded, setRoleLoaded] = useState(false);
   const [displayName, setDisplayName] = useState("");
   const [navigating, setNavigating] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [notifications, setNotifications] = useState<Notif[]>([]);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const notifRef = useRef<HTMLDivElement>(null);
   const router   = useRouter();
   const pathname = usePathname();
   const supabase = createClient();
@@ -87,6 +110,7 @@ export default function DashboardShell({ children }: { children: React.ReactNode
       if (!data.user) return;
       const meta = data.user.user_metadata;
       setDisplayName(meta?.full_name ?? meta?.name ?? data.user.email?.split("@")[0] ?? "");
+      setUserId(data.user.id);
       supabase
         .from("user_roles")
         .select("role, staff_id")
@@ -98,6 +122,62 @@ export default function DashboardShell({ children }: { children: React.ReactNode
         });
     });
   }, []);
+
+  // Fetch initial notifications (admin only)
+  useEffect(() => {
+    if (!userId || roleData.role !== "admin") return;
+    supabase
+      .from("notifications")
+      .select("*")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(20)
+      .then(({ data }) => {
+        if (data) setNotifications(data as Notif[]);
+      });
+  }, [userId, roleData.role]);
+
+  // Realtime subscription (admin only)
+  useEffect(() => {
+    if (!userId || roleData.role !== "admin") return;
+    const channel = supabase
+      .channel("user-notifications")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${userId}` },
+        ({ new: n }) => setNotifications(prev => [n as Notif, ...prev])
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [userId, roleData.role]);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    if (!notifOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
+        setNotifOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [notifOpen]);
+
+  const unreadCount = notifications.filter(n => !n.read).length;
+
+  const openNotifications = async () => {
+    setNotifOpen(v => !v);
+  };
+
+  const markAllRead = async () => {
+    if (!userId) return;
+    await supabase
+      .from("notifications")
+      .update({ read: true })
+      .eq("user_id", userId)
+      .eq("read", false);
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+  };
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -143,6 +223,52 @@ export default function DashboardShell({ children }: { children: React.ReactNode
           {displayName && (
             <span className="hidden sm:block text-sm font-medium text-gray-700">Hola, {displayName}!</span>
           )}
+
+          {/* Bell — admin only */}
+          {roleData.role === "admin" && (
+            <div className="relative" ref={notifRef}>
+              <button
+                onClick={openNotifications}
+                aria-label="Notificaciones"
+                className="relative p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 transition-colors"
+              >
+                <Bell className="w-5 h-5" aria-hidden="true" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-0.5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center leading-none">
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </span>
+                )}
+              </button>
+
+              {notifOpen && (
+                <div className="absolute right-0 top-9 z-[200] w-80 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+                  <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-100">
+                    <span className="text-sm font-semibold text-gray-800">Notificaciones</span>
+                    {unreadCount > 0 && (
+                      <button onClick={markAllRead} className="text-xs text-[#07C3F8] hover:underline">
+                        Marcar todo como leído
+                      </button>
+                    )}
+                  </div>
+                  <ul className="max-h-72 overflow-y-auto divide-y divide-gray-50">
+                    {notifications.length === 0 && (
+                      <li className="px-4 py-6 text-center text-sm text-gray-400">Sin notificaciones</li>
+                    )}
+                    {notifications.map(n => (
+                      <li key={n.id} className={`flex gap-3 px-4 py-3 ${n.read ? "bg-white" : "bg-blue-50"}`}>
+                        <span className="text-lg shrink-0">{n.type === "order" ? "📦" : "📋"}</span>
+                        <div className="min-w-0">
+                          <p className="text-sm text-gray-800 truncate">{n.message}</p>
+                          <p className="text-xs text-gray-400 mt-0.5">{timeAgo(n.created_at)}</p>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+
           <button
             onClick={handleLogout}
             aria-label="Cerrar sesión"

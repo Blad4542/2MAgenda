@@ -6,6 +6,7 @@ import { createClient } from "@/utils/supabase/client";
 import { v4 as uuidv4 } from "uuid";
 import { exportCsv } from "@/utils/exportCsv";
 import { logAction } from "@/utils/auditLog";
+import { notifyAdmin } from "@/utils/notifications";
 import { waUrl, WaIcon } from "@/utils/wa";
 import { useRequireRole } from "@/hooks/useRequireRole";
 import { inp, lbl } from "@/utils/styles";
@@ -433,6 +434,7 @@ export default function TasksPage() {
           await supabase.from("quote_items").insert(detailItems.map(item => ({ id: item.id, task_id: id, description: item.description })));
         }
         await logAction(supabase, { table_name: "pending_tasks", record_id: id, action: "create", description: `Cotización de ${form.name}`, user_email: userEmail });
+        await notifyAdmin(supabase, { type: "quote", message: `Nueva cotización — ${form.name}`, record_id: id });
       }
       setIsOpen(false); resetForm(); setEditing(null); fetchTasks(search);
     } finally {

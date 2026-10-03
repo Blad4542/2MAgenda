@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import { Dialog } from "@headlessui/react";
-import { X, Camera, Trash2, Plus, Loader2 } from "lucide-react";
+import { X, Camera, Trash2, Plus, Loader2, Printer } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale/es";
 import { waUrl } from "@/utils/wa";
@@ -73,7 +73,7 @@ Quedo atenta a su confirmación.`;
 const TaskModal = ({
   isOpen, onClose, onSave, onDelete, task, setTask, isNewTask, errorMessage,
   businessPhone = "", appointmentDate, supabase, initialPendingTasks = [], onMoveToWaiting, staffList = [], onCancel,
-  hideFinancials = false, readOnly = false, saving = false,
+  hideFinancials = false, readOnly = false, saving = false, onPrint,
 }: {
   isOpen: boolean; onClose: () => void; onSave: (pendingTasks?: PendingTask[], vehicleData?: { make: string; model: string; year: string }) => void;
   onDelete?: (id: number | string) => void; task: TaskFormState; setTask: (t: TaskFormState) => void;
@@ -87,6 +87,7 @@ const TaskModal = ({
   hideFinancials?: boolean;
   readOnly?: boolean;
   saving?: boolean;
+  onPrint?: () => void;
 }) => {
   const [customerVehicles, setCustomerVehicles] = useState<VehicleRecord[]>([]);
   const [isNewVehicle, setIsNewVehicle] = useState(true);
@@ -684,6 +685,15 @@ const TaskModal = ({
 
           {/* Footer */}
           <div className="flex justify-end gap-2 px-5 py-4 border-t border-gray-100 bg-gray-50">
+            {onPrint && !deleteConfirm && !cancelMode && (
+              <button
+                onClick={onPrint}
+                className="mr-auto flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-xl bg-gray-100 text-gray-600 border border-gray-200 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200 transition-colors"
+              >
+                <Printer size={14} />
+                Imprimir
+              </button>
+            )}
             {!readOnly && !isNewTask && !cancelMode && !deleteConfirm && (
               <>
                 <button onClick={() => setDeleteConfirm(true)} className="px-4 py-2 text-sm font-medium rounded-xl bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 transition-colors">

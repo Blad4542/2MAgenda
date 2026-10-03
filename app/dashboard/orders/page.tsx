@@ -7,6 +7,7 @@ import { createClient } from "@/utils/supabase/client";
 import { Plus, Trash2, Edit, ChevronLeft, ChevronRight, Search, X, Download, Clock, Printer, Eye, CalendarPlus } from "lucide-react";
 import { exportCsv } from "@/utils/exportCsv";
 import { logAction } from "@/utils/auditLog";
+import { notifyAdmin } from "@/utils/notifications";
 import { addNoteToSupabase } from "@/utils/index";
 import { TIME_OPTIONS } from "@/utils/timeOptions";
 import Modal from "@/components/Modal";
@@ -509,6 +510,7 @@ export default function OrdersPage() {
           await supabase.from("order_items").insert(detailItems.map(item => ({ id: item.id, order_id: id, description: item.description, price: item.price ?? null })));
         }
         await logAction(supabase, { table_name: "orders", record_id: id, action: "create", description: `Pedido de ${name}`, user_email: userEmail });
+        await notifyAdmin(supabase, { type: "order", message: `Nuevo pedido — ${name}`, record_id: id });
       }
       setIsOpen(false);
       setForm(emptyForm);

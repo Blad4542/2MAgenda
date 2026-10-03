@@ -13,7 +13,7 @@ import { getAppSetting, setAppSetting } from "@/utils/appSettings";
 import { useRole, useStaffId } from "@/contexts/RoleContext";
 import { waUrl, WaIcon } from "@/utils/wa";
 import { inp, lbl } from "@/utils/styles";
-import { ChevronLeft, ChevronRight, Plus, Edit, Trash2, CalendarPlus, X, Settings } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Edit, Trash2, CalendarPlus, X, Settings, Printer } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
 import { format, startOfWeek, addDays } from "date-fns";
 import { es } from "date-fns/locale/es";
@@ -134,6 +134,8 @@ const Agenda = () => {
     customer_id?: string; vehicle_id?: string;
   }>({ start_time: "", end_time: "", assigned_person: "", staff_id: undefined, name: "", phone: "", description: "", vehicle: "", placa: "", abono: undefined, status: "pending", appointment_date: new Date().toISOString() });
   const [notes, setNotes] = useState<Appointment[]>([]);
+  const [previewAppt, setPreviewAppt] = useState<Appointment | null>(null);
+  const [previewApptHtml, setPreviewApptHtml] = useState("");
   const [isNewTask, setIsNewTask] = useState(true);
   const [user, setUser] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -307,6 +309,101 @@ const Agenda = () => {
     const mon = startOfWeek(selectedDate, { weekStartsOn: 1 });
     return Array.from({ length: 7 }, (_, i) => addDays(mon, i));
   }, [selectedDate]);
+
+  const buildAppointmentHtml = (appt: Appointment): string => {
+    const rawDate = appt.appointment_date ?? "";
+    const dateStr = rawDate
+      ? format(new Date(rawDate.includes("T") ? rawDate : rawDate + "T12:00:00"), "dd/MMM/yyyy", { locale: es })
+      : "";
+    const tasks = appt.appointment_tasks ?? [];
+    const total = tasks.reduce((s, t) => s + (t.price ?? 0), 0);
+    const abono = appt.abono ?? 0;
+    const saldo = Math.max(0, total - abono);
+    const fmt = (n: number) => `&#8353;${n.toLocaleString("es-CR")}`;
+
+    const vehicleSection = (appt.vehicle || appt.placa) ? `
+      <div class="section">
+        <div class="section-title">VEHÍCULO</div>
+        <table><tbody>
+          ${appt.vehicle ? `<tr><td class="lbl">Vehículo:</td><td>${appt.vehicle}</td></tr>` : ""}
+          ${appt.placa ? `<tr><td class="lbl">Placa:</td><td>${appt.placa}</td></tr>` : ""}
+        </tbody></table>
+      </div>` : "";
+
+    const tasksSection = tasks.length > 0 ? `
+      <div class="section">
+        <div class="section-title">SERVICIOS</div>
+        <table><tbody>
+          ${tasks.map(t => `
+            <tr>
+              <td style="width:16px">${t.completed ? "✓" : "☐"}</td>
+              <td>${t.description}</td>
+              ${(t.price ?? 0) > 0 ? `<td class="r">${fmt(t.price!)}</td>` : "<td></td>"}
+            </tr>`).join("")}
+        </tbody></table>
+      </div>` : "";
+
+    const financialSection = total > 0 ? `
+      <div class="section">
+        <div class="section-title">RESUMEN</div>
+        <table><tbody>
+          <tr><td class="lbl">Total:</td><td class="r">${fmt(total)}</td></tr>
+          ${abono > 0 ? `<tr><td class="lbl">Abono:</td><td class="r">${fmt(abono)}</td></tr>
+          <tr><td class="lbl" style="font-weight:bold">Saldo:</td><td class="r" style="font-weight:bold">${fmt(saldo)}</td></tr>` : ""}
+        </tbody></table>
+      </div>` : "";
+
+    return `<!DOCTYPE html><html><head><meta charset="utf-8"/>
+    <title>Comprobante de cita</title>
+    <style>
+      * { box-sizing: border-box; }
+      body { font-family: Arial, sans-serif; font-size: 13px; color: #111; padding: 24px 32px; margin: 0; }
+      h1 { text-align: center; font-size: 18px; margin: 0 0 4px; letter-spacing: 1px; }
+      h2 { text-align: center; font-size: 13px; font-weight: normal; margin: 0 0 12px; color: #555; }
+      .section { margin-bottom: 14px; }
+      .section-title { font-size: 11px; font-weight: bold; letter-spacing: 0.8px; color: #666; border-bottom: 1px solid #ddd; padding-bottom: 3px; margin-bottom: 6px; }
+      table { width: 100%; border-collapse: collapse; }
+      td { padding: 2px 0; vertical-align: top; }
+      td.lbl { color: #555; width: 90px; }
+      td.r { text-align: right; }
+@page { size: letter; margin: 20mm; }
+    </style></head><body>
+    <h1>AUTODECORACIÓN 2M</h1>
+    <h2>COMPROBANTE DE CITA</h2>
+    <div class="section">
+      <div class="section-title">CLIENTE</div>
+      <table><tbody>
+        <tr><td class="lbl">Nombre:</td><td>${appt.name}</td></tr>
+        ${appt.phone ? `<tr><td class="lbl">Teléfono:</td><td>${appt.phone}</td></tr>` : ""}
+      </tbody></table>
+    </div>
+    ${vehicleSection}
+    <div class="section">
+      <div class="section-title">CITA</div>
+      <table><tbody>
+        ${dateStr ? `<tr><td class="lbl">Fecha:</td><td>${dateStr}</td></tr>` : ""}
+        ${appt.start_time && appt.end_time ? `<tr><td class="lbl">Horario:</td><td>${appt.start_time.slice(0,5)} – ${appt.end_time.slice(0,5)}</td></tr>` : ""}
+      </tbody></table>
+    </div>
+    ${tasksSection}
+    ${financialSection}
+    </body></html>`;
+  };
+
+  const printAppointment = (appt: Appointment) => {
+    const html = buildAppointmentHtml(appt);
+    const win = window.open("", "_blank", "width=800,height=900,toolbar=0,menubar=0");
+    if (!win) return;
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    setTimeout(() => { win.print(); win.close(); }, 300);
+  };
+
+  const openPreviewAppt = (appt: Appointment) => {
+    setPreviewApptHtml(buildAppointmentHtml(appt));
+    setPreviewAppt(appt);
+  };
 
   const confirmAppt = async (id: string | number) => {
     await supabase.from("appointments").update({ status: "confirmed" }).eq("id", id);
@@ -802,6 +899,13 @@ const Agenda = () => {
                                     <svg viewBox="0 0 10 10" width="10" height="10" fill="none" stroke="#6366f1" strokeWidth="1.5"><path d="M2 5l2 2 4-4"/></svg>
                                   </button>
                                 )}
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); openPreviewAppt(task); }}
+                                  title="Vista previa / imprimir"
+                                  className="w-5 h-5 rounded-full bg-gray-100 hover:bg-emerald-100 flex items-center justify-center transition-colors"
+                                >
+                                  <Printer size={10} className="text-gray-400" />
+                                </button>
                               </div>
                             </div>
                             <div className="flex items-center gap-1 min-w-0">
@@ -977,7 +1081,44 @@ const Agenda = () => {
       </div>
 
       {isModalOpen && (
-        <TaskModal isOpen={isModalOpen} onClose={handleModalClose} onSave={handleSaveNote} task={currentTask} setTask={setCurrentTask} isNewTask={isNewTask} onDelete={canEdit && role !== "tecnico" ? handleDeleteNote : undefined} hideFinancials={role === "tecnico"} readOnly={role === "tecnico" && !isNewTask} errorMessage={errorMessage} businessPhone={businessPhone} appointmentDate={selectedDate} supabase={supabase} initialPendingTasks={pendingTasksForModal} onMoveToWaiting={!isNewTask ? handleMoveToWaiting : undefined} staffList={PEOPLE} onCancel={!isNewTask ? handleCancelAppointment : undefined} saving={saving} />
+        <TaskModal isOpen={isModalOpen} onClose={handleModalClose} onSave={handleSaveNote} task={currentTask} setTask={setCurrentTask} isNewTask={isNewTask} onDelete={canEdit && role !== "tecnico" ? handleDeleteNote : undefined} hideFinancials={role === "tecnico"} readOnly={role === "tecnico" && !isNewTask} errorMessage={errorMessage} businessPhone={businessPhone} appointmentDate={selectedDate} supabase={supabase} initialPendingTasks={pendingTasksForModal} onMoveToWaiting={!isNewTask ? handleMoveToWaiting : undefined} staffList={PEOPLE} onCancel={!isNewTask ? handleCancelAppointment : undefined} saving={saving} onPrint={!isNewTask && currentTask ? () => openPreviewAppt(currentTask as Appointment) : undefined} />
+      )}
+
+      {/* Appointment preview modal */}
+      {previewAppt && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden max-h-[90vh]" style={{ width: "700px" }}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 bg-gray-50 shrink-0">
+              <h2 className="text-base font-semibold text-gray-900">Vista previa — {previewAppt.name}</h2>
+              <button onClick={() => setPreviewAppt(null)} className="text-gray-400 hover:text-gray-700 p-1.5 rounded-lg hover:bg-gray-200 transition-colors">
+                <X size={16} />
+              </button>
+            </div>
+            <div className="overflow-y-auto flex-1 bg-gray-100 p-4 flex justify-center">
+              <iframe
+                srcDoc={previewApptHtml}
+                title="Vista previa comprobante"
+                style={{ width: "620px", minHeight: "500px", border: "1px solid #e5e7eb", background: "#fff", borderRadius: "4px" }}
+                onLoad={e => {
+                  const iframe = e.currentTarget;
+                  const body = iframe.contentDocument?.body;
+                  if (body) iframe.style.height = body.scrollHeight + 32 + "px";
+                }}
+              />
+            </div>
+            <div className="flex justify-end gap-2 px-5 py-4 border-t border-gray-100 bg-gray-50 shrink-0">
+              <button onClick={() => setPreviewAppt(null)} className="px-4 py-2 text-sm font-medium rounded-xl text-gray-600 hover:bg-gray-100 transition-colors">
+                Cerrar
+              </button>
+              <button
+                onClick={() => { setPreviewAppt(null); printAppointment(previewAppt); }}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white transition-colors"
+              >
+                <Printer size={14} /> Imprimir
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Settings modal */}

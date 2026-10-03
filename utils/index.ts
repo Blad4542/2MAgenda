@@ -34,9 +34,14 @@ export const addNoteToSupabase = async (
   const supabase = createClient();
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { id: _id, appointment_tasks: _tasks, ...fields } = appointment;
+  const sanitized = {
+    ...fields,
+    start_time: fields.start_time || null,
+    end_time: fields.end_time || null,
+  };
   const { data, error } = await supabase
     .from("appointments")
-    .insert([fields])
+    .insert([sanitized])
     .select();
 
   if (error) {
