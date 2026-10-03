@@ -400,6 +400,80 @@ const Agenda = () => {
     setTimeout(() => { win.print(); win.close(); }, 300);
   };
 
+  const buildApptReceiptHtml = (appt: Appointment, paperWidth: "58mm" | "80mm" = "80mm"): string => {
+    const rawDate = appt.appointment_date ?? "";
+    const dateStr = rawDate
+      ? format(new Date(rawDate.includes("T") ? rawDate : rawDate + "T12:00:00"), "dd/MM/yyyy", { locale: es })
+      : "";
+    const tasks = appt.appointment_tasks ?? [];
+    const total = tasks.reduce((s, t) => s + (t.price ?? 0), 0);
+    const abono = appt.abono ?? 0;
+    const saldo = Math.max(0, total - abono);
+    const fmt = (n: number) => `CRC ${n.toLocaleString("es-CR")}`;
+    const tasksHtml = tasks.length > 0
+      ? tasks.map((t, i) => {
+          const desc = t.completed ? `<s>${t.description}</s>` : t.description;
+          const price = (t.price ?? 0) > 0 ? `<span class="item-price">${fmt(t.price!)}</span>` : "";
+          return `<tr><td style="padding:4px 0 2px;border-bottom:1px dotted #ccc"><span style="font-weight:bold">${i + 1}.</span> ${desc}${price}</td></tr>`;
+        }).join("")
+      : `<tr><td style="color:#888;padding:4px 0">Sin servicios</td></tr>`;
+    return `<!DOCTYPE html><html><head><meta charset="utf-8">
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body { font-family: monospace; font-size: 12px; width: 100%; color: #000; background: #fff; }
+      h1 { font-size: 14px; text-align: center; font-weight: bold; letter-spacing: 0.5px; margin-bottom: 2px; }
+      .center { text-align: center; }
+      .line { border-top: 1px dashed #000; margin: 6px 0; }
+      table { width: 100%; border-collapse: collapse; }
+      td { font-size: 12px; padding: 2px 0; vertical-align: top; }
+      td.r { text-align: right; white-space: nowrap; }
+      .lbl { color: #444; width: 45%; }
+      .saldo td { font-size: 13px; font-weight: bold; padding-top: 4px; }
+      .item-price { text-align: right; font-weight: bold; display: block; margin-top: 1px; }
+      @media print { @page { margin: 0; size: ${paperWidth} auto; } body { padding: 0 3mm; } }
+    </style></head><body>
+    <h1>AUTODECORACION 2M</h1>
+    <p class="center" style="font-size:10px;margin-bottom:6px;">Comprobante de cita</p>
+    <div class="line"></div>
+    <table><tbody>
+      ${dateStr ? `<tr><td class="lbl">Fecha:</td><td class="r">${dateStr}</td></tr>` : ""}
+      ${appt.start_time && appt.end_time ? `<tr><td class="lbl">Horario:</td><td class="r">${appt.start_time.slice(0,5)} – ${appt.end_time.slice(0,5)}</td></tr>` : ""}
+    </tbody></table>
+    <div class="line"></div>
+    <p style="font-weight:bold;margin-bottom:4px;font-size:11px;letter-spacing:0.5px">CLIENTE</p>
+    <table><tbody>
+      <tr><td class="lbl">Nombre:</td><td class="r">${appt.name}</td></tr>
+      ${appt.phone ? `<tr><td class="lbl">Tel:</td><td class="r">${appt.phone}</td></tr>` : ""}
+      ${appt.vehicle ? `<tr><td class="lbl">Vehículo:</td><td class="r" style="word-break:break-word">${appt.vehicle}</td></tr>` : ""}
+      ${appt.placa ? `<tr><td class="lbl">Placa:</td><td class="r">${appt.placa}</td></tr>` : ""}
+    </tbody></table>
+    ${tasks.length > 0 ? `<div class="line"></div>
+    <p style="font-weight:bold;margin-bottom:4px;font-size:11px;letter-spacing:0.5px">SERVICIOS</p>
+    <table><tbody>${tasksHtml}</tbody></table>` : ""}
+    ${total > 0 ? `<div class="line"></div>
+    <table><tbody>
+      <tr><td class="lbl">Total:</td><td class="r">${fmt(total)}</td></tr>
+      ${abono > 0 ? `<tr><td class="lbl">Abono:</td><td class="r">${fmt(abono)}</td></tr>` : ""}
+    </tbody></table>
+    <div class="line"></div>
+    <table><tbody>
+      <tr class="saldo"><td>SALDO:</td><td class="r">${fmt(saldo)}</td></tr>
+    </tbody></table>` : ""}
+    <div class="line"></div>
+    <div style="height:5mm"></div>
+    </body></html>`;
+  };
+
+  const printApptThermal = (appt: Appointment, paperWidth: "58mm" | "80mm") => {
+    const html = buildApptReceiptHtml(appt, paperWidth);
+    const win = window.open("", "_blank", "width=320,height=600,toolbar=0,menubar=0");
+    if (!win) return;
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    setTimeout(() => { win.print(); win.close(); }, 300);
+  };
+
   const openPreviewAppt = (appt: Appointment) => {
     setPreviewApptHtml(buildAppointmentHtml(appt));
     setPreviewAppt(appt);
@@ -1111,10 +1185,16 @@ const Agenda = () => {
                 Cerrar
               </button>
               <button
-                onClick={() => { setPreviewAppt(null); printAppointment(previewAppt); }}
+                onClick={() => { setPreviewAppt(null); printApptThermal(previewAppt, "58mm"); }}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-xl bg-gray-600 hover:bg-gray-800 text-white transition-colors"
+              >
+                <Printer size={14} /> POS08
+              </button>
+              <button
+                onClick={() => { setPreviewAppt(null); printApptThermal(previewAppt, "80mm"); }}
                 className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white transition-colors"
               >
-                <Printer size={14} /> Imprimir
+                <Printer size={14} /> POS-76C
               </button>
             </div>
           </div>
