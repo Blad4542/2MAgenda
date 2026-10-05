@@ -519,9 +519,13 @@ const Agenda = () => {
         .gte("appointment_date", dayStart.toISOString())
         .lte("appointment_date", dayEnd.toISOString())
         .neq("status", "cancelled");
-      const filtered = (conflicts ?? []).filter(a => isNewTask || String(a.id) !== String(currentTask.id));
-      if (filtered.some(a => timesOverlap(currentTask.start_time, currentTask.end_time, a.start_time, a.end_time))) {
-        setErrorMessage(`${currentTask.assigned_person} ya tiene una cita en ese horario.`);
+      const filtered = (conflicts ?? []).filter(a =>
+        (isNewTask || String(a.id) !== String(currentTask.id)) &&
+        toMin(a.start_time) < toMin(a.end_time)
+      );
+      const conflicting = filtered.find(a => timesOverlap(currentTask.start_time, currentTask.end_time, a.start_time, a.end_time));
+      if (conflicting) {
+        setErrorMessage(`${currentTask.assigned_person} ya tiene una cita de ${conflicting.start_time?.slice(0,5)} a ${conflicting.end_time?.slice(0,5)} (ID: ${conflicting.id}).`);
         setSaving(false);
         return;
       }
