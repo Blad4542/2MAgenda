@@ -406,10 +406,6 @@ const Agenda = () => {
       ? format(new Date(rawDate.includes("T") ? rawDate : rawDate + "T12:00:00"), "dd/MM/yyyy", { locale: es })
       : "";
     const tasks = appt.appointment_tasks ?? [];
-    const total = tasks.reduce((s, t) => s + (t.price ?? 0), 0);
-    const abono = appt.abono ?? 0;
-    const saldo = Math.max(0, total - abono);
-    const fmt = (n: number) => `CRC ${n.toLocaleString("es-CR")}`;
     // POS08 (58mm): monospace, fixed height for auto-cut. POS-76C (80mm): Arial bold, crisp.
     const is76c = paperWidth === "80mm";
     const fontFamily = is76c ? "Arial, Helvetica, sans-serif" : "monospace";
@@ -418,8 +414,7 @@ const Agenda = () => {
     const tasksHtml = tasks.length > 0
       ? tasks.map((t, i) => {
           const desc = t.completed ? `<s>${t.description}</s>` : t.description;
-          const price = (t.price ?? 0) > 0 ? `<span class="item-price">${fmt(t.price!)}</span>` : "";
-          return `<tr><td style="padding:4px 0 2px;border-bottom:1px dotted #000"><span style="font-weight:bold">${i + 1}.</span> ${desc}${price}</td></tr>`;
+          return `<tr><td style="padding:4px 0 2px;border-bottom:1px dotted #000"><span style="font-weight:bold">${i + 1}.</span> ${desc}</td></tr>`;
         }).join("")
       : `<tr><td style="padding:4px 0">Sin servicios</td></tr>`;
     return `<!DOCTYPE html><html><head><meta charset="utf-8">
@@ -455,15 +450,6 @@ const Agenda = () => {
     ${tasks.length > 0 ? `<div class="line"></div>
     <p style="font-weight:bold;margin-bottom:4px;font-size:11px;letter-spacing:0.5px">SERVICIOS</p>
     <table><tbody>${tasksHtml}</tbody></table>` : ""}
-    ${total > 0 ? `<div class="line"></div>
-    <table><tbody>
-      <tr><td class="lbl">Total:</td><td class="r">${fmt(total)}</td></tr>
-      ${abono > 0 ? `<tr><td class="lbl">Abono:</td><td class="r">${fmt(abono)}</td></tr>` : ""}
-    </tbody></table>
-    <div class="line"></div>
-    <table><tbody>
-      <tr class="saldo"><td>SALDO:</td><td class="r">${fmt(saldo)}</td></tr>
-    </tbody></table>` : ""}
     <div class="line"></div>
     <div style="height:5mm"></div>
     </body></html>`;

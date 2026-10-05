@@ -36,14 +36,14 @@ export default function InventoryTable({ data, onEdit, onDelete, selected, onTog
               <th className="px-4 py-3 w-10">
                 <input type="checkbox" checked={allSelected} onChange={() => onToggleAll(allSelected)} className="rounded border-gray-300 text-[#07C3F8] focus:ring-[#07C3F8]" />
               </th>
-              {["Marca", "Modelo", "Desde", "Hasta", "Puertas", "Tipo", "Disp.", "Descripción", "Molde", "Usuario", ""].map((h) => (
+              {["Marca", "Modelo", "Desde", "Hasta", "Puertas", "Tipo", "Disp.", "Descripción", "Molde", ""].map((h) => (
                 <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {data.length === 0 ? (
-              <tr><td colSpan={12} className="px-4 py-12 text-center text-gray-400 text-sm">No hay items en el inventario</td></tr>
+              <tr><td colSpan={11} className="px-4 py-12 text-center text-gray-400 text-sm">No hay items en el inventario</td></tr>
             ) : (
               data.map((item) => (
                 <tr key={item.id} className={`transition-colors ${selected.has(item.id) ? "bg-[#07C3F8]/5" : "hover:bg-gray-50"}`}>
@@ -59,7 +59,6 @@ export default function InventoryTable({ data, onEdit, onDelete, selected, onTog
                   <td className="px-4 py-3 text-sm font-semibold text-[#07C3F8] text-center">{item.quantity}</td>
                   <td className="px-4 py-3 text-sm text-gray-500 max-w-[180px] truncate">{item.description}</td>
                   <td className="px-4 py-3 text-sm text-gray-500 whitespace-nowrap">{item.mold_number}</td>
-                  <td className="px-4 py-3 text-sm text-gray-500 whitespace-nowrap">{item.user_name}</td>
                   <td className="px-4 py-3">
                     <div className="flex gap-1">
                       <button onClick={() => onEdit(item)} className="p-1.5 rounded-lg text-gray-400 hover:text-[#07C3F8] hover:bg-[#07C3F8]/10 transition-colors"><Edit size={14} /></button>

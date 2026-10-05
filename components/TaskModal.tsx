@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import { Dialog } from "@headlessui/react";
-import { X, Camera, Trash2, Plus, Loader2, Printer } from "lucide-react";
+import { X, Camera, Trash2, Plus, Loader2, Printer, MoreVertical, Clock, Ban } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale/es";
 import { waUrl } from "@/utils/wa";
@@ -103,6 +103,9 @@ const TaskModal = ({
   const [newTaskText, setNewTaskText] = useState("");
   const [newTaskPrice, setNewTaskPrice] = useState<string>("");
   const [pendingTasks, setPendingTasks] = useState<PendingTask[]>(initialPendingTasks ?? []);
+  const [pasteTargetTaskId, setPasteTargetTaskId] = useState<string | null>(null);
+  const [actionsOpen, setActionsOpen] = useState(false);
+  const actionsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -127,6 +130,32 @@ const TaskModal = ({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, isNewTask]);
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+
+  useEffect(() => {
+    if (!isOpen || isNewTask) return;
+    const handlePaste = (e: ClipboardEvent) => {
+      const targetId = pasteTargetTaskId ?? apptTasks[apptTasks.length - 1]?.id;
+      if (!targetId) return;
+      const items = Array.from(e.clipboardData?.items ?? []);
+      const imageFile = items.find(item => item.type.startsWith("image/"))?.getAsFile();
+      if (imageFile) {
+        e.preventDefault();
+        uploadPhotos(targetId, [imageFile]);
+      }
+    };
+    document.addEventListener("paste", handlePaste);
+    return () => document.removeEventListener("paste", handlePaste);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, isNewTask, pasteTargetTaskId, apptTasks]);
+
+  useEffect(() => {
+    if (!actionsOpen) return;
+    const handleClick = (e: MouseEvent) => {
+      if (actionsRef.current && !actionsRef.current.contains(e.target as Node)) setActionsOpen(false);
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [actionsOpen]);
 
   const onChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
     setTask({ ...task, [e.target.name]: e.target.value } as TaskFormState);
@@ -506,7 +535,10 @@ const TaskModal = ({
                 <ul className="space-y-2">
                   {apptTasks.map(t => (
                     <React.Fragment key={t.id}>
-                      <li className="flex items-center gap-1.5">
+                      <li
+                        className={`flex items-center gap-1.5 rounded-lg transition-colors ${pasteTargetTaskId === t.id ? "ring-1 ring-[#07C3F8] bg-sky-50/50 px-1" : ""}`}
+                        onClick={() => setPasteTargetTaskId(t.id)}
+                      >
                         <input
                           type="checkbox"
                           checked={t.completed}
@@ -533,8 +565,9 @@ const TaskModal = ({
                           onChange={e => { const files = Array.from(e.target.files ?? []); if (files.length) uploadPhotos(t.id, files); e.target.value = ""; }}
                         />
                         <button
-                          onClick={() => fileInputRefs.current[t.id]?.click()}
+                          onClick={() => { setPasteTargetTaskId(t.id); fileInputRefs.current[t.id]?.click(); }}
                           className="shrink-0 p-1.5 rounded-lg text-gray-400 hover:text-[#07C3F8] hover:bg-gray-100 transition-colors"
+                          title={pasteTargetTaskId === t.id ? "Ctrl+V para pegar foto" : "Agregar foto"}
                           aria-label="Agregar foto"
                           disabled={t.uploading}
                         >
@@ -684,36 +717,25 @@ const TaskModal = ({
           </div>
 
           {/* Footer */}
-          <div className="flex justify-end gap-2 px-5 py-4 border-t border-gray-100 bg-gray-50">
+          <div className="flex items-center gap-2 px-5 py-4 border-t border-gray-100 bg-gray-50">
+            {/* Imprimir — izquierda */}
             {onPrint && !deleteConfirm && !cancelMode && (
               <button
                 onClick={onPrint}
-                className="mr-auto flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-xl bg-gray-100 text-gray-600 border border-gray-200 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200 transition-colors"
+                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-xl bg-gray-100 text-gray-600 border border-gray-200 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200 transition-colors"
               >
                 <Printer size={14} />
                 Imprimir
               </button>
             )}
-            {!readOnly && !isNewTask && !cancelMode && !deleteConfirm && (
-              <>
-                <button onClick={() => setDeleteConfirm(true)} className="px-4 py-2 text-sm font-medium rounded-xl bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 transition-colors">
-                  Eliminar
-                </button>
-                {onMoveToWaiting && (
-                  <button onClick={onMoveToWaiting} className="px-4 py-2 text-sm font-medium rounded-xl bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-colors">
-                    Mover a espera
-                  </button>
-                )}
-                {onCancel && (
-                  <button onClick={() => setCancelMode(true)} className="px-4 py-2 text-sm font-medium rounded-xl bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200 transition-colors">
-                    Cancelar cita
-                  </button>
-                )}
-              </>
-            )}
+
+            {/* Spacer */}
+            <div className="flex-1" />
+
+            {/* Delete confirm mode */}
             {deleteConfirm && (
               <>
-                <span className="text-sm text-gray-600 mr-auto">¿Eliminar esta cita?</span>
+                <span className="text-sm text-gray-600">¿Eliminar esta cita?</span>
                 <button onClick={() => setDeleteConfirm(false)} className="px-4 py-2 text-sm font-medium rounded-xl bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200 transition-colors">
                   Volver
                 </button>
@@ -722,6 +744,8 @@ const TaskModal = ({
                 </button>
               </>
             )}
+
+            {/* Cancel mode */}
             {cancelMode && (
               <>
                 <button onClick={() => { setCancelMode(false); setCancelReason(""); }} className="px-4 py-2 text-sm font-medium rounded-xl bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200 transition-colors">
@@ -732,15 +756,58 @@ const TaskModal = ({
                 </button>
               </>
             )}
-            {!readOnly && !cancelMode && !deleteConfirm && (
-              <button onClick={() => onSave(isNewTask ? pendingTasks : undefined, vehicleFields)} disabled={saving} className="px-4 py-2 text-sm font-semibold rounded-xl bg-[#07C3F8] hover:bg-[#06aad9] text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                {saving ? "Guardando..." : "Guardar"}
-              </button>
-            )}
-            {readOnly && (
-              <button onClick={onClose} className="px-4 py-2 text-sm font-semibold rounded-xl bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 transition-colors">
-                Cerrar
-              </button>
+
+            {/* Normal mode — ⋮ dropdown + Guardar */}
+            {!deleteConfirm && !cancelMode && (
+              <>
+                {!readOnly && !isNewTask && (
+                  <div className="relative" ref={actionsRef}>
+                    <button
+                      onClick={() => setActionsOpen(v => !v)}
+                      className="p-2 rounded-xl bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200 transition-colors"
+                      title="Más acciones"
+                    >
+                      <MoreVertical size={16} />
+                    </button>
+                    {actionsOpen && (
+                      <div className="absolute bottom-full mb-1 right-0 bg-white border border-gray-200 rounded-xl shadow-lg py-1 min-w-[160px] z-10">
+                        <button
+                          onClick={() => { setActionsOpen(false); setDeleteConfirm(true); }}
+                          className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                        >
+                          <Trash2 size={14} /> Eliminar
+                        </button>
+                        {onMoveToWaiting && (
+                          <button
+                            onClick={() => { setActionsOpen(false); onMoveToWaiting(); }}
+                            className="w-full flex items-center gap-2 px-4 py-2 text-sm text-amber-700 hover:bg-amber-50 transition-colors"
+                          >
+                            <Clock size={14} /> Mover a espera
+                          </button>
+                        )}
+                        {onCancel && (
+                          <button
+                            onClick={() => { setActionsOpen(false); setCancelMode(true); }}
+                            className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+                          >
+                            <Ban size={14} /> Cancelar cita
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {!readOnly && (
+                  <button onClick={() => onSave(isNewTask ? pendingTasks : undefined, vehicleFields)} disabled={saving} className="px-4 py-2 text-sm font-semibold rounded-xl bg-[#07C3F8] hover:bg-[#06aad9] text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                    {saving ? "Guardando..." : "Guardar"}
+                  </button>
+                )}
+                {readOnly && (
+                  <button onClick={onClose} className="px-4 py-2 text-sm font-semibold rounded-xl bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 transition-colors">
+                    Cerrar
+                  </button>
+                )}
+              </>
             )}
           </div>
         </Dialog.Panel>

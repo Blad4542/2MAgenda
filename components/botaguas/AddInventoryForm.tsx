@@ -37,8 +37,8 @@ export default function AddInventoryForm({ onSubmit, onClose, item }: AddInvento
   };
 
   const handleSubmit = () => {
-    if (!formData.brand || !formData.model || !formData.year_start || !formData.doors || !formData.quantity || !formData.mold_number) {
-      alert("Todos los campos (excepto Año Fin y Descripción) son obligatorios");
+    if (!formData.brand || !formData.model || !formData.year_start || !formData.doors || !formData.mold_number) {
+      alert("Todos los campos (excepto Año Fin, Disponibles y Descripción) son obligatorios");
       return;
     }
     onSubmit(formData);
