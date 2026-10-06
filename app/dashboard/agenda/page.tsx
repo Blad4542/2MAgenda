@@ -144,6 +144,7 @@ const Agenda = () => {
   const currentSlotRef = useRef<string | null>(null);
   const fetchNotesRef = useRef<(() => Promise<void>) | null>(null);
   const userRef = useRef<string | null>(null);
+  const originalTimesRef = useRef<{ start_time: string; end_time: string; assigned_person: string } | null>(null);
   const supabase = useMemo(() => createClient(), []);
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const PEOPLE = useMemo(() => {
@@ -507,8 +508,13 @@ const Agenda = () => {
     }
     setErrorMessage("");
     setSaving(true);
-    // Overlap check
-    if (currentTask.start_time && currentTask.end_time && currentTask.assigned_person) {
+    // Overlap check — skip on edit if times/person unchanged (appointment already exists in DB)
+    const orig = originalTimesRef.current;
+    const timesChanged = isNewTask || !orig ||
+      currentTask.start_time !== orig.start_time ||
+      currentTask.end_time !== orig.end_time ||
+      currentTask.assigned_person !== orig.assigned_person;
+    if (timesChanged && currentTask.start_time && currentTask.end_time && currentTask.assigned_person) {
       const apptDate = isNewTask ? selectedDate : new Date(currentTask.appointment_date);
       const dayStart = new Date(apptDate); dayStart.setHours(0, 0, 0, 0);
       const dayEnd = new Date(apptDate); dayEnd.setHours(23, 59, 59, 999);
@@ -529,6 +535,12 @@ const Agenda = () => {
         setSaving(false);
         return;
       }
+    }
+    // For new appointments, require end_time when start_time is set
+    if (isNewTask && currentTask.start_time && !currentTask.end_time) {
+      setErrorMessage("Si seleccionas hora de inicio, debes seleccionar también la hora de fin.");
+      setSaving(false);
+      return;
     }
     const desc = `Cita de ${currentTask.name} — ${currentTask.assigned_person} ${currentTask.start_time}`;
     let customerId = currentTask.customer_id;
@@ -620,6 +632,7 @@ const Agenda = () => {
   const handleNewTaskClick = async (hour: string, person: string) => {
     if (todayHoliday) { setErrorMessage(`Día feriado: ${todayHoliday.name}. No se pueden agendar citas.`); return; }
     if (isSaturdayAfternoon(selectedDate, hour)) { setErrorMessage("Los sábados cerramos a las 12:00 pm. No se pueden agendar citas después del mediodía."); return; }
+    originalTimesRef.current = null;
     if (user && channelRef.current) {
       const slot = `${person}-${hour}-${selectedDate.toISOString().split("T")[0]}`;
       currentSlotRef.current = slot;
@@ -943,7 +956,7 @@ const Agenda = () => {
                         onDragOver={(e) => { if (dragging && person !== dragging.assigned_person) { e.preventDefault(); setDropTarget(person); } }}
                         onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDropTarget(null); }}
                         onDrop={(e) => { e.preventDefault(); handleDrop(person); }}
-                        onClick={() => !dragging && !isSatNoon && (task ? canEdit && (setCurrentTask(task), setIsNewTask(false), setIsModalOpen(true)) : canCreateNew && handleNewTaskClick(hour, person))}
+                        onClick={() => !dragging && !isSatNoon && (task ? canEdit && (setCurrentTask(task), setIsNewTask(false), originalTimesRef.current = { start_time: task.start_time, end_time: task.end_time, assigned_person: task.assigned_person }, setIsModalOpen(true)) : canCreateNew && handleNewTaskClick(hour, person))}
                         style={{
                           minHeight: "3.25rem",
                           borderBottom: isLastHour ? `2px solid ${accentColor}` : undefined,
