@@ -2,6 +2,7 @@
 import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { Plus, Edit, Trash2, ChevronLeft, ChevronRight, Search, X, Download, ListChecks, ArrowLeftRight } from "lucide-react";
 import Modal from "@/components/Modal";
+import ImageUploadZone from "@/components/ImageUploadZone";
 import { createClient } from "@/utils/supabase/client";
 import { v4 as uuidv4 } from "uuid";
 import { exportCsv } from "@/utils/exportCsv";
@@ -22,7 +23,7 @@ interface Task {
   customer_id?: string;
   vehicle_id?: string;
   notes?: string;
-  image_url?: string;
+  image_urls?: string[];
 }
 
 interface QuoteItem {
@@ -270,8 +271,8 @@ export default function TasksPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [editing, setEditing] = useState<Task | null>(null);
-  const [form, setForm] = useState<Omit<Task, "id">>({ name: "", phone: "", description: "", status: "Pending", vehicle: "", customer_id: undefined, vehicle_id: undefined, notes: "", image_url: "" });
-  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [form, setForm] = useState<Omit<Task, "id">>({ name: "", phone: "", description: "", status: "Pending", vehicle: "", customer_id: undefined, vehicle_id: undefined, notes: "", image_urls: [] });
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [formError, setFormError] = useState("");
   const [customerVehicles, setCustomerVehicles] = useState<VehicleRecord[]>([]);
@@ -381,12 +382,12 @@ export default function TasksPage() {
   };
 
   const resetForm = () => {
-    setForm({ name: "", phone: "", description: "", status: "Pending", vehicle: "", customer_id: undefined, vehicle_id: undefined, notes: "", image_url: "" });
+    setForm({ name: "", phone: "", description: "", status: "Pending", vehicle: "", customer_id: undefined, vehicle_id: undefined, notes: "", image_urls: [] });
     setFormError("");
     setVehicleFields({ make: "", model: "", year: "" });
     setCustomerVehicles([]);
     setIsNewVehicle(true);
-    setImageFile(null);
+    setImageFiles([]);
     setDetailItems([]);
     setDetailTask(null);
     setNewItemText("");
@@ -407,7 +408,7 @@ export default function TasksPage() {
     try {
       let customerId = form.customer_id;
       let vehicleId = form.vehicle_id;
-      let imageUrl = form.image_url ?? "";
+      let imageUrls = [...(form.image_urls ?? [])];
       try {
         if (form.phone.replace(/\D/g, "").length >= 6) {
           customerId = await findOrCreateCustomer(supabase, form.phone, form.name);
@@ -416,29 +417,27 @@ export default function TasksPage() {
         }
       } catch { /* non-fatal */ }
 
-      if (imageFile) {
-        const ext = imageFile.name.split(".").pop() ?? "jpg";
-        const newId = editing?.id ?? uuidv4();
-        const path = `${newId}_${Date.now()}.${ext}`;
-        const { data: uploaded, error: upErr } = await supabase.storage.from("task-images").upload(path, imageFile, { upsert: true });
-        if (upErr) {
-          setFormError(`Error al subir imagen: ${upErr.message}`);
-          setSaving(false);
-          return;
-        }
-        if (uploaded) {
-          const { data: { publicUrl } } = supabase.storage.from("task-images").getPublicUrl(uploaded.path);
-          imageUrl = publicUrl;
-        }
+      if (imageFiles.length > 0) {
+        const baseId = editing?.id ?? uuidv4();
+        const uploaded = await Promise.all(imageFiles.map(async (file) => {
+          const ext = file.name.split(".").pop() ?? "jpg";
+          const path = `${baseId}_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+          const { data, error } = await supabase.storage.from("task-images").upload(path, file, { upsert: false });
+          if (error) return null;
+          return supabase.storage.from("task-images").getPublicUrl(data.path).data.publicUrl;
+        }));
+        const failed = uploaded.filter(u => u === null);
+        if (failed.length) { setFormError(`Error al subir ${failed.length} imagen(es).`); setSaving(false); return; }
+        imageUrls = [...imageUrls, ...(uploaded as string[])];
       }
 
       if (editing) {
         const { data: before } = await supabase.from("pending_tasks").select("*").eq("id", editing.id).single();
-        await supabase.from("pending_tasks").update({ ...form, customer_id: customerId, vehicle_id: vehicleId, image_url: imageUrl }).eq("id", editing.id);
+        await supabase.from("pending_tasks").update({ ...form, customer_id: customerId, vehicle_id: vehicleId, image_urls: imageUrls }).eq("id", editing.id);
         await logAction(supabase, { table_name: "pending_tasks", record_id: editing.id, action: "update", description: `Cotización de ${form.name}`, user_email: userEmail, before_data: before ?? undefined });
       } else {
         const id = uuidv4();
-        await supabase.from("pending_tasks").insert({ id, ...form, customer_id: customerId, vehicle_id: vehicleId, image_url: imageUrl });
+        await supabase.from("pending_tasks").insert({ id, ...form, customer_id: customerId, vehicle_id: vehicleId, image_urls: imageUrls });
         if (detailItems.length > 0) {
           await supabase.from("quote_items").insert(detailItems.map(item => ({ id: item.id, task_id: id, description: item.description })));
         }
@@ -559,8 +558,8 @@ export default function TasksPage() {
 
   const makeEditHandler = () => async (task: Task) => {
     setEditing(task);
-    setForm({ name: task.name, phone: task.phone, description: task.description, status: task.status, vehicle: task.vehicle ?? "", customer_id: task.customer_id, vehicle_id: task.vehicle_id, notes: task.notes ?? "", image_url: task.image_url ?? "" });
-    setImageFile(null);
+    setForm({ name: task.name, phone: task.phone, description: task.description, status: task.status, vehicle: task.vehicle ?? "", customer_id: task.customer_id, vehicle_id: task.vehicle_id, notes: task.notes ?? "", image_urls: task.image_urls ?? [] });
+    setImageFiles([]);
     // Parse vehicle description into structured fields (best-effort)
     const vDesc = task.vehicle ?? "";
     const parts = vDesc.trim().split(/\s+/);
@@ -775,31 +774,16 @@ export default function TasksPage() {
               </select>
             </div>
 
-            {/* Imagen (opcional) */}
+            {/* Imágenes (opcional) */}
             <div>
-              <label className={lbl}>Imagen <span className="text-gray-400 font-normal">(opcional)</span></label>
-              {(form.image_url || imageFile) && (
-                <div className="mb-2 relative inline-block">
-                  <img
-                    src={imageFile ? URL.createObjectURL(imageFile) : form.image_url!}
-                    alt="Vista previa"
-                    className="h-32 w-auto rounded-xl border border-gray-200 object-cover cursor-zoom-in"
-                    onClick={() => setLightboxUrl(imageFile ? URL.createObjectURL(imageFile) : form.image_url!)}
-                  />
-                  <button
-                    onClick={() => { setImageFile(null); setForm(f => ({ ...f, image_url: "" })); }}
-                    className="absolute -top-1.5 -right-1.5 bg-white border border-gray-200 rounded-full p-0.5 text-gray-400 hover:text-red-500 shadow-sm"
-                    aria-label="Quitar imagen"
-                  >
-                    <X size={12} />
-                  </button>
-                </div>
-              )}
-              <input
-                type="file"
-                accept="image/*"
-                className="block w-full text-sm text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-[#07C3F8]/10 file:text-[#07C3F8] hover:file:bg-[#07C3F8]/20 cursor-pointer"
-                onChange={e => { const f = e.target.files?.[0] ?? null; setImageFile(f); }}
+              <label className={lbl}>Imágenes <span className="text-gray-400 font-normal">(opcional)</span></label>
+              <ImageUploadZone
+                urls={form.image_urls}
+                pendingFiles={imageFiles}
+                onAddFile={f => setImageFiles(prev => [...prev, f])}
+                onRemoveUrl={url => setForm(f => ({ ...f, image_urls: (f.image_urls ?? []).filter(u => u !== url) }))}
+                onRemovePending={i => setImageFiles(prev => prev.filter((_, idx) => idx !== i))}
+                listenGlobalPaste
               />
             </div>
 

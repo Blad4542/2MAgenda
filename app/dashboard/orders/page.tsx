@@ -5,6 +5,7 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale/es";
 import { createClient } from "@/utils/supabase/client";
 import { Plus, Trash2, Edit, ChevronLeft, ChevronRight, Search, X, Download, Clock, Printer, Eye, CalendarPlus, ArrowLeftRight } from "lucide-react";
+import ImageUploadZone from "@/components/ImageUploadZone";
 import { exportCsv } from "@/utils/exportCsv";
 import { logAction } from "@/utils/auditLog";
 import { notifyAdmin } from "@/utils/notifications";
@@ -22,7 +23,7 @@ interface Order {
   id: string; order_date: string; customer_name: string; phone?: string;
   product_description?: string; total_amount: number; initial_payment: number;
   remaining: number; status?: OrderStatus; customer_id?: string;
-  vehicle?: string; vehicle_id?: string;
+  vehicle?: string; vehicle_id?: string; image_urls?: string[];
 }
 
 interface AuditEntry {
@@ -54,7 +55,7 @@ const ACTIVE_STATUSES: OrderStatus[] = ["Por pedir", "Pedido", "En local"];
 const emptyForm = {
   customer_name: "", phone: "", product_description: "",
   total_amount: 0, initial_payment: 0, status: "Por pedir" as OrderStatus,
-  customer_id: "", vehicle: "", vehicle_id: "",
+  customer_id: "", vehicle: "", vehicle_id: "", image_urls: [] as string[],
 };
 
 function OrderTable({ list, title, orderItemDescriptions, onEdit, onDelete, onHistory, onPrint, onPreview, onAgendar, onConvertToQuote }: {
@@ -190,6 +191,7 @@ export default function OrdersPage() {
   const [previewHtml, setPreviewHtml] = useState("");
   const [formError, setFormError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [detailItems, setDetailItems] = useState<OrderItem[]>([]);
   const [newItemText, setNewItemText] = useState("");
   const [newItemPrice, setNewItemPrice] = useState("");
@@ -321,12 +323,14 @@ export default function OrdersPage() {
 
   const openEdit = async (o: Order) => {
     setEditing(o);
+    setImageFiles([]);
     setForm({
       customer_name: o.customer_name, phone: o.phone || "",
       product_description: o.product_description || "",
       total_amount: o.total_amount, initial_payment: o.initial_payment,
       status: o.status ?? "Por pedir", customer_id: o.customer_id || "",
       vehicle: o.vehicle || "", vehicle_id: o.vehicle_id || "",
+      image_urls: o.image_urls ?? [],
     });
     setVehicleFields({ make: "", model: "", year: "" });
     setCustomerVehicles([]);
@@ -494,11 +498,26 @@ export default function OrdersPage() {
         }
       }
       const vehicleText = buildVehicleDescription(vehicleFields.make, vehicleFields.model, vehicleFields.year) || form.vehicle || "";
+      let imageUrls = [...(form.image_urls ?? [])];
+      if (imageFiles.length > 0) {
+        const baseId = editing?.id ?? uuidv4();
+        const uploaded = await Promise.all(imageFiles.map(async (file) => {
+          const ext = file.name.split(".").pop() ?? "jpg";
+          const path = `orders/${baseId}_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+          const { data, error } = await supabase.storage.from("order-images").upload(path, file, { upsert: false });
+          if (error) return null;
+          return supabase.storage.from("order-images").getPublicUrl(data.path).data.publicUrl;
+        }));
+        const failed = uploaded.filter(u => u === null);
+        if (failed.length) { setFormError(`Error al subir ${failed.length} imagen(es).`); setSaving(false); return; }
+        imageUrls = [...imageUrls, ...(uploaded as string[])];
+      }
       const payload = {
         customer_name: name, phone, product_description: form.product_description?.trim() || null,
         total_amount: Number(form.total_amount) || 0, initial_payment: Number(form.initial_payment) || 0,
         status: form.status, customer_id: customerId || null,
         vehicle: vehicleText || null, vehicle_id: vehicleId || null,
+        image_urls: imageUrls.length ? imageUrls : null,
       };
       if (editing) {
         const { data: before } = await supabase.from("orders").select("*").eq("id", editing.id).single();
@@ -518,6 +537,7 @@ export default function OrdersPage() {
       setIsOpen(false);
       setForm(emptyForm);
       setEditing(null);
+      setImageFiles([]);
       setCustomerVehicles([]);
       setVehicleFields({ make: "", model: "", year: "" });
       setDetailItems([]);
@@ -632,7 +652,7 @@ export default function OrdersPage() {
             <Download size={16} /> Exportar
           </button>
           <button
-            onClick={() => { setEditing(null); setForm(emptyForm); setCustomerVehicles([]); setVehicleFields({ make: "", model: "", year: "" }); setIsNewVehicle(true); setFormError(""); setDetailItems([]); setNewItemText(""); setNewItemPrice(""); setIsOpen(true); }}
+            onClick={() => { setEditing(null); setForm(emptyForm); setImageFiles([]); setCustomerVehicles([]); setVehicleFields({ make: "", model: "", year: "" }); setIsNewVehicle(true); setFormError(""); setDetailItems([]); setNewItemText(""); setNewItemPrice(""); setIsOpen(true); }}
             className="flex items-center gap-2 bg-[#07C3F8] hover:bg-[#06aad9] text-white font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-colors"
           >
             <Plus size={16} /> Nuevo pedido
@@ -777,6 +797,18 @@ export default function OrdersPage() {
                 />
               </div>
               <div><label className={lbl}>Abono</label><input type="number" className={inp} value={form.initial_payment} onChange={e => setForm({ ...form, initial_payment: parseFloat(e.target.value) || 0 })} /></div>
+            </div>
+            {/* Imágenes */}
+            <div>
+              <label className={lbl}>Imágenes <span className="text-gray-400 font-normal">(opcional)</span></label>
+              <ImageUploadZone
+                urls={form.image_urls}
+                pendingFiles={imageFiles}
+                onAddFile={f => setImageFiles(prev => [...prev, f])}
+                onRemoveUrl={url => setForm(f => ({ ...f, image_urls: f.image_urls.filter(u => u !== url) }))}
+                onRemovePending={i => setImageFiles(prev => prev.filter((_, idx) => idx !== i))}
+                listenGlobalPaste
+              />
             </div>
             {formError && <p className="text-sm text-red-600">{formError}</p>}
             <div className="flex justify-end pt-2">

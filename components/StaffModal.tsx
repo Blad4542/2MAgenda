@@ -1,11 +1,12 @@
 "use client";
-import { useState, useRef } from "react";
+import { useState } from "react";
 import Modal from "@/components/Modal";
 import { inp, lbl } from "@/utils/styles";
 import { TIME_OPTIONS } from "@/utils/timeOptions";
 import { waUrl, WaIcon } from "@/utils/wa";
 import { createClient } from "@/utils/supabase/client";
-import { Upload, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
+import ImageUploadZone from "@/components/ImageUploadZone";
 
 export interface StaffRecord {
   id: string;
@@ -27,7 +28,6 @@ interface Props {
 
 export default function StaffModal({ isOpen, onClose, staff, onSaved }: Props) {
   const supabase = createClient();
-  const fileRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState({
     name: staff?.name ?? "",
@@ -38,37 +38,29 @@ export default function StaffModal({ isOpen, onClose, staff, onSaved }: Props) {
     lunch_end: staff?.lunch_end ?? "",
   });
   const [photoUrl, setPhotoUrl] = useState(staff?.photo_url ?? "");
-  const [uploading, setUploading] = useState(false);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  // Reset form when staff prop changes
   const isEdit = !!staff;
-
-  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploading(true);
-    const staffId = staff?.id ?? crypto.randomUUID();
-    const path = `${staffId}/${Date.now()}`;
-    const { error } = await supabase.storage
-      .from("staff-photos")
-      .upload(path, file, { upsert: true });
-    if (!error) {
-      const { data } = supabase.storage.from("staff-photos").getPublicUrl(path);
-      setPhotoUrl(data.publicUrl);
-    }
-    setUploading(false);
-  };
 
   const handleSave = async () => {
     if (!form.name.trim()) return;
     setSaving(true);
+    let finalPhotoUrl = photoUrl;
+    if (photoFile) {
+      const staffId = staff?.id ?? crypto.randomUUID();
+      const path = `${staffId}/${Date.now()}`;
+      const { error } = await supabase.storage.from("staff-photos").upload(path, photoFile, { upsert: true });
+      if (!error) {
+        finalPhotoUrl = supabase.storage.from("staff-photos").getPublicUrl(path).data.publicUrl;
+      }
+    }
     const payload = {
       name: form.name.trim(),
       phone: form.phone.trim() || null,
       specialty: form.specialty.trim() || null,
-      photo_url: photoUrl || null,
+      photo_url: finalPhotoUrl || null,
       active: form.active,
       lunch_start: form.lunch_start || null,
       lunch_end: form.lunch_end || null,
@@ -103,33 +95,15 @@ export default function StaffModal({ isOpen, onClose, staff, onSaved }: Props) {
     <Modal isOpen={isOpen} onClose={onClose} title={isEdit ? "Editar instalador" : "Nuevo instalador"}>
       <div className="space-y-4">
         {/* Photo */}
-        <div className="flex items-center gap-4">
-          <div className="w-16 h-16 rounded-2xl bg-[#07C3F8]/10 flex items-center justify-center shrink-0 overflow-hidden">
-            {photoUrl ? (
-              <img src={photoUrl} alt={form.name} className="w-full h-full object-cover" />
-            ) : (
-              <span className="text-xl font-bold text-[#07C3F8]">{initials || "?"}</span>
-            )}
-          </div>
-          <div>
-            <button
-              type="button"
-              onClick={() => fileRef.current?.click()}
-              disabled={uploading}
-              className="flex items-center gap-1.5 text-sm font-medium text-[#07C3F8] hover:text-[#06aad9] transition-colors disabled:opacity-50"
-            >
-              <Upload className="w-4 h-4" />
-              {uploading ? "Subiendo..." : "Subir foto"}
-            </button>
-            <p className="text-xs text-gray-400 mt-0.5">JPG, PNG — máx 2MB</p>
-            <input
-              ref={fileRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={handlePhotoUpload}
-            />
-          </div>
+        <div>
+          <label className={lbl}>Foto</label>
+          <ImageUploadZone
+            value={!photoFile ? photoUrl : null}
+            file={photoFile}
+            onFile={f => setPhotoFile(f)}
+            onClear={() => { setPhotoFile(null); setPhotoUrl(""); }}
+            listenGlobalPaste
+          />
         </div>
 
         {/* Name */}

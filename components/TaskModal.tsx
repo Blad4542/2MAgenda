@@ -538,6 +538,12 @@ const TaskModal = ({
                       <li
                         className={`flex items-center gap-1.5 rounded-lg transition-colors ${pasteTargetTaskId === t.id ? "ring-1 ring-[#07C3F8] bg-sky-50/50 px-1" : ""}`}
                         onClick={() => setPasteTargetTaskId(t.id)}
+                        onDragOver={e => { e.preventDefault(); setPasteTargetTaskId(t.id); }}
+                        onDrop={e => {
+                          e.preventDefault();
+                          const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith("image/"));
+                          if (files.length) uploadPhotos(t.id, files);
+                        }}
                       >
                         <input
                           type="checkbox"
