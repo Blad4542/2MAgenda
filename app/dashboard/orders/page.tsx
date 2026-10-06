@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale/es";
 import { createClient } from "@/utils/supabase/client";
-import { Plus, Trash2, Edit, ChevronLeft, ChevronRight, Search, X, Download, Clock, Printer, Eye, CalendarPlus } from "lucide-react";
+import { Plus, Trash2, Edit, ChevronLeft, ChevronRight, Search, X, Download, Clock, Printer, Eye, CalendarPlus, ArrowLeftRight } from "lucide-react";
 import { exportCsv } from "@/utils/exportCsv";
 import { logAction } from "@/utils/auditLog";
 import { notifyAdmin } from "@/utils/notifications";
@@ -57,10 +57,10 @@ const emptyForm = {
   customer_id: "", vehicle: "", vehicle_id: "",
 };
 
-function OrderTable({ list, title, orderItemDescriptions, onEdit, onDelete, onHistory, onPrint, onPreview, onAgendar }: {
+function OrderTable({ list, title, orderItemDescriptions, onEdit, onDelete, onHistory, onPrint, onPreview, onAgendar, onConvertToQuote }: {
   list: Order[]; title: string;
   orderItemDescriptions: Record<string, string[]>;
-  onEdit: (o: Order) => void; onDelete: (o: Order) => void; onHistory: (o: Order) => void; onPrint: (o: Order) => void; onPreview: (o: Order) => void; onAgendar?: (o: Order) => void;
+  onEdit: (o: Order) => void; onDelete: (o: Order) => void; onHistory: (o: Order) => void; onPrint: (o: Order) => void; onPreview: (o: Order) => void; onAgendar?: (o: Order) => void; onConvertToQuote: (o: Order) => void;
 }) {
   const [page, setPage] = useState(0);
   const totalPages = Math.ceil(list.length / PAGE_SIZE);
@@ -138,6 +138,7 @@ function OrderTable({ list, title, orderItemDescriptions, onEdit, onDelete, onHi
                         <button onClick={() => onPrint(o)} title="Imprimir" className="p-1 rounded-lg text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"><Printer size={13} /></button>
                         <button onClick={() => onHistory(o)} title="Historial" className="p-1 rounded-lg text-gray-400 hover:text-violet-500 hover:bg-violet-50 transition-colors"><Clock size={13} /></button>
                         {onAgendar && <button onClick={() => onAgendar(o)} title="Agendar cita" className="p-1 rounded-lg text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"><CalendarPlus size={13} /></button>}
+                        <button onClick={() => onConvertToQuote(o)} title="Pasar a cotización" className="p-1 rounded-lg text-gray-400 hover:text-amber-600 hover:bg-amber-50 transition-colors"><ArrowLeftRight size={13} /></button>
                         <button onClick={() => onEdit(o)} title="Editar" className="p-1 rounded-lg text-gray-400 hover:text-[#07C3F8] hover:bg-[#07C3F8]/10 transition-colors"><Edit size={13} /></button>
                         <button onClick={() => onDelete(o)} title="Eliminar" className="p-1 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"><Trash2 size={13} /></button>
                       </div>
@@ -198,6 +199,8 @@ export default function OrdersPage() {
   const [staffList, setStaffList] = useState<{ id: string; name: string }[]>([]);
   const [agendarSaving, setAgendarSaving] = useState(false);
   const [agendarError, setAgendarError] = useState("");
+  const [convertTarget, setConvertTarget] = useState<Order | null>(null);
+  const [converting, setConverting] = useState(false);
 
   const fetchOrders = useCallback(async (s = search, owb = onlyWithBalance) => {
     let q = supabase.from("orders").select("*").order("order_date", { ascending: false });
@@ -528,6 +531,36 @@ export default function OrdersPage() {
     }
   };
 
+  const convertToQuote = (o: Order) => setConvertTarget(o);
+
+  const doConvertToQuote = async () => {
+    if (!convertTarget || converting) return;
+    setConverting(true);
+    const o = convertTarget;
+    const { data: items } = await supabase.from("order_items").select("description").eq("order_id", o.id);
+    const quoteId = uuidv4();
+    await supabase.from("pending_tasks").insert({
+      id: quoteId,
+      name: o.customer_name,
+      phone: o.phone ?? "",
+      description: o.product_description ?? "",
+      vehicle: o.vehicle ?? "",
+      customer_id: o.customer_id ?? null,
+      vehicle_id: o.vehicle_id ?? null,
+      status: "Pending",
+    });
+    if (items && items.length > 0) {
+      await supabase.from("quote_items").insert(
+        items.map(item => ({ id: uuidv4(), task_id: quoteId, description: item.description }))
+      );
+    }
+    await supabase.from("orders").delete().eq("id", o.id);
+    await logAction(supabase, { table_name: "orders", record_id: o.id, action: "delete", description: `Convertido a cotización — ${o.customer_name}`, user_email: userEmail });
+    setConvertTarget(null);
+    setConverting(false);
+    fetchOrders();
+  };
+
   const deleteOne = async (o: Order) => {
     const { data: before } = await supabase.from("orders").select("*").eq("id", o.id).single();
     await supabase.from("orders").delete().eq("id", o.id);
@@ -629,9 +662,9 @@ export default function OrdersPage() {
         <span className="text-sm text-gray-400 ml-auto whitespace-nowrap">{filtered.length} resultado{filtered.length !== 1 ? "s" : ""}</span>
       </div>
 
-      <OrderTable list={porPedirOrders} title="Por pedir" orderItemDescriptions={orderItemDescriptions} onEdit={openEdit} onDelete={deleteOne} onHistory={openHistory} onPrint={printOrder} onPreview={openPreview} onAgendar={openAgendar} />
-      <OrderTable list={inProgressOrders} title="En proceso" orderItemDescriptions={orderItemDescriptions} onEdit={openEdit} onDelete={deleteOne} onHistory={openHistory} onPrint={printOrder} onPreview={openPreview} onAgendar={openAgendar} />
-      <OrderTable list={deliveredOrders} title="Entregados" orderItemDescriptions={orderItemDescriptions} onEdit={openEdit} onDelete={deleteOne} onHistory={openHistory} onPrint={printOrder} onPreview={openPreview} />
+      <OrderTable list={porPedirOrders} title="Por pedir" orderItemDescriptions={orderItemDescriptions} onEdit={openEdit} onDelete={deleteOne} onHistory={openHistory} onPrint={printOrder} onPreview={openPreview} onAgendar={openAgendar} onConvertToQuote={convertToQuote} />
+      <OrderTable list={inProgressOrders} title="En proceso" orderItemDescriptions={orderItemDescriptions} onEdit={openEdit} onDelete={deleteOne} onHistory={openHistory} onPrint={printOrder} onPreview={openPreview} onAgendar={openAgendar} onConvertToQuote={convertToQuote} />
+      <OrderTable list={deliveredOrders} title="Entregados" orderItemDescriptions={orderItemDescriptions} onEdit={openEdit} onDelete={deleteOne} onHistory={openHistory} onPrint={printOrder} onPreview={openPreview} onConvertToQuote={convertToQuote} />
 
       {/* Modal */}
       {isOpen && (
@@ -861,6 +894,36 @@ export default function OrdersPage() {
                 className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white transition-colors"
               >
                 <Printer size={14} /> Imprimir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Convert to quote confirm */}
+      {convertTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+            <div className="flex items-center justify-center w-12 h-12 rounded-full bg-amber-100 mx-auto mb-4">
+              <ArrowLeftRight size={22} className="text-amber-600" />
+            </div>
+            <h2 className="text-base font-semibold text-gray-900 text-center mb-1">¿Pasar a cotización?</h2>
+            <p className="text-sm text-gray-500 text-center mb-6">
+              El pedido de <span className="font-medium text-gray-700">{convertTarget.customer_name}</span> se moverá a cotizaciones y será eliminado de pedidos.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConvertTarget(null)}
+                className="flex-1 py-2.5 text-sm font-medium rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={doConvertToQuote}
+                disabled={converting}
+                className="flex-1 py-2.5 text-sm font-semibold rounded-xl bg-amber-500 hover:bg-amber-600 text-white transition-colors disabled:opacity-60"
+              >
+                {converting ? "Convirtiendo..." : "Confirmar"}
               </button>
             </div>
           </div>

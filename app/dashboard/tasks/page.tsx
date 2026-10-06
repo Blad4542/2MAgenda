@@ -1,6 +1,6 @@
 "use client";
 import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
-import { Plus, Edit, Trash2, ChevronLeft, ChevronRight, Search, X, Download, ListChecks } from "lucide-react";
+import { Plus, Edit, Trash2, ChevronLeft, ChevronRight, Search, X, Download, ListChecks, ArrowLeftRight } from "lucide-react";
 import Modal from "@/components/Modal";
 import { createClient } from "@/utils/supabase/client";
 import { v4 as uuidv4 } from "uuid";
@@ -58,6 +58,7 @@ interface TableProps {
   onEdit: (task: Task) => void;
   onDelete: (id: string) => void;
   onRowClick: (task: Task) => void;
+  onConvertToOrder?: (task: Task) => void;
   isDropTarget?: boolean;
   onRowDragStart?: (task: Task) => void;
   onDrop?: () => void;
@@ -65,7 +66,7 @@ interface TableProps {
   onDragLeave?: () => void;
 }
 
-const Table = memo(function Table({ list, title, selected, itemCounts, taskDescriptions, onToggle, onToggleAll, onBulkDelete, onEdit, onDelete, onRowClick, isDropTarget, onRowDragStart, onDrop, onDragOver, onDragLeave }: TableProps) {
+const Table = memo(function Table({ list, title, selected, itemCounts, taskDescriptions, onToggle, onToggleAll, onBulkDelete, onEdit, onDelete, onRowClick, isDropTarget, onRowDragStart, onDrop, onDragOver, onDragLeave, onConvertToOrder }: TableProps) {
   const [page, setPage] = React.useState(0);
   const totalPages = Math.ceil(list.length / PAGE_SIZE);
   const paginated = list.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
@@ -122,6 +123,7 @@ const Table = memo(function Table({ list, title, selected, itemCounts, taskDescr
                     )}
                   </div>
                   <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                    {onConvertToOrder && <button onClick={() => onConvertToOrder(task)} title="Pasar a pedido" className="p-1.5 rounded-lg text-gray-400 hover:text-amber-600 hover:bg-amber-50 transition-colors"><ArrowLeftRight size={14} /></button>}
                     <button onClick={() => onEdit(task)} className="p-1.5 rounded-lg text-gray-400 hover:text-[#07C3F8] hover:bg-[#07C3F8]/10 transition-colors"><Edit size={14} /></button>
                     <button onClick={() => onDelete(task.id)} className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"><Trash2 size={14} /></button>
                   </div>
@@ -215,6 +217,11 @@ const Table = memo(function Table({ list, title, selected, itemCounts, taskDescr
                   </td>
                   <td className="p-3" onClick={e => e.stopPropagation()}>
                     <div className="flex items-center gap-1 justify-end">
+                      {onConvertToOrder && (
+                        <button onClick={() => onConvertToOrder(task)} title="Pasar a pedido" className="p-1.5 rounded-lg text-gray-400 hover:text-amber-600 hover:bg-amber-50 transition-colors">
+                          <ArrowLeftRight size={14} aria-hidden="true" />
+                        </button>
+                      )}
                       <button
                         onClick={() => onEdit(task)}
                         aria-label={`Editar ${task.name}`}
@@ -283,6 +290,8 @@ export default function TasksPage() {
   const [detailItems, setDetailItems] = useState<QuoteItem[]>([]);
   const [newItemText, setNewItemText] = useState("");
   const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [convertTarget, setConvertTarget] = useState<Task | null>(null);
+  const [converting, setConverting] = useState(false);
 
   const fetchTasks = useCallback(async (s = "") => {
     let q = supabase
@@ -440,6 +449,40 @@ export default function TasksPage() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const convertToOrder = (task: Task) => setConvertTarget(task);
+
+  const doConvertToOrder = async () => {
+    if (!convertTarget || converting) return;
+    setConverting(true);
+    const task = convertTarget;
+    const { data: items } = await supabase.from("quote_items").select("description").eq("task_id", task.id);
+    const orderId = uuidv4();
+    await supabase.from("orders").insert({
+      id: orderId,
+      order_date: new Date().toISOString().split("T")[0],
+      customer_name: task.name,
+      phone: task.phone ?? "",
+      product_description: task.description ?? "",
+      vehicle: task.vehicle ?? "",
+      customer_id: task.customer_id ?? null,
+      vehicle_id: task.vehicle_id ?? null,
+      total_amount: 0,
+      initial_payment: 0,
+      remaining: 0,
+      status: "Por pedir",
+    });
+    if (items && items.length > 0) {
+      await supabase.from("order_items").insert(
+        items.map(item => ({ id: uuidv4(), order_id: orderId, description: item.description, price: null, completed: false }))
+      );
+    }
+    await supabase.from("pending_tasks").delete().eq("id", task.id);
+    await logAction(supabase, { table_name: "pending_tasks", record_id: task.id, action: "delete", description: `Convertido a pedido — ${task.name}`, user_email: userEmail });
+    setConvertTarget(null);
+    setConverting(false);
+    fetchTasks(search);
   };
 
   const del = async (id: string) => {
@@ -633,6 +676,7 @@ export default function TasksPage() {
         title="Pendientes / Cotizando"
         onEdit={editTask}
         onDelete={del}
+        onConvertToOrder={convertToOrder}
         isDropTarget={dropTarget === "pending"}
         onDrop={() => handleDrop("pending")}
         onDragOver={e => { e.preventDefault(); setDropTarget("pending"); }}
@@ -644,6 +688,7 @@ export default function TasksPage() {
         title="Lista de espera"
         onEdit={editTask}
         onDelete={del}
+        onConvertToOrder={convertToOrder}
         isDropTarget={dropTarget === "waiting"}
         onDrop={() => handleDrop("waiting")}
         onDragOver={e => { e.preventDefault(); setDropTarget("waiting"); }}
@@ -655,6 +700,7 @@ export default function TasksPage() {
         title="Cotizadas"
         onEdit={editTask}
         onDelete={del}
+        onConvertToOrder={convertToOrder}
         isDropTarget={dropTarget === "quoted"}
         onDrop={() => handleDrop("quoted")}
         onDragOver={e => { e.preventDefault(); setDropTarget("quoted"); }}
@@ -783,6 +829,36 @@ export default function TasksPage() {
             className="max-h-[90vh] max-w-[90vw] rounded-xl shadow-2xl object-contain"
             onClick={e => e.stopPropagation()}
           />
+        </div>
+      )}
+
+      {/* Convert to order confirm */}
+      {convertTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+            <div className="flex items-center justify-center w-12 h-12 rounded-full bg-amber-100 mx-auto mb-4">
+              <ArrowLeftRight size={22} className="text-amber-600" />
+            </div>
+            <h2 className="text-base font-semibold text-gray-900 text-center mb-1">¿Pasar a pedido?</h2>
+            <p className="text-sm text-gray-500 text-center mb-6">
+              La cotización de <span className="font-medium text-gray-700">{convertTarget.name}</span> se moverá a pedidos y será eliminada de cotizaciones.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConvertTarget(null)}
+                className="flex-1 py-2.5 text-sm font-medium rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={doConvertToOrder}
+                disabled={converting}
+                className="flex-1 py-2.5 text-sm font-semibold rounded-xl bg-amber-500 hover:bg-amber-600 text-white transition-colors disabled:opacity-60"
+              >
+                {converting ? "Convirtiendo..." : "Confirmar"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
