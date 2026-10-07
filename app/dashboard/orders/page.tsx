@@ -783,6 +783,23 @@ export default function OrdersPage() {
                 {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
+            {form.status === "Entregado" && Number(form.total_amount) > Number(form.initial_payment) && (
+              <div className="flex items-center justify-between gap-3 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3">
+                <div>
+                  <p className="text-sm font-semibold text-amber-800">Saldo pendiente</p>
+                  <p className="text-xs text-amber-600 mt-0.5">
+                    ₡{Math.max(0, Number(form.total_amount) - Number(form.initial_payment)).toLocaleString("es-CR")} sin cobrar
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setForm(f => ({ ...f, initial_payment: Number(f.total_amount) }))}
+                  className="shrink-0 px-3 py-1.5 text-sm font-semibold rounded-xl bg-amber-500 hover:bg-amber-600 text-white transition-colors"
+                >
+                  Marcar pagado
+                </button>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className={lbl}>
