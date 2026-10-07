@@ -98,10 +98,11 @@ export default function StaffModal({ isOpen, onClose, staff, onSaved }: Props) {
         <div>
           <label className={lbl}>Foto</label>
           <ImageUploadZone
-            value={!photoFile ? photoUrl : null}
-            file={photoFile}
-            onFile={f => setPhotoFile(f)}
-            onClear={() => { setPhotoFile(null); setPhotoUrl(""); }}
+            urls={photoFile ? [] : (photoUrl ? [photoUrl] : [])}
+            pendingFiles={photoFile ? [photoFile] : []}
+            onAddFile={f => setPhotoFile(f)}
+            onRemoveUrl={() => setPhotoUrl("")}
+            onRemovePending={() => setPhotoFile(null)}
             listenGlobalPaste
           />
         </div>
