@@ -483,6 +483,7 @@ export default function OrdersPage() {
   const save = async () => {
     const name = form.customer_name.trim();
     if (!name) { setFormError("Nombre es obligatorio."); return; }
+    if (detailItems.length === 0) { setFormError("Debes agregar al menos una tarea."); return; }
     setFormError("");
     setSaving(true);
     try {
