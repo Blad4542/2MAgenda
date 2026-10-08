@@ -241,7 +241,7 @@ export default function DashboardShell({ children }: { children: React.ReactNode
               </button>
 
               {notifOpen && (
-                <div className="absolute right-0 top-9 z-[200] w-80 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+                <div className="fixed right-4 top-14 z-[400] w-80 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
                   <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-100">
                     <span className="text-sm font-semibold text-gray-800">Notificaciones</span>
                     {unreadCount > 0 && (

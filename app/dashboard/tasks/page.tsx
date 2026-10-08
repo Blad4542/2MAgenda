@@ -469,7 +469,6 @@ export default function TasksPage() {
       vehicle_id: task.vehicle_id ?? null,
       total_amount: 0,
       initial_payment: 0,
-      remaining: 0,
       status: "Por pedir",
     });
     if (items && items.length > 0) {

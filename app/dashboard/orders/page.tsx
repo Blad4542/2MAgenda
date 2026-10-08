@@ -823,7 +823,7 @@ export default function OrdersPage() {
                 urls={form.image_urls}
                 pendingFiles={imageFiles}
                 onAddFile={f => setImageFiles(prev => [...prev, f])}
-                onRemoveUrl={url => setForm(f => ({ ...f, image_urls: f.image_urls.filter(u => u !== url) }))}
+                onRemoveUrl={url => setForm(f => ({ ...f, image_urls: (f.image_urls ?? []).filter(u => u !== url) }))}
                 onRemovePending={i => setImageFiles(prev => prev.filter((_, idx) => idx !== i))}
                 listenGlobalPaste
               />
