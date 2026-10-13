@@ -386,7 +386,7 @@ export default function OrdersPage() {
       .lbl { color: #444; width: 45%; }
       .saldo td { font-size: 13px; font-weight: bold; padding-top: 4px; }
       .item-price { text-align: right; font-weight: bold; display: block; margin-top: 1px; }
-      @media print { @page { margin: 0; size: 58mm 150mm; } body { padding: 0 3mm; } }
+      @media print { @page { margin: 0; } body { padding: 0 3mm; } }
     </style></head><body>
     <h1>AUTODECORACION 2M</h1>
     <p class="center" style="font-size:10px;margin-bottom:6px;">Orden de pedido</p>
@@ -428,7 +428,15 @@ export default function OrdersPage() {
     win.document.write(html);
     win.document.close();
     win.focus();
-    setTimeout(() => { win.print(); win.close(); }, 300);
+    setTimeout(() => {
+      const heightPx = win.document.body.scrollHeight + 20;
+      const heightMm = Math.ceil(heightPx * 0.264583) + 10;
+      const style = win.document.createElement("style");
+      style.textContent = `@media print { @page { size: 58mm ${heightMm}mm; margin: 0; } }`;
+      win.document.head.appendChild(style);
+      win.print();
+      win.close();
+    }, 400);
   };
 
   const openPreview = async (o: Order) => {
