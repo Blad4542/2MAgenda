@@ -407,6 +407,8 @@ const Agenda = () => {
       ? format(new Date(rawDate.includes("T") ? rawDate : rawDate + "T12:00:00"), "dd/MM/yyyy", { locale: es })
       : "";
     const tasks = appt.appointment_tasks ?? [];
+    // Base ~75mm + 8mm per task, min 120mm
+    const pageHeightMm = Math.max(120, 75 + tasks.length * 8) + "mm";
     const tasksHtml = tasks.length > 0
       ? tasks.map((t, i) => {
           const desc = t.completed ? `<s>${t.description}</s>` : t.description;
@@ -426,7 +428,7 @@ const Agenda = () => {
       .lbl { color: #444; width: 45%; }
       .saldo td { font-size: 13px; font-weight: bold; padding-top: 4px; }
       .item-price { text-align: right; font-weight: bold; display: block; margin-top: 1px; }
-      @media print { @page { margin: 0; } body { padding: 0 3mm; } }
+      @media print { @page { margin: 0; size: 58mm ${pageHeightMm}; } body { padding: 0 3mm; } }
     </style></head><body>
     <h1>AUTODECORACION 2M</h1>
     <p class="center" style="font-size:10px;margin-bottom:6px;">Comprobante de cita</p>
@@ -458,15 +460,7 @@ const Agenda = () => {
     win.document.write(html);
     win.document.close();
     win.focus();
-    setTimeout(() => {
-      const heightPx = win.document.body.scrollHeight + 20;
-      const heightMm = Math.ceil(heightPx * 0.264583) + 10;
-      const style = win.document.createElement("style");
-      style.textContent = `@media print { @page { size: 58mm ${heightMm}mm; margin: 0; } }`;
-      win.document.head.appendChild(style);
-      win.print();
-      win.close();
-    }, 400);
+    setTimeout(() => { win.print(); win.close(); }, 300);
   };
 
   const openPreviewAppt = (appt: Appointment) => {
