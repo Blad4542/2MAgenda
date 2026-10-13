@@ -30,6 +30,7 @@ interface QuoteItem {
   id: string;
   task_id: string;
   description: string;
+  completed?: boolean;
 }
 
 const PAGE_SIZE = 10;
@@ -456,31 +457,38 @@ export default function TasksPage() {
     if (!convertTarget || converting) return;
     setConverting(true);
     const task = convertTarget;
-    const { data: items } = await supabase.from("quote_items").select("description").eq("task_id", task.id);
-    const orderId = uuidv4();
-    await supabase.from("orders").insert({
-      id: orderId,
-      order_date: new Date().toISOString().split("T")[0],
-      customer_name: task.name,
-      phone: task.phone ?? "",
-      product_description: task.description ?? "",
-      vehicle: task.vehicle ?? "",
-      customer_id: task.customer_id ?? null,
-      vehicle_id: task.vehicle_id ?? null,
-      total_amount: 0,
-      initial_payment: 0,
-      status: "Por pedir",
-    });
-    if (items && items.length > 0) {
-      await supabase.from("order_items").insert(
-        items.map(item => ({ id: uuidv4(), order_id: orderId, description: item.description, price: null, completed: false }))
-      );
+    try {
+      const { data: items } = await supabase.from("quote_items").select("description").eq("task_id", task.id);
+      const orderId = uuidv4();
+      const { error: orderErr } = await supabase.from("orders").insert({
+        id: orderId,
+        order_date: new Date().toISOString().split("T")[0],
+        customer_name: task.name,
+        phone: task.phone ?? "",
+        product_description: task.description ?? "",
+        vehicle: task.vehicle ?? "",
+        customer_id: task.customer_id ?? null,
+        vehicle_id: task.vehicle_id ?? null,
+        total_amount: 0,
+        initial_payment: 0,
+        status: "Por pedir",
+      });
+      if (orderErr) throw new Error(orderErr.message);
+      if (items && items.length > 0) {
+        const { error: itemsErr } = await supabase.from("order_items").insert(
+          items.map(item => ({ id: uuidv4(), order_id: orderId, description: item.description, price: null, completed: false }))
+        );
+        if (itemsErr) throw new Error(itemsErr.message);
+      }
+      await supabase.from("pending_tasks").delete().eq("id", task.id);
+      await logAction(supabase, { table_name: "pending_tasks", record_id: task.id, action: "delete", description: `Convertido a pedido — ${task.name}`, user_email: userEmail });
+      setConvertTarget(null);
+      fetchTasks(search);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Error al convertir. Intenta de nuevo.");
+    } finally {
+      setConverting(false);
     }
-    await supabase.from("pending_tasks").delete().eq("id", task.id);
-    await logAction(supabase, { table_name: "pending_tasks", record_id: task.id, action: "delete", description: `Convertido a pedido — ${task.name}`, user_email: userEmail });
-    setConvertTarget(null);
-    setConverting(false);
-    fetchTasks(search);
   };
 
   const del = async (id: string) => {
@@ -513,7 +521,7 @@ export default function TasksPage() {
   const openDetail = async (task: Task) => {
     setDetailTask(task);
     setNewItemText("");
-    const { data } = await supabase.from("quote_items").select("id, task_id, description").eq("task_id", task.id).order("created_at", { ascending: true });
+    const { data } = await supabase.from("quote_items").select("id, task_id, description, completed").eq("task_id", task.id).order("created_at", { ascending: true });
     setDetailItems((data ?? []) as QuoteItem[]);
     setIsDetailOpen(true);
   };
@@ -531,6 +539,14 @@ export default function TasksPage() {
     // creating new — store locally; save() will persist after insert
     setDetailItems(prev => [...prev, { id, task_id: detailTask?.id ?? "", description: desc }]);
     setNewItemText("");
+  };
+
+  const toggleItem = async (itemId: string) => {
+    const item = detailItems.find(i => i.id === itemId);
+    if (!item) return;
+    const next = !item.completed;
+    setDetailItems(prev => prev.map(i => i.id === itemId ? { ...i, completed: next } : i));
+    if (detailTask) await supabase.from("quote_items").update({ completed: next }).eq("id", itemId);
   };
 
   const removeItem = async (itemId: string) => {
@@ -583,7 +599,7 @@ export default function TasksPage() {
     // Load quote items for edit modal
     setDetailTask(task);
     setNewItemText("");
-    const { data: items } = await supabase.from("quote_items").select("id, task_id, description").eq("task_id", task.id).order("created_at", { ascending: true });
+    const { data: items } = await supabase.from("quote_items").select("id, task_id, description, completed").eq("task_id", task.id).order("created_at", { ascending: true });
     setDetailItems((items ?? []) as QuoteItem[]);
     setFormError("");
     setIsOpen(true);
@@ -737,10 +753,17 @@ export default function TasksPage() {
                 <p className="text-sm text-gray-400 text-center py-3">Sin tareas aún</p>
               ) : (
                 <ul className="space-y-1.5 mb-3">
-                  {detailItems.map((item, idx) => (
+                  {detailItems.map((item) => (
                     <li key={item.id} className="flex items-center gap-2 group">
-                      <span className="text-xs text-gray-400 w-5 text-right shrink-0">{idx + 1}.</span>
-                      <span className="flex-1 text-sm text-gray-700">{item.description}</span>
+                      <button
+                        type="button"
+                        onClick={() => toggleItem(item.id)}
+                        className={`shrink-0 w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${item.completed ? "bg-emerald-500 border-emerald-500" : "border-gray-300 hover:border-emerald-400"}`}
+                        aria-label={item.completed ? "Marcar pendiente" : "Marcar listo"}
+                      >
+                        {item.completed && <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4l3 3 5-6" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                      </button>
+                      <span className={`flex-1 text-sm transition-colors ${item.completed ? "line-through text-gray-400" : "text-gray-700"}`}>{item.description}</span>
                       <button onClick={() => removeItem(item.id)} aria-label="Eliminar tarea" className="opacity-0 group-hover:opacity-100 p-1 rounded text-gray-400 hover:text-red-500 transition-all">
                         <X size={13} />
                       </button>

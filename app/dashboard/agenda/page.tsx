@@ -401,17 +401,12 @@ const Agenda = () => {
     setTimeout(() => { win.print(); win.close(); }, 300);
   };
 
-  const buildApptReceiptHtml = (appt: Appointment, paperWidth: "58mm" | "80mm" = "80mm"): string => {
+  const buildApptReceiptHtml = (appt: Appointment): string => {
     const rawDate = appt.appointment_date ?? "";
     const dateStr = rawDate
       ? format(new Date(rawDate.includes("T") ? rawDate : rawDate + "T12:00:00"), "dd/MM/yyyy", { locale: es })
       : "";
     const tasks = appt.appointment_tasks ?? [];
-    // POS08 (58mm): monospace, fixed height for auto-cut. POS-76C (80mm): Arial bold, crisp.
-    const is76c = paperWidth === "80mm";
-    const fontFamily = is76c ? "Arial, Helvetica, sans-serif" : "monospace";
-    const baseFontSize = is76c ? "13px" : "12px";
-    const paperHeight = paperWidth === "58mm" ? "250mm" : "auto";
     const tasksHtml = tasks.length > 0
       ? tasks.map((t, i) => {
           const desc = t.completed ? `<s>${t.description}</s>` : t.description;
@@ -421,17 +416,17 @@ const Agenda = () => {
     return `<!DOCTYPE html><html><head><meta charset="utf-8">
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
-      body { font-family: ${fontFamily}; font-size: ${baseFontSize}; width: 100%; color: #000; background: #fff; -webkit-print-color-adjust: exact; }
-      h1 { font-size: ${is76c ? "15px" : "14px"}; text-align: center; font-weight: bold; letter-spacing: 0.5px; margin-bottom: 2px; }
+      body { font-family: monospace; font-size: 12px; width: 100%; color: #000; background: #fff; }
+      h1 { font-size: 14px; text-align: center; font-weight: bold; letter-spacing: 0.5px; margin-bottom: 2px; }
       .center { text-align: center; }
       .line { border-top: 1px dashed #000; margin: 6px 0; }
       table { width: 100%; border-collapse: collapse; }
-      td { font-size: ${baseFontSize}; padding: 2px 0; vertical-align: top; }
-      td.r { text-align: right; white-space: nowrap; font-weight: ${is76c ? "bold" : "normal"}; }
-      .lbl { color: #000; width: 45%; font-weight: ${is76c ? "bold" : "normal"}; }
-      .saldo td { font-size: ${is76c ? "14px" : "13px"}; font-weight: bold; padding-top: 4px; }
+      td { font-size: 12px; padding: 2px 0; vertical-align: top; }
+      td.r { text-align: right; white-space: nowrap; }
+      .lbl { color: #444; width: 45%; }
+      .saldo td { font-size: 13px; font-weight: bold; padding-top: 4px; }
       .item-price { text-align: right; font-weight: bold; display: block; margin-top: 1px; }
-      @media print { @page { margin: 0; size: ${paperWidth} ${paperHeight}; } body { padding: 0 3mm; } }
+      @media print { @page { margin: 0; size: 58mm 250mm; } body { padding: 0 3mm; } }
     </style></head><body>
     <h1>AUTODECORACION 2M</h1>
     <p class="center" style="font-size:10px;margin-bottom:6px;">Comprobante de cita</p>
@@ -456,8 +451,8 @@ const Agenda = () => {
     </body></html>`;
   };
 
-  const printApptThermal = (appt: Appointment, paperWidth: "58mm" | "80mm") => {
-    const html = buildApptReceiptHtml(appt, paperWidth);
+  const printApptThermal = (appt: Appointment) => {
+    const html = buildApptReceiptHtml(appt);
     const win = window.open("", "_blank", "width=320,height=600,toolbar=0,menubar=0");
     if (!win) return;
     win.document.write(html);
@@ -996,6 +991,7 @@ const Agenda = () => {
                             </div>
                             {task.placa && <span className="text-[11px] text-gray-500 font-mono">🔖 {task.placa}</span>}
                             {(() => {
+                              if (role === "tecnico") return null;
                               const total = (task.appointment_tasks ?? []).reduce((s, t) => s + (t.price ?? 0), 0);
                               if (total <= 0) return null;
                               const abono = task.abono ?? 0;
@@ -1193,16 +1189,10 @@ const Agenda = () => {
                 Cerrar
               </button>
               <button
-                onClick={() => { setPreviewAppt(null); printApptThermal(previewAppt, "58mm"); }}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-xl bg-gray-600 hover:bg-gray-800 text-white transition-colors"
-              >
-                <Printer size={14} /> POS08
-              </button>
-              <button
-                onClick={() => { setPreviewAppt(null); printApptThermal(previewAppt, "80mm"); }}
+                onClick={() => { setPreviewAppt(null); printApptThermal(previewAppt); }}
                 className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white transition-colors"
               >
-                <Printer size={14} /> POS-76C
+                <Printer size={14} /> Imprimir
               </button>
             </div>
           </div>

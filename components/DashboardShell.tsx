@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useState, useEffect, useRef } from "react";
+import { memo, useState, useEffect, useRef, useMemo } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/utils/supabase/client";
@@ -92,7 +92,7 @@ export default function DashboardShell({ children }: { children: React.ReactNode
   const notifRef = useRef<HTMLDivElement>(null);
   const router   = useRouter();
   const pathname = usePathname();
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
 
   useEffect(() => {
     setNavigating(true);
@@ -141,7 +141,7 @@ export default function DashboardShell({ children }: { children: React.ReactNode
   useEffect(() => {
     if (!userId || roleData.role !== "admin") return;
     const channel = supabase
-      .channel("user-notifications")
+      .channel(`user-notifications-${userId}`)
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${userId}` },
