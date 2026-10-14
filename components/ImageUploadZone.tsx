@@ -10,6 +10,7 @@ interface Props {
   onAddFile: (f: File) => void;
   onRemoveUrl: (url: string) => void;
   onRemovePending: (index: number) => void;
+  onClickUrl?: (url: string) => void;
   accept?: string;
   disabled?: boolean;
   /** Listen for paste on the entire document */
@@ -17,7 +18,7 @@ interface Props {
 }
 
 export default function ImageUploadZone({
-  urls = [], pendingFiles = [], onAddFile, onRemoveUrl, onRemovePending,
+  urls = [], pendingFiles = [], onAddFile, onRemoveUrl, onRemovePending, onClickUrl,
   accept = "image/*", disabled, listenGlobalPaste,
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -57,7 +58,12 @@ export default function ImageUploadZone({
           {urls.map((url, i) => (
             <div key={`url-${i}`} className="relative group/img">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={url} alt={`imagen ${i + 1}`} className="w-20 h-20 rounded-xl object-cover border border-gray-200" />
+              <img
+                src={url}
+                alt={`imagen ${i + 1}`}
+                className={`w-20 h-20 rounded-xl object-cover border border-gray-200 ${onClickUrl ? "cursor-zoom-in" : ""}`}
+                onClick={onClickUrl ? (e) => { e.stopPropagation(); onClickUrl(url); } : undefined}
+              />
               {!disabled && (
                 <button
                   type="button"

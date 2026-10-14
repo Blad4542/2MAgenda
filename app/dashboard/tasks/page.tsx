@@ -805,6 +805,7 @@ export default function TasksPage() {
                 onAddFile={f => setImageFiles(prev => [...prev, f])}
                 onRemoveUrl={url => setForm(f => ({ ...f, image_urls: (f.image_urls ?? []).filter(u => u !== url) }))}
                 onRemovePending={i => setImageFiles(prev => prev.filter((_, idx) => idx !== i))}
+                onClickUrl={url => setLightboxUrl(url)}
                 listenGlobalPaste
               />
             </div>
