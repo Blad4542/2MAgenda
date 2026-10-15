@@ -401,7 +401,7 @@ const Agenda = () => {
     setTimeout(() => { win.print(); win.close(); }, 300);
   };
 
-  const buildApptReceiptHtml = (appt: Appointment): string => {
+  const buildApptReceiptHtml = (appt: Appointment, paperWidthMm = 58): string => {
     const rawDate = appt.appointment_date ?? "";
     const dateStr = rawDate
       ? format(new Date(rawDate.includes("T") ? rawDate : rawDate + "T12:00:00"), "dd/MM/yyyy", { locale: es })
@@ -428,7 +428,7 @@ const Agenda = () => {
       .lbl { color: #444; width: 45%; }
       .saldo td { font-size: 13px; font-weight: bold; padding-top: 4px; }
       .item-price { text-align: right; font-weight: bold; display: block; margin-top: 1px; }
-      @media print { @page { margin: 0; size: 58mm ${pageHeightMm}; } body { padding: 0 3mm; } }
+      @media print { @page { margin: 0; size: ${paperWidthMm}mm ${pageHeightMm}; } body { padding: 0 3mm; } }
     </style></head><body>
     <h1>AUTODECORACION 2M</h1>
     <p class="center" style="font-size:10px;margin-bottom:6px;">Comprobante de cita</p>
@@ -453,8 +453,8 @@ const Agenda = () => {
     </body></html>`;
   };
 
-  const printApptThermal = (appt: Appointment) => {
-    const html = buildApptReceiptHtml(appt);
+  const printApptThermal = (appt: Appointment, paperWidthMm = 58) => {
+    const html = buildApptReceiptHtml(appt, paperWidthMm);
     const win = window.open("", "_blank", "width=320,height=600,toolbar=0,menubar=0");
     if (!win) return;
     win.document.write(html);
@@ -1191,10 +1191,16 @@ const Agenda = () => {
                 Cerrar
               </button>
               <button
-                onClick={() => { setPreviewAppt(null); printApptThermal(previewAppt); }}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white transition-colors"
+                onClick={() => { setPreviewAppt(null); printApptThermal(previewAppt, 58); }}
+                className="flex items-center gap-2 px-3 py-2 text-sm font-semibold rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white transition-colors"
               >
-                <Printer size={14} /> Imprimir
+                <Printer size={14} /> POS08
+              </button>
+              <button
+                onClick={() => { setPreviewAppt(null); printApptThermal(previewAppt, 76); }}
+                className="flex items-center gap-2 px-3 py-2 text-sm font-semibold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white transition-colors"
+              >
+                <Printer size={14} /> POS-76C
               </button>
             </div>
           </div>
