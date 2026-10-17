@@ -366,6 +366,7 @@ export default function OrdersPage() {
     const subtotal = orderItems.reduce((s, i) => s + (i.price ?? 0), 0);
     const fecha = format(new Date(o.order_date), "dd/MM/yyyy", { locale: es });
     const fmt = (n: number) => `CRC ${n.toLocaleString("es-CR")}`;
+    const paperHeight = paperWidthMm === 58 ? "250mm" : "297mm";
     const itemsHtml = orderItems.length > 0
       ? orderItems.map((item, i) => {
           const desc = item.completed ? `<s>${item.description}</s>` : item.description;
@@ -386,7 +387,7 @@ export default function OrdersPage() {
       .lbl { color: #444; width: 45%; }
       .saldo td { font-size: 13px; font-weight: bold; padding-top: 4px; }
       .item-price { text-align: right; font-weight: bold; display: block; margin-top: 1px; }
-      @media print { body { padding: 0 3mm; } }
+      @media print { @page { margin: 0; size: ${paperWidthMm}mm ${paperHeight}; } body { padding: 0 3mm; } }
     </style></head><body>
     <h1>AUTODECORACION 2M</h1>
     <p class="center" style="font-size:10px;margin-bottom:6px;">Orden de pedido</p>
@@ -417,16 +418,6 @@ export default function OrdersPage() {
     </tbody></table>
     <div class="line"></div>
     <div style="height:5mm"></div>
-    <script>
-    window.onload=function(){
-      var h=document.documentElement.scrollHeight;
-      var hmm=Math.ceil(h*0.2646)+8;
-      var s=document.createElement('style');
-      s.textContent='@page{margin:0;size:${paperWidthMm}mm '+hmm+'mm;}';
-      document.head.appendChild(s);
-      setTimeout(function(){window.print();window.close();},150);
-    };
-    </script>
     </body></html>`;
   };
 
@@ -439,6 +430,7 @@ export default function OrdersPage() {
     win.document.write(html);
     win.document.close();
     win.focus();
+    setTimeout(() => { win.print(); win.close(); }, 300);
   };
 
   const openPreview = async (o: Order) => {
@@ -956,7 +948,7 @@ export default function OrdersPage() {
                 <Printer size={14} /> POS08
               </button>
               <button
-                onClick={() => { setPreviewOrder(null); printOrder(previewOrder, 76); }}
+                onClick={() => { setPreviewOrder(null); printOrder(previewOrder, 80); }}
                 className="flex items-center gap-2 px-3 py-2 text-sm font-semibold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white transition-colors"
               >
                 <Printer size={14} /> POS-76C

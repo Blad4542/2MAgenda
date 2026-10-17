@@ -407,6 +407,7 @@ const Agenda = () => {
       ? format(new Date(rawDate.includes("T") ? rawDate : rawDate + "T12:00:00"), "dd/MM/yyyy", { locale: es })
       : "";
     const tasks = appt.appointment_tasks ?? [];
+    const paperHeight = paperWidthMm === 58 ? "250mm" : "297mm";
     const tasksHtml = tasks.length > 0
       ? tasks.map((t, i) => {
           const desc = t.completed ? `<s>${t.description}</s>` : t.description;
@@ -426,7 +427,7 @@ const Agenda = () => {
       .lbl { color: #444; width: 45%; }
       .saldo td { font-size: 13px; font-weight: bold; padding-top: 4px; }
       .item-price { text-align: right; font-weight: bold; display: block; margin-top: 1px; }
-      @media print { body { padding: 0 3mm; } }
+      @media print { @page { margin: 0; size: ${paperWidthMm}mm ${paperHeight}; } body { padding: 0 3mm; } }
     </style></head><body>
     <h1>AUTODECORACION 2M</h1>
     <p class="center" style="font-size:10px;margin-bottom:6px;">Comprobante de cita</p>
@@ -448,16 +449,6 @@ const Agenda = () => {
     <table><tbody>${tasksHtml}</tbody></table>` : ""}
     <div class="line"></div>
     <div style="height:5mm"></div>
-    <script>
-    window.onload=function(){
-      var h=document.documentElement.scrollHeight;
-      var hmm=Math.ceil(h*0.2646)+8;
-      var s=document.createElement('style');
-      s.textContent='@page{margin:0;size:${paperWidthMm}mm '+hmm+'mm;}';
-      document.head.appendChild(s);
-      setTimeout(function(){window.print();window.close();},150);
-    };
-    </script>
     </body></html>`;
   };
 
@@ -469,6 +460,7 @@ const Agenda = () => {
     win.document.write(html);
     win.document.close();
     win.focus();
+    setTimeout(() => { win.print(); win.close(); }, 300);
   };
 
   const openPreviewAppt = (appt: Appointment) => {
@@ -1205,7 +1197,7 @@ const Agenda = () => {
                 <Printer size={14} /> POS08
               </button>
               <button
-                onClick={() => { setPreviewAppt(null); printApptThermal(previewAppt, 76); }}
+                onClick={() => { setPreviewAppt(null); printApptThermal(previewAppt, 80); }}
                 className="flex items-center gap-2 px-3 py-2 text-sm font-semibold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white transition-colors"
               >
                 <Printer size={14} /> POS-76C
