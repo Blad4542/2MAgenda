@@ -407,7 +407,6 @@ const Agenda = () => {
       ? format(new Date(rawDate.includes("T") ? rawDate : rawDate + "T12:00:00"), "dd/MM/yyyy", { locale: es })
       : "";
     const tasks = appt.appointment_tasks ?? [];
-    const paperHeight = paperWidthMm === 58 ? "250mm" : "297mm";
     const tasksHtml = tasks.length > 0
       ? tasks.map((t, i) => {
           const desc = t.completed ? `<s>${t.description}</s>` : t.description;
@@ -427,7 +426,10 @@ const Agenda = () => {
       .lbl { color: #444; width: 45%; }
       .saldo td { font-size: 13px; font-weight: bold; padding-top: 4px; }
       .item-price { text-align: right; font-weight: bold; display: block; margin-top: 1px; }
-      @media print { @page { margin: 0; size: ${paperWidthMm}mm ${paperHeight}; } body { padding: 0 3mm; } }
+      ${paperWidthMm === 58
+        ? `@media print { @page { margin: 0; size: 58mm 250mm; } body { padding: 0 3mm; } }`
+        : `@media print { @page { margin: 0; size: auto; } body { max-width: 74mm; padding: 0 3mm; } }`
+      }
     </style></head><body>
     <h1>AUTODECORACION 2M</h1>
     <p class="center" style="font-size:10px;margin-bottom:6px;">Comprobante de cita</p>
