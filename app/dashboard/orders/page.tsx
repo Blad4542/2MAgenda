@@ -388,7 +388,7 @@ export default function OrdersPage() {
       .item-price { text-align: right; font-weight: bold; display: block; margin-top: 1px; }
       ${paperWidthMm === 58
         ? `@media print { @page { margin: 0; size: 58mm 250mm; } body { padding: 0 3mm; } }`
-        : `@media print { @page { margin: 0; size: auto; } body { max-width: 74mm; padding: 0 3mm; } }`
+        : `@media print { @page { margin: 0; size: auto; } body { max-width: 52mm; padding: 0 3mm; print-color-adjust: exact; -webkit-print-color-adjust: exact; } }`
       }
     </style></head><body>
     <h1>AUTODECORACION 2M</h1>
@@ -426,7 +426,7 @@ export default function OrdersPage() {
   const printOrder = async (o: Order, paperWidthMm = 58) => {
     const orderItems = await fetchReceiptItems(o.id);
     const html = buildReceiptHtml(o, orderItems, paperWidthMm);
-    const winW = Math.round(paperWidthMm / 0.2646);
+    const winW = paperWidthMm === 58 ? Math.round(58 / 0.2646) : 320;
     const win = window.open("", "_blank", `width=${winW},height=600,toolbar=0,menubar=0`);
     if (!win) return;
     win.document.write(html);
