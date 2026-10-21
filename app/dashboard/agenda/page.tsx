@@ -407,15 +407,15 @@ const Agenda = () => {
       ? format(new Date(rawDate.includes("T") ? rawDate : rawDate + "T12:00:00"), "dd/MM/yyyy", { locale: es })
       : "";
     const tasks = appt.appointment_tasks ?? [];
+    const is76c = paperWidthMm !== 58;
+    const font = is76c ? "Arial, Helvetica, sans-serif" : "monospace";
+    const fs = is76c ? "13px" : "12px";
     const tasksHtml = tasks.length > 0
       ? tasks.map((t, i) => {
           const desc = t.completed ? `<s>${t.description}</s>` : t.description;
           return `<tr><td style="padding:4px 0 2px;border-bottom:1px dotted #000"><span style="font-weight:bold">${i + 1}.</span> ${desc}</td></tr>`;
         }).join("")
-      : `<tr><td style="padding:4px 0">Sin servicios</td></tr>`;
-    const is76c = paperWidthMm !== 58;
-    const font = is76c ? "Arial, Helvetica, sans-serif" : "monospace";
-    const fs = is76c ? "13px" : "12px";
+      : `<tr><td style="color:${is76c ? "#000" : "#888"};padding:4px 0">Sin servicios</td></tr>`;
     return `<!DOCTYPE html><html><head><meta charset="utf-8">
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -426,7 +426,7 @@ const Agenda = () => {
       table { width: 100%; border-collapse: collapse; }
       td { font-size: ${fs}; padding: 2px 0; vertical-align: top; ${is76c ? "font-weight: 600;" : ""} }
       td.r { text-align: right; white-space: nowrap; }
-      .lbl { color: #444; width: 45%; }
+      .lbl { color: ${is76c ? "#000" : "#444"}; width: 45%; }
       .saldo td { font-size: ${is76c ? "14px" : "13px"}; font-weight: bold; padding-top: 4px; }
       .item-price { text-align: right; font-weight: bold; display: block; margin-top: 1px; }
       ${is76c

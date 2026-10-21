@@ -366,16 +366,16 @@ export default function OrdersPage() {
     const subtotal = orderItems.reduce((s, i) => s + (i.price ?? 0), 0);
     const fecha = format(new Date(o.order_date), "dd/MM/yyyy", { locale: es });
     const fmt = (n: number) => `CRC ${n.toLocaleString("es-CR")}`;
+    const is76c = paperWidthMm !== 58;
+    const font = is76c ? "Arial, Helvetica, sans-serif" : "monospace";
+    const fs = is76c ? "13px" : "12px";
     const itemsHtml = orderItems.length > 0
       ? orderItems.map((item, i) => {
           const desc = item.completed ? `<s>${item.description}</s>` : item.description;
           const price = item.price ? `<span class="item-price">${fmt(item.price)}</span>` : "";
           return `<tr><td style="padding:4px 0 2px;border-bottom:1px dotted #ccc"><span style="font-weight:bold">${i + 1}.</span> ${desc}${price}</td></tr>`;
         }).join("")
-      : `<tr><td style="color:#888;padding:4px 0">Sin tareas</td></tr>`;
-    const is76c = paperWidthMm !== 58;
-    const font = is76c ? "Arial, Helvetica, sans-serif" : "monospace";
-    const fs = is76c ? "13px" : "12px";
+      : `<tr><td style="color:${is76c ? "#000" : "#888"};padding:4px 0">Sin tareas</td></tr>`;
     return `<!DOCTYPE html><html><head><meta charset="utf-8">
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -386,7 +386,7 @@ export default function OrdersPage() {
       table { width: 100%; border-collapse: collapse; }
       td { font-size: ${fs}; padding: 2px 0; vertical-align: top; ${is76c ? "font-weight: 600;" : ""} }
       td.r { text-align: right; white-space: nowrap; }
-      .lbl { color: #444; width: 45%; }
+      .lbl { color: ${is76c ? "#000" : "#444"}; width: 45%; }
       .saldo td { font-size: ${is76c ? "14px" : "13px"}; font-weight: bold; padding-top: 4px; }
       .item-price { text-align: right; font-weight: bold; display: block; margin-top: 1px; }
       ${is76c
