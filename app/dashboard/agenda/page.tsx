@@ -419,12 +419,12 @@ const Agenda = () => {
     return `<!DOCTYPE html><html><head><meta charset="utf-8">
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
-      body { font-family: ${font}; font-size: ${fs}; width: 100%; color: #000; background: #fff; }
+      body { font-family: ${font}; font-size: ${fs}; width: 100%; color: #000; background: #fff; ${is76c ? "-webkit-font-smoothing: none; font-smooth: never; text-rendering: optimizeSpeed;" : ""} }
       h1 { font-size: ${is76c ? "15px" : "14px"}; text-align: center; font-weight: bold; letter-spacing: 0.5px; margin-bottom: 2px; }
       .center { text-align: center; }
       .line { border-top: 1px dashed #000; margin: 6px 0; }
       table { width: 100%; border-collapse: collapse; }
-      td { font-size: ${fs}; padding: 2px 0; vertical-align: top; }
+      td { font-size: ${fs}; padding: 2px 0; vertical-align: top; ${is76c ? "font-weight: 600;" : ""} }
       td.r { text-align: right; white-space: nowrap; }
       .lbl { color: #444; width: 45%; }
       .saldo td { font-size: ${is76c ? "14px" : "13px"}; font-weight: bold; padding-top: 4px; }
