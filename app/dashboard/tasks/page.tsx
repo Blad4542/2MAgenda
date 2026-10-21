@@ -345,6 +345,11 @@ export default function TasksPage() {
   useEffect(() => {
     fetchTasks();
     supabase.auth.getSession().then(({ data }) => { if (data.session) setUserEmail(data.session.user.email); });
+    const channel = supabase
+      .channel("tasks-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "pending_tasks" }, () => fetchTasks())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
   }, [fetchTasks, supabase]);
 
   const onPhoneBlur = async () => {

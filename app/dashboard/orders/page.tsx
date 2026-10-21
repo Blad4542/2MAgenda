@@ -235,6 +235,11 @@ export default function OrdersPage() {
     supabase.from("staff").select("id, name").eq("active", true).order("created_at", { ascending: true }).then(({ data }) => {
       setStaffList((data ?? []) as { id: string; name: string }[]);
     });
+    const channel = supabase
+      .channel("orders-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => fetchOrders())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
   }, []);
 
   // Auto-sum item prices into total_amount
@@ -429,13 +434,26 @@ export default function OrdersPage() {
   const printOrder = async (o: Order, paperWidthMm = 58) => {
     const orderItems = await fetchReceiptItems(o.id);
     const html = buildReceiptHtml(o, orderItems, paperWidthMm);
-    const winW = paperWidthMm === 58 ? Math.round(58 / 0.2646) : 320;
-    const win = window.open("", "_blank", `width=${winW},height=600,toolbar=0,menubar=0`);
-    if (!win) return;
-    win.document.write(html);
-    win.document.close();
-    win.focus();
-    setTimeout(() => { win.print(); win.close(); }, 300);
+    if (paperWidthMm !== 58) {
+      // POS-76C: iframe oculto evita que el driver posicione el contenido en página grande
+      const iframe = document.createElement("iframe");
+      iframe.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:320px;height:600px;border:0;";
+      document.body.appendChild(iframe);
+      const doc = iframe.contentDocument!;
+      doc.open(); doc.write(html); doc.close();
+      setTimeout(() => {
+        iframe.contentWindow!.print();
+        setTimeout(() => document.body.removeChild(iframe), 1000);
+      }, 400);
+    } else {
+      const winW = Math.round(58 / 0.2646);
+      const win = window.open("", "_blank", `width=${winW},height=600,toolbar=0,menubar=0`);
+      if (!win) return;
+      win.document.write(html);
+      win.document.close();
+      win.focus();
+      setTimeout(() => { win.print(); win.close(); }, 300);
+    }
   };
 
   const openPreview = async (o: Order) => {

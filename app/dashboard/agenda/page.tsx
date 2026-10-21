@@ -459,13 +459,26 @@ const Agenda = () => {
 
   const printApptThermal = (appt: Appointment, paperWidthMm = 58) => {
     const html = buildApptReceiptHtml(appt, paperWidthMm);
-    const winW = paperWidthMm === 58 ? Math.round(58 / 0.2646) : 320;
-    const win = window.open("", "_blank", `width=${winW},height=600,toolbar=0,menubar=0`);
-    if (!win) return;
-    win.document.write(html);
-    win.document.close();
-    win.focus();
-    setTimeout(() => { win.print(); win.close(); }, 300);
+    if (paperWidthMm !== 58) {
+      // POS-76C: iframe oculto evita que el driver posicione el contenido en página grande
+      const iframe = document.createElement("iframe");
+      iframe.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:320px;height:600px;border:0;";
+      document.body.appendChild(iframe);
+      const doc = iframe.contentDocument!;
+      doc.open(); doc.write(html); doc.close();
+      setTimeout(() => {
+        iframe.contentWindow!.print();
+        setTimeout(() => document.body.removeChild(iframe), 1000);
+      }, 400);
+    } else {
+      const winW = Math.round(58 / 0.2646);
+      const win = window.open("", "_blank", `width=${winW},height=600,toolbar=0,menubar=0`);
+      if (!win) return;
+      win.document.write(html);
+      win.document.close();
+      win.focus();
+      setTimeout(() => { win.print(); win.close(); }, 300);
+    }
   };
 
   const openPreviewAppt = (appt: Appointment) => {
