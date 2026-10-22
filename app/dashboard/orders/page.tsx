@@ -17,7 +17,7 @@ import { waUrl, WaIcon } from "@/utils/wa";
 import { inp, lbl } from "@/utils/styles";
 import { lookupCustomer, findOrCreateCustomer, getCustomerVehicles, findOrCreateVehicle, buildVehicleDescription, vehicleLabel, type VehicleRecord } from "@/utils/customers";
 
-type OrderStatus = "Por pedir" | "Pedido" | "En local" | "Entregado";
+type OrderStatus = "Por pedir" | "Pedido" | "En local" | "Entregado" | "Garantía";
 
 interface Order {
   id: string; order_date: string; customer_name: string; phone?: string;
@@ -47,9 +47,10 @@ const STATUS_STYLES: Record<OrderStatus, string> = {
   "Pedido":    "bg-blue-50 text-blue-700 border border-blue-200",
   "En local":  "bg-violet-50 text-violet-700 border border-violet-200",
   "Entregado": "bg-emerald-50 text-emerald-700 border border-emerald-200",
+  "Garantía":  "bg-orange-50 text-orange-700 border border-orange-200",
 };
 
-const STATUSES: OrderStatus[] = ["Por pedir", "Pedido", "En local", "Entregado"];
+const STATUSES: OrderStatus[] = ["Por pedir", "Pedido", "En local", "Entregado", "Garantía"];
 const ACTIVE_STATUSES: OrderStatus[] = ["Por pedir", "Pedido", "En local"];
 
 const emptyForm = {
@@ -641,6 +642,7 @@ export default function OrdersPage() {
   const porPedirOrders = filtered.filter(o => o.status === "Por pedir");
   const inProgressOrders = filtered.filter(o => (["Pedido", "En local"] as OrderStatus[]).includes(o.status as OrderStatus));
   const deliveredOrders = filtered.filter(o => o.status === "Entregado");
+  const garantiaOrders = filtered.filter(o => o.status === "Garantía");
 
   if (isLoading) return (
     <div className="p-6 max-w-7xl mx-auto animate-pulse">
@@ -711,6 +713,7 @@ export default function OrdersPage() {
       <OrderTable list={porPedirOrders} title="Por pedir" orderItemDescriptions={orderItemDescriptions} onEdit={openEdit} onDelete={deleteOne} onHistory={openHistory} onPrint={printOrder} onPreview={openPreview} onAgendar={openAgendar} onConvertToQuote={convertToQuote} />
       <OrderTable list={inProgressOrders} title="En proceso" orderItemDescriptions={orderItemDescriptions} onEdit={openEdit} onDelete={deleteOne} onHistory={openHistory} onPrint={printOrder} onPreview={openPreview} onAgendar={openAgendar} onConvertToQuote={convertToQuote} />
       <OrderTable list={deliveredOrders} title="Entregados" orderItemDescriptions={orderItemDescriptions} onEdit={openEdit} onDelete={deleteOne} onHistory={openHistory} onPrint={printOrder} onPreview={openPreview} onConvertToQuote={convertToQuote} />
+      <OrderTable list={garantiaOrders} title="Garantía" orderItemDescriptions={orderItemDescriptions} onEdit={openEdit} onDelete={deleteOne} onHistory={openHistory} onPrint={printOrder} onPreview={openPreview} onConvertToQuote={convertToQuote} />
 
       {/* Modal */}
       {isOpen && (
