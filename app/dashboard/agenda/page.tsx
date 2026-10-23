@@ -521,6 +521,10 @@ const Agenda = () => {
       setErrorMessage("Los sábados cerramos a las 12:00 pm. No se pueden agendar citas después del mediodía.");
       return;
     }
+    if (currentTask.start_time && currentTask.end_time && toMin(currentTask.end_time) <= toMin(currentTask.start_time)) {
+      setErrorMessage("La hora de fin debe ser mayor que la hora de inicio.");
+      return;
+    }
     setErrorMessage("");
     setSaving(true);
     // Overlap check — skip on edit if times/person unchanged (appointment already exists in DB)
@@ -689,6 +693,7 @@ const Agenda = () => {
   // Waiting list handlers
   const saveWaiting = async () => {
     if (!waitingForm.name.trim() || !waitingForm.phone.trim() || !waitingForm.vehicle.trim() || waitingTasks.length === 0) return;
+    if (waitingForm.phone.replace(/\D/g, "").length < 8) return;
     const entryId = editingWaiting ? editingWaiting.id : uuidv4();
     const payload = { ...waitingForm, pending_tasks: waitingTasks };
     if (editingWaiting) {

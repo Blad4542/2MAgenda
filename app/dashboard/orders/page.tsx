@@ -509,6 +509,7 @@ export default function OrdersPage() {
   const save = async () => {
     const name = form.customer_name.trim();
     if (!name) { setFormError("Nombre es obligatorio."); return; }
+    if (form.phone.trim() && form.phone.replace(/\D/g, "").length < 8) { setFormError("El teléfono debe tener al menos 8 dígitos."); return; }
     if (detailItems.length === 0) { setFormError("Debes agregar al menos una tarea."); return; }
     setFormError("");
     setSaving(true);

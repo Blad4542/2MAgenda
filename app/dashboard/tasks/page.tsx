@@ -405,6 +405,10 @@ export default function TasksPage() {
       setFormError("Nombre y teléfono son obligatorios.");
       return;
     }
+    if (form.phone.replace(/\D/g, "").length < 8) {
+      setFormError("El teléfono debe tener al menos 8 dígitos.");
+      return;
+    }
     if (detailItems.length === 0) {
       setFormError("Debes agregar al menos una tarea.");
       return;

@@ -85,6 +85,7 @@ export default function ClientesPage() {
 
   const saveNewCustomer = async () => {
     if (!newForm.name.trim() || !newForm.phone.trim()) return;
+    if (newForm.phone.replace(/\D/g, "").length < 8) return;
     setSaving(true);
     const { data } = await supabase
       .from("customers")
@@ -283,7 +284,7 @@ export default function ClientesPage() {
               </button>
               <button
                 onClick={saveNewCustomer}
-                disabled={saving || !newForm.name.trim() || !newForm.phone.trim()}
+                disabled={saving || !newForm.name.trim() || !newForm.phone.trim() || newForm.phone.replace(/\D/g, "").length < 8}
                 className="px-4 py-2 text-sm font-semibold rounded-xl bg-[#07C3F8] hover:bg-[#06aad9] text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {saving ? "Guardando..." : "Guardar"}

@@ -298,6 +298,7 @@ export default function CustomerProfilePage() {
 
   const saveCustomer = async () => {
     if (!editForm.name.trim() || !editForm.phone.trim()) return;
+    if (editForm.phone.replace(/\D/g, "").length < 8) return;
     const name = editForm.name.trim();
     const phone = editForm.phone.trim();
     const { error } = await supabase.from("customers").update({ name, phone, notes: editForm.notes.trim() || null }).eq("id", id);
