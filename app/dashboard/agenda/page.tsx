@@ -142,7 +142,7 @@ const Agenda = () => {
   const [reservingSlots, setReservingSlots] = useState<Record<string, string>>({});
   const channelRef = useRef<any>(null);
   const currentSlotRef = useRef<string | null>(null);
-  const fetchNotesRef = useRef<(() => Promise<void>) | null>(null);
+  const fetchNotesRef = useRef<((quiet?: boolean) => Promise<void>) | null>(null);
   const userRef = useRef<string | null>(null);
   const originalTimesRef = useRef<{ start_time: string; end_time: string; assigned_person: string } | null>(null);
   const supabase = useMemo(() => createClient(), []);
@@ -183,8 +183,8 @@ const Agenda = () => {
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const [holidays, setHolidays] = useState<{ date: string; name: string }[]>([]);
 
-  const fetchNotesForSelectedDate = async () => {
-    setIsLoading(true);
+  const fetchNotesForSelectedDate = async (quiet = false) => {
+    if (!quiet) setIsLoading(true);
     const startOfDay = new Date(selectedDate); startOfDay.setHours(0, 0, 0, 0);
     const endOfDay = new Date(selectedDate); endOfDay.setHours(23, 59, 59, 999);
     const { data, error } = await supabase.from("appointments")
@@ -275,7 +275,7 @@ const Agenda = () => {
         if (payload.action === "reserve") setReservingSlots((prev) => ({ ...prev, [payload.slot]: payload.user }));
         else setReservingSlots((prev) => { const next = { ...prev }; delete next[payload.slot]; return next; });
       })
-      .on("broadcast", { event: "appointments-updated" }, () => { fetchNotesRef.current?.(); });
+      .on("broadcast", { event: "appointments-updated" }, () => { fetchNotesRef.current?.(true); });
     channel.subscribe((status) => { if (status === "SUBSCRIBED") channelRef.current = channel; });
     const handleUnload = () => {
       if (channelRef.current && currentSlotRef.current)
