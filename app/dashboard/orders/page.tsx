@@ -204,6 +204,7 @@ export default function OrdersPage() {
   const [agendarError, setAgendarError] = useState("");
   const [convertTarget, setConvertTarget] = useState<Order | null>(null);
   const [converting, setConverting] = useState(false);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 
   const fetchOrders = useCallback(async (s = search, owb = onlyWithBalance) => {
     let q = supabase.from("orders").select("*").order("order_date", { ascending: false });
@@ -854,6 +855,7 @@ export default function OrdersPage() {
                 onAddFile={f => setImageFiles(prev => [...prev, f])}
                 onRemoveUrl={url => setForm(f => ({ ...f, image_urls: (f.image_urls ?? []).filter(u => u !== url) }))}
                 onRemovePending={i => setImageFiles(prev => prev.filter((_, idx) => idx !== i))}
+                onClickUrl={url => setLightboxUrl(url)}
                 listenGlobalPaste
               />
             </div>
@@ -1012,6 +1014,21 @@ export default function OrdersPage() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {lightboxUrl && (
+        <div
+          className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm"
+          onClick={() => setLightboxUrl(null)}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={lightboxUrl}
+            alt="Imagen ampliada"
+            className="max-h-[90vh] max-w-[90vw] rounded-xl shadow-2xl object-contain"
+            onClick={e => e.stopPropagation()}
+          />
         </div>
       )}
     </div>
