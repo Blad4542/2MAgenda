@@ -13,7 +13,7 @@ import { getAppSetting, setAppSetting } from "@/utils/appSettings";
 import { useRole, useStaffId } from "@/contexts/RoleContext";
 import { waUrl, WaIcon } from "@/utils/wa";
 import { inp, lbl } from "@/utils/styles";
-import { ChevronLeft, ChevronRight, Plus, Edit, Trash2, CalendarPlus, X, Settings, Printer } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Edit, Trash2, CalendarPlus, X, Settings, Printer, PhoneCall } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
 import { format, startOfWeek, addDays } from "date-fns";
 import { es } from "date-fns/locale/es";
@@ -169,6 +169,8 @@ const Agenda = () => {
   const [pendingTasksForModal, setPendingTasksForModal] = useState<{ text: string; price?: number }[]>([]);
   const [pendingFromWaiting, setPendingFromWaiting] = useState<WaitingEntry | null>(null);
   const pendingWaitingIdRef = useRef<string | null>(null);
+  const [contactingEntry, setContactingEntry] = useState<WaitingEntry | null>(null);
+  const [contactReason, setContactReason] = useState("");
 
   // Week view state
   const [weekView, setWeekView] = useState(false);
@@ -212,6 +214,7 @@ const Agenda = () => {
   const fetchWaitingList = async () => {
     const { data } = await supabase.from("waiting_list").select("*")
       .neq("status", "scheduled")
+      .neq("status", "contacted")
       .order("created_at", { ascending: true });
     if (data) setWaitingList(data as WaitingEntry[]);
   };
@@ -715,6 +718,17 @@ const Agenda = () => {
     fetchWaitingList();
   };
 
+  const markContacted = async () => {
+    if (!contactingEntry) return;
+    const updates: Record<string, string> = { status: "contacted" };
+    if (contactReason.trim()) updates.description = contactReason.trim();
+    await supabase.from("waiting_list").update(updates).eq("id", contactingEntry.id);
+    if (pendingFromWaiting?.id === contactingEntry.id) setPendingFromWaiting(null);
+    setContactingEntry(null);
+    setContactReason("");
+    fetchWaitingList();
+  };
+
   const dateStr = selectedDate.toISOString().split("T")[0];
   const prevDay = () => setSelectedDate((d) => { const n = new Date(d); n.setDate(n.getDate() - 1); return n; });
   const nextDay = () => setSelectedDate((d) => { const n = new Date(d); n.setDate(n.getDate() + 1); return n; });
@@ -1158,6 +1172,13 @@ const Agenda = () => {
                                 <CalendarPlus size={14} />
                               </button>
                               <button
+                                onClick={() => { setContactingEntry(entry); setContactReason(""); }}
+                                title="Marcar como contactado"
+                                className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                              >
+                                <PhoneCall size={14} />
+                              </button>
+                              <button
                                 onClick={() => { setEditingWaiting(entry); setWaitingForm({ name: entry.name, phone: entry.phone, vehicle: entry.vehicle, description: entry.description, status: entry.status }); setWaitingTasks(entry.pending_tasks ?? []); setNewWaitingTaskText(""); setIsWaitingModalOpen(true); }}
                                 className="p-1.5 rounded-lg text-gray-400 hover:text-[#07C3F8] hover:bg-[#07C3F8]/10 transition-colors"
                               >
@@ -1364,6 +1385,44 @@ const Agenda = () => {
 
       {errorMessage && !isModalOpen && (
         <div className="text-red-600 text-center p-3 bg-red-50 border-t border-red-200 text-sm shrink-0">{errorMessage}</div>
+      )}
+
+      {contactingEntry && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+            <div className="flex items-center justify-center w-12 h-12 rounded-full bg-blue-100 mx-auto mb-4">
+              <PhoneCall size={22} className="text-blue-600" />
+            </div>
+            <h2 className="text-base font-semibold text-gray-900 text-center mb-1">¿Marcar como contactado?</h2>
+            <p className="text-sm text-gray-500 text-center mb-4">
+              <span className="font-medium text-gray-700">{contactingEntry.name}</span> saldrá de la lista de espera.
+            </p>
+            <div className="mb-5">
+              <label className={lbl}>Motivo / nota <span className="text-gray-400 font-normal">(opcional)</span></label>
+              <textarea
+                rows={3}
+                className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300 resize-none"
+                placeholder="Ej: Se acordó reagendar para la próxima semana..."
+                value={contactReason}
+                onChange={e => setContactReason(e.target.value)}
+              />
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => { setContactingEntry(null); setContactReason(""); }}
+                className="flex-1 py-2.5 text-sm font-medium rounded-xl bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={markContacted}
+                className="flex-1 py-2.5 text-sm font-semibold rounded-xl bg-blue-500 hover:bg-blue-600 text-white transition-colors"
+              >
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
