@@ -10,6 +10,7 @@ export interface VehicleRecord {
   make?: string | null;
   model?: string | null;
   year?: number | null;
+  plate?: string | null;
 }
 
 export function buildVehicleDescription(make: string, model: string, year: string | number): string {
@@ -126,7 +127,7 @@ export async function getCustomerVehicles(
 ): Promise<VehicleRecord[]> {
   const { data } = await supabase
     .from("vehicles")
-    .select("id, description, make, model, year")
+    .select("id, description, make, model, year, plate")
     .eq("customer_id", customerId)
     .order("created_at", { ascending: true });
 

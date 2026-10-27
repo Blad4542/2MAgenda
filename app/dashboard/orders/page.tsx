@@ -482,6 +482,7 @@ export default function OrdersPage() {
         name: agendarOrder.customer_name,
         phone: agendarOrder.phone ?? "",
         vehicle: agendarOrder.vehicle ?? "",
+        placa: undefined,
         description: "",
         start_time: agendarForm.start_time,
         end_time: agendarForm.end_time,
@@ -489,6 +490,7 @@ export default function OrdersPage() {
         appointment_date: new Date(agendarForm.appointment_date + "T12:00:00").toISOString(),
         status: "pending",
         customer_id: agendarOrder.customer_id,
+        abono: agendarOrder.initial_payment ?? 0,
       });
       const insertedId = result.data?.[0]?.id;
       if (insertedId) {

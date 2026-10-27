@@ -187,6 +187,7 @@ const TaskModal = ({
       customer_id: match.id,
       vehicle_id: firstV?.id ?? undefined,
       vehicle: firstV ? vehicleLabel(firstV) : task.vehicle,
+      placa: firstV?.plate ?? task.placa,
     });
   }, [supabase, isNewTask, task, setTask]);
 
@@ -201,7 +202,7 @@ const TaskModal = ({
       if (found) {
         setIsNewVehicle(false);
         setVehicleFields({ make: found.make ?? "", model: found.model ?? "", year: found.year ? String(found.year) : "" });
-        setTask({ ...task, vehicle: vehicleLabel(found), vehicle_id: found.id });
+        setTask({ ...task, vehicle: vehicleLabel(found), vehicle_id: found.id, placa: found.plate ?? task.placa });
       }
     }
   };
