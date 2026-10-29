@@ -6,7 +6,7 @@ import "react-datepicker/dist/react-datepicker.css";
 import TaskModal from "@/components/TaskModal";
 import Modal from "@/components/Modal";
 import { addNoteToSupabase, deleteNoteFromSupabase, updateNoteInSupabase } from "../../../utils/index";
-import { findOrCreateCustomer, findOrCreateVehicle } from "@/utils/customers";
+import { findOrCreateCustomer, findOrCreateVehicle, buildVehicleDescription } from "@/utils/customers";
 import { createClient } from "@/utils/supabase/client";
 import { logAction } from "@/utils/auditLog";
 import { getAppSetting, setAppSetting } from "@/utils/appSettings";
@@ -569,7 +569,18 @@ const Agenda = () => {
     let vehicleId = currentTask.vehicle_id;
     try {
       customerId = await findOrCreateCustomer(supabase, currentTask.phone, currentTask.name);
+      if (customerId) {
+        await supabase.from("customers").update({ name: currentTask.name, phone: currentTask.phone }).eq("id", customerId);
+      }
       vehicleId = await findOrCreateVehicle(supabase, customerId, vehicleData ?? currentTask.vehicle);
+      if (vehicleId && vehicleData && (vehicleData.make || vehicleData.model || vehicleData.year)) {
+        await supabase.from("vehicles").update({
+          make: vehicleData.make || null,
+          model: vehicleData.model || null,
+          year: vehicleData.year ? Number(vehicleData.year) : null,
+          description: buildVehicleDescription(vehicleData.make, vehicleData.model, vehicleData.year),
+        }).eq("id", vehicleId);
+      }
     } catch {
       // Non-fatal: appointment still saves without customer link
     }

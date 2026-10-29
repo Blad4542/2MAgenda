@@ -49,6 +49,10 @@ export const addNoteToSupabase = async (
     return { data: null, error };
   }
 
+  if (fields.vehicle_id && fields.placa) {
+    await supabase.from("vehicles").update({ plate: fields.placa }).eq("id", fields.vehicle_id);
+  }
+
   return { data, error: null };
 };
 
@@ -82,6 +86,10 @@ export const updateNoteInSupabase = async (
       .from("customers")
       .update({ name: task.name, phone: task.phone })
       .eq("id", task.customer_id);
+  }
+
+  if (!error && task.vehicle_id && task.placa) {
+    await supabase.from("vehicles").update({ plate: task.placa }).eq("id", task.vehicle_id);
   }
 
   return { data, error };

@@ -644,7 +644,8 @@ export default function OrdersPage() {
   }, [orders, search, onlyWithBalance]);
 
   const porPedirOrders = filtered.filter(o => o.status === "Por pedir");
-  const inProgressOrders = filtered.filter(o => (["Pedido", "En local"] as OrderStatus[]).includes(o.status as OrderStatus));
+  const pedidoOrders = filtered.filter(o => o.status === "Pedido");
+  const enLocalOrders = filtered.filter(o => o.status === "En local");
   const deliveredOrders = filtered.filter(o => o.status === "Entregado");
   const garantiaOrders = filtered.filter(o => o.status === "Garantía");
 
@@ -715,7 +716,8 @@ export default function OrdersPage() {
       </div>
 
       <OrderTable list={porPedirOrders} title="Por pedir" orderItemDescriptions={orderItemDescriptions} onEdit={openEdit} onDelete={deleteOne} onHistory={openHistory} onPrint={printOrder} onPreview={openPreview} onAgendar={openAgendar} onConvertToQuote={convertToQuote} />
-      <OrderTable list={inProgressOrders} title="En proceso" orderItemDescriptions={orderItemDescriptions} onEdit={openEdit} onDelete={deleteOne} onHistory={openHistory} onPrint={printOrder} onPreview={openPreview} onAgendar={openAgendar} onConvertToQuote={convertToQuote} />
+      <OrderTable list={pedidoOrders} title="Pedido" orderItemDescriptions={orderItemDescriptions} onEdit={openEdit} onDelete={deleteOne} onHistory={openHistory} onPrint={printOrder} onPreview={openPreview} onAgendar={openAgendar} onConvertToQuote={convertToQuote} />
+      <OrderTable list={enLocalOrders} title="En local" orderItemDescriptions={orderItemDescriptions} onEdit={openEdit} onDelete={deleteOne} onHistory={openHistory} onPrint={printOrder} onPreview={openPreview} onAgendar={openAgendar} onConvertToQuote={convertToQuote} />
       <OrderTable list={deliveredOrders} title="Entregados" orderItemDescriptions={orderItemDescriptions} onEdit={openEdit} onDelete={deleteOne} onHistory={openHistory} onPrint={printOrder} onPreview={openPreview} onConvertToQuote={convertToQuote} />
       <OrderTable list={garantiaOrders} title="Garantía" orderItemDescriptions={orderItemDescriptions} onEdit={openEdit} onDelete={deleteOne} onHistory={openHistory} onPrint={printOrder} onPreview={openPreview} onConvertToQuote={convertToQuote} />
 
