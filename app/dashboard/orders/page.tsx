@@ -741,13 +741,11 @@ export default function OrdersPage() {
                   <option value="__new__">+ Nuevo vehículo</option>
                 </select>
               )}
-              {(customerVehicles.length === 0 || isNewVehicle) && (
-                <div className={`grid grid-cols-3 gap-2 ${customerVehicles.length > 0 ? "mt-2" : ""}`}>
-                  <input className={inp} placeholder="Marca" value={vehicleFields.make} onChange={e => { const u = { ...vehicleFields, make: e.target.value }; setVehicleFields(u); setForm(f => ({ ...f, vehicle: buildVehicleDescription(u.make, u.model, u.year) })); }} />
-                  <input className={inp} placeholder="Modelo" value={vehicleFields.model} onChange={e => { const u = { ...vehicleFields, model: e.target.value }; setVehicleFields(u); setForm(f => ({ ...f, vehicle: buildVehicleDescription(u.make, u.model, u.year) })); }} />
-                  <input className={inp} placeholder="Año" value={vehicleFields.year} onChange={e => { const u = { ...vehicleFields, year: e.target.value }; setVehicleFields(u); setForm(f => ({ ...f, vehicle: buildVehicleDescription(u.make, u.model, u.year) })); }} />
-                </div>
-              )}
+              <div className={`grid grid-cols-3 gap-2 ${customerVehicles.length > 0 ? "mt-2" : ""}`}>
+                <input className={inp} placeholder="Marca" value={vehicleFields.make} onChange={e => { const u = { ...vehicleFields, make: e.target.value }; setVehicleFields(u); setForm(f => ({ ...f, vehicle: buildVehicleDescription(u.make, u.model, u.year) })); }} />
+                <input className={inp} placeholder="Modelo" value={vehicleFields.model} onChange={e => { const u = { ...vehicleFields, model: e.target.value }; setVehicleFields(u); setForm(f => ({ ...f, vehicle: buildVehicleDescription(u.make, u.model, u.year) })); }} />
+                <input className={inp} placeholder="Año" value={vehicleFields.year} onChange={e => { const u = { ...vehicleFields, year: e.target.value }; setVehicleFields(u); setForm(f => ({ ...f, vehicle: buildVehicleDescription(u.make, u.model, u.year) })); }} />
+              </div>
             </div>
             {/* Tareas */}
             {(() => {

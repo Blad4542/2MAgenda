@@ -363,49 +363,44 @@ const TaskModal = ({
                   <option value="__new__">+ Nuevo vehículo</option>
                 </select>
               )}
-              {(customerVehicles.length === 0 || isNewVehicle) && (
-                <div className={`grid grid-cols-3 gap-2 ${isNewTask && customerVehicles.length > 0 ? "mt-2" : ""}`}>
-                  <input
-                    type="text"
-                    placeholder="Marca"
-                    className={inp}
-                    value={vehicleFields.make}
-                    disabled={readOnly}
-                    onChange={e => {
-                      const updated = { ...vehicleFields, make: e.target.value };
-                      setVehicleFields(updated);
-                      setTask({ ...task, vehicle: buildVehicleDescription(updated.make, updated.model, updated.year) });
-                    }}
-                  />
-                  <input
-                    type="text"
-                    placeholder="Modelo"
-                    className={inp}
-                    value={vehicleFields.model}
-                    disabled={readOnly}
-                    onChange={e => {
-                      const updated = { ...vehicleFields, model: e.target.value };
-                      setVehicleFields(updated);
-                      setTask({ ...task, vehicle: buildVehicleDescription(updated.make, updated.model, updated.year) });
-                    }}
-                  />
-                  <input
-                    type="text"
-                    placeholder="Año"
-                    className={inp}
-                    value={vehicleFields.year}
-                    disabled={readOnly}
-                    onChange={e => {
-                      const updated = { ...vehicleFields, year: e.target.value };
-                      setVehicleFields(updated);
-                      setTask({ ...task, vehicle: buildVehicleDescription(updated.make, updated.model, updated.year) });
-                    }}
-                  />
-                </div>
-              )}
-              {!isNewTask && customerVehicles.length > 0 && !isNewVehicle && (
-                <p className="mt-1 text-sm text-gray-600">{task.vehicle}</p>
-              )}
+              <div className={`grid grid-cols-3 gap-2 ${customerVehicles.length > 0 ? "mt-2" : ""}`}>
+                <input
+                  type="text"
+                  placeholder="Marca"
+                  className={inp}
+                  value={vehicleFields.make}
+                  disabled={readOnly}
+                  onChange={e => {
+                    const updated = { ...vehicleFields, make: e.target.value };
+                    setVehicleFields(updated);
+                    setTask({ ...task, vehicle: buildVehicleDescription(updated.make, updated.model, updated.year) });
+                  }}
+                />
+                <input
+                  type="text"
+                  placeholder="Modelo"
+                  className={inp}
+                  value={vehicleFields.model}
+                  disabled={readOnly}
+                  onChange={e => {
+                    const updated = { ...vehicleFields, model: e.target.value };
+                    setVehicleFields(updated);
+                    setTask({ ...task, vehicle: buildVehicleDescription(updated.make, updated.model, updated.year) });
+                  }}
+                />
+                <input
+                  type="text"
+                  placeholder="Año"
+                  className={inp}
+                  value={vehicleFields.year}
+                  disabled={readOnly}
+                  onChange={e => {
+                    const updated = { ...vehicleFields, year: e.target.value };
+                    setVehicleFields(updated);
+                    setTask({ ...task, vehicle: buildVehicleDescription(updated.make, updated.model, updated.year) });
+                  }}
+                />
+              </div>
             </div>
             <div className="mb-3">
               <label htmlFor="task-placa" className={lbl}>Placa</label>
