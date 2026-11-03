@@ -299,7 +299,7 @@ export default function TasksPage() {
     let q = supabase
       .from("pending_tasks")
       .select("*");
-    if (s.trim()) q = q.or(`name.ilike.%${s.trim()}%,description.ilike.%${s.trim()}%,vehicle.ilike.%${s.trim()}%`);
+    if (s.trim()) q = q.or(`name.ilike.%${s.trim()}%,phone.ilike.%${s.trim()}%,description.ilike.%${s.trim()}%,vehicle.ilike.%${s.trim()}%`);
     const { data } = await q;
     if (data) {
       const customerIds = Array.from(new Set(data.filter(t => t.customer_id).map(t => t.customer_id as string)));

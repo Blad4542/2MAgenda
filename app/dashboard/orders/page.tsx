@@ -208,7 +208,7 @@ export default function OrdersPage() {
 
   const fetchOrders = useCallback(async (s = search, owb = onlyWithBalance) => {
     let q = supabase.from("orders").select("*").order("order_date", { ascending: false });
-    if (s.trim()) q = q.or(`customer_name.ilike.%${s.trim()}%,phone.ilike.%${s.trim()}%,vehicle.ilike.%${s.trim()}%`);
+    if (s.trim()) q = q.or(`customer_name.ilike.%${s.trim()}%,phone.ilike.%${s.trim()}%,vehicle.ilike.%${s.trim()}%,product_description.ilike.%${s.trim()}%`);
     if (owb) q = q.gt("remaining", 0);
     const { data } = await q;
     if (data) {
