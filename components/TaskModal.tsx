@@ -103,6 +103,10 @@ const TaskModal = ({
   const [newTaskText, setNewTaskText] = useState("");
   const [newTaskPrice, setNewTaskPrice] = useState<string>("");
   const [pendingTasks, setPendingTasks] = useState<PendingTask[]>(initialPendingTasks ?? []);
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [editingTaskText, setEditingTaskText] = useState("");
+  const [editingPendingIdx, setEditingPendingIdx] = useState<number | null>(null);
+  const [editingPendingText, setEditingPendingText] = useState("");
   const [pasteTargetTaskId, setPasteTargetTaskId] = useState<string | null>(null);
   const [actionsOpen, setActionsOpen] = useState(false);
   const actionsRef = useRef<HTMLDivElement>(null);
@@ -255,6 +259,14 @@ const TaskModal = ({
   const deleteTask = async (taskId: string) => {
     setApptTasks(prev => prev.filter(t => t.id !== taskId));
     await supabase?.from("appointment_tasks").delete().eq("id", taskId);
+  };
+
+  const updateTaskDescription = async (taskId: string, description: string) => {
+    const text = description.trim();
+    if (!text) return;
+    setApptTasks(prev => prev.map(t => t.id === taskId ? { ...t, description: text } : t));
+    await supabase?.from("appointment_tasks").update({ description: text }).eq("id", taskId);
+    setEditingTaskId(null);
   };
 
   const uploadPhotos = async (taskId: string, files: File[]) => {
@@ -471,7 +483,37 @@ const TaskModal = ({
                     <ul className="space-y-1.5">
                       {pendingTasks.map((pt, idx) => (
                         <li key={idx} className="flex items-center gap-1.5">
-                          <span className="flex-1 text-sm text-gray-700 break-words min-w-0">{pt.text}</span>
+                          {editingPendingIdx === idx ? (
+                            <input
+                              type="text"
+                              value={editingPendingText}
+                              onChange={e => setEditingPendingText(e.target.value)}
+                              onBlur={() => {
+                                const text = editingPendingText.trim();
+                                if (text) setPendingTasks(prev => prev.map((t, i) => i === idx ? { ...t, text } : t));
+                                setEditingPendingIdx(null);
+                              }}
+                              onKeyDown={e => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  const text = editingPendingText.trim();
+                                  if (text) setPendingTasks(prev => prev.map((t, i) => i === idx ? { ...t, text } : t));
+                                  setEditingPendingIdx(null);
+                                }
+                                if (e.key === "Escape") setEditingPendingIdx(null);
+                              }}
+                              autoFocus
+                              className="flex-1 text-sm border border-[#07C3F8] rounded-lg px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-[#07C3F8] min-w-0"
+                            />
+                          ) : (
+                          <span
+                            className="flex-1 text-sm text-gray-700 break-words min-w-0 cursor-text hover:bg-gray-50 rounded px-1 -mx-1"
+                            onDoubleClick={() => { setEditingPendingIdx(idx); setEditingPendingText(pt.text); }}
+                            title="Doble clic para editar"
+                          >
+                            {pt.text}
+                          </span>
+                          )}
                           {!hideFinancials && (
                           <input
                             type="number"
@@ -547,9 +589,28 @@ const TaskModal = ({
                           onChange={e => toggleTask(t.id, e.target.checked)}
                           className="w-4 h-4 rounded accent-[#07C3F8] cursor-pointer shrink-0"
                         />
-                        <span className={`flex-1 text-sm break-words min-w-0 ${t.completed ? "line-through text-gray-400" : "text-gray-700"}`}>
+                        {editingTaskId === t.id ? (
+                          <input
+                            type="text"
+                            value={editingTaskText}
+                            onChange={e => setEditingTaskText(e.target.value)}
+                            onBlur={() => updateTaskDescription(t.id, editingTaskText)}
+                            onKeyDown={e => {
+                              if (e.key === "Enter") { e.preventDefault(); updateTaskDescription(t.id, editingTaskText); }
+                              if (e.key === "Escape") setEditingTaskId(null);
+                            }}
+                            autoFocus
+                            className="flex-1 text-sm border border-[#07C3F8] rounded-lg px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-[#07C3F8] min-w-0"
+                          />
+                        ) : (
+                        <span
+                          className={`flex-1 text-sm break-words min-w-0 cursor-text hover:bg-gray-50 rounded px-1 -mx-1 ${t.completed ? "line-through text-gray-400" : "text-gray-700"}`}
+                          onDoubleClick={() => { setEditingTaskId(t.id); setEditingTaskText(t.description); }}
+                          title="Doble clic para editar"
+                        >
                           {t.description}
                         </span>
+                        )}
                         {!hideFinancials && (
                         <input
                           type="number"
