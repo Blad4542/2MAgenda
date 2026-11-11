@@ -24,6 +24,7 @@ interface Task {
   vehicle_id?: string;
   notes?: string;
   image_urls?: string[];
+  created_at?: string;
 }
 
 interface QuoteItem {
@@ -105,12 +106,12 @@ const Table = memo(function Table({ list, title, selected, itemCounts, taskDescr
           <ul className="md:hidden divide-y divide-gray-100">
             {paginated.map(task => (
               <li key={task.id} onClick={() => onRowClick(task)} className="p-4 cursor-pointer hover:bg-gray-50 active:bg-gray-100 transition-colors">
+                {task.created_at && <p className="text-xs text-gray-400 mb-1">{new Date(task.created_at).toLocaleDateString("es-CR", { day: "2-digit", month: "2-digit", year: "numeric" })}</p>}
                 <div className="flex items-start justify-between gap-2 mb-1.5">
                   <span className="text-sm font-semibold text-gray-900 leading-snug">{task.name}</span>
                   <span className={`shrink-0 inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${statusStyle[task.status]}`}>{statusLabel[task.status]}</span>
                 </div>
                 {task.vehicle && <p className="text-xs text-gray-500 mb-1">{task.vehicle}</p>}
-                {task.description && <p className="text-xs text-gray-600 line-clamp-2 mb-1">{task.description}</p>}
                 <div className="flex items-center justify-between mt-2">
                   <div className="flex items-center gap-2">
                     {task.phone && (
@@ -138,13 +139,13 @@ const Table = memo(function Table({ list, title, selected, itemCounts, taskDescr
           <table className="w-full table-fixed">
             <colgroup>
               <col style={{width: "40px"}} />
-              <col className="w-[14%]" />
-              <col className="w-[10%]" />
+              <col className="w-[9%]" />
+              <col className="w-[15%]" />
               <col className="w-[11%]" />
-              <col className="w-[20%]" />
-              <col className="w-[16%]" />
               <col className="w-[13%]" />
-              <col className="w-[10%]" />
+              <col className="w-[18%]" />
+              <col className="w-[14%]" />
+              <col className="w-[11%]" />
               <col style={{width: "80px"}} />
             </colgroup>
             <thead>
@@ -158,7 +159,7 @@ const Table = memo(function Table({ list, title, selected, itemCounts, taskDescr
                     className="cursor-pointer accent-[#07C3F8] w-4 h-4"
                   />
                 </th>
-                {["Nombre", "Teléfono", "Vehículo", "Descripción", "Tareas", "Notas", "Estado", ""].map(h => (
+                {["Fecha", "Nombre", "Teléfono", "Vehículo", "Tareas", "Notas", "Estado", ""].map(h => (
                   <th key={h} className="p-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</th>
                 ))}
               </tr>
@@ -181,6 +182,7 @@ const Table = memo(function Table({ list, title, selected, itemCounts, taskDescr
                       className="cursor-pointer accent-[#07C3F8] w-4 h-4"
                     />
                   </td>
+                  <td className="p-3 text-sm text-gray-500 whitespace-nowrap">{task.created_at ? new Date(task.created_at).toLocaleDateString("es-CR", { day: "2-digit", month: "2-digit", year: "numeric" }) : "—"}</td>
                   <td className="p-3 text-sm font-medium text-gray-900 truncate">{task.name}</td>
                   <td className="p-3 text-sm text-gray-500">
                     <div className="flex items-center gap-1.5">
@@ -193,7 +195,6 @@ const Table = memo(function Table({ list, title, selected, itemCounts, taskDescr
                     </div>
                   </td>
                   <td className="p-3 text-sm text-gray-500 truncate">{task.vehicle || "—"}</td>
-                  <td className="p-3 text-sm text-gray-500"><div className="line-clamp-3">{task.description || "—"}</div></td>
                   <td className="p-3">
                     {(taskDescriptions[task.id] ?? []).length === 0 ? (
                       <span className="text-gray-300 text-xs">—</span>
@@ -662,7 +663,7 @@ export default function TasksPage() {
         </div>
         <div className="flex items-center gap-3">
           <button
-            onClick={() => exportCsv(tasks.map(t => ({ Nombre: t.name, Teléfono: t.phone, Vehículo: t.vehicle ?? "", Descripción: t.description, Notas: t.notes ?? "", Estado: t.status })), "cotizaciones.csv")}
+            onClick={() => exportCsv(tasks.map(t => ({ Nombre: t.name, Teléfono: t.phone, Vehículo: t.vehicle ?? "", Fecha: t.created_at ? new Date(t.created_at).toLocaleDateString("es-CR") : "", Notas: t.notes ?? "", Estado: t.status })), "cotizaciones.csv")}
             className="flex items-center gap-2 bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 font-semibold px-4 py-2.5 rounded-xl transition-colors"
           >
             <Download size={16} aria-hidden="true" /> Exportar
