@@ -208,7 +208,12 @@ export default function OrdersPage() {
 
   const fetchOrders = useCallback(async (s = search, owb = onlyWithBalance) => {
     let q = supabase.from("orders").select("*").order("order_date", { ascending: false });
-    if (s.trim()) q = q.or(`customer_name.ilike.%${s.trim()}%,phone.ilike.%${s.trim()}%,vehicle.ilike.%${s.trim()}%,product_description.ilike.%${s.trim()}%`);
+    if (s.trim()) {
+      const { data: itemMatches } = await supabase.from("order_items").select("order_id").ilike("description", `%${s.trim()}%`);
+      const extraIds = Array.from(new Set((itemMatches ?? []).map(i => i.order_id as string)));
+      const base = `customer_name.ilike.%${s.trim()}%,phone.ilike.%${s.trim()}%,vehicle.ilike.%${s.trim()}%,product_description.ilike.%${s.trim()}%`;
+      q = extraIds.length > 0 ? q.or(`${base},id.in.(${extraIds.join(",")})`) : q.or(base);
+    }
     if (owb) q = q.gt("remaining", 0);
     const { data } = await q;
     if (data) {
@@ -638,10 +643,12 @@ export default function OrdersPage() {
       return (
         o.customer_name.toLowerCase().includes(term) ||
         (o.phone ?? "").toLowerCase().includes(term) ||
-        (o.vehicle ?? "").toLowerCase().includes(term)
+        (o.vehicle ?? "").toLowerCase().includes(term) ||
+        (o.product_description ?? "").toLowerCase().includes(term) ||
+        (orderItemDescriptions[o.id] ?? []).some(d => d.toLowerCase().includes(term))
       );
     });
-  }, [orders, search, onlyWithBalance]);
+  }, [orders, search, onlyWithBalance, orderItemDescriptions]);
 
   const porPedirOrders = filtered.filter(o => o.status === "Por pedir");
   const pedidoOrders = filtered.filter(o => o.status === "Pedido");
