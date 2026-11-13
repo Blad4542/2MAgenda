@@ -7,12 +7,19 @@ interface LogParams {
   description?: string;
   user_email?: string;
   before_data?: Record<string, unknown>;
+  after_data?: Record<string, unknown>;
 }
 
 export async function logAction(supabase: SupabaseClient, params: LogParams) {
   const { data } = await supabase.auth.getUser();
   const meta = data.user?.user_metadata;
   const user_name = meta?.full_name ?? meta?.name ?? params.user_email?.split("@")[0] ?? null;
+
+  // If both before and after provided, wrap them so the display can show a diff
+  const stored_data =
+    params.before_data && params.after_data
+      ? { _before: params.before_data, _after: params.after_data }
+      : params.before_data ?? null;
 
   await supabase.from("audit_log").insert({
     table_name: params.table_name,
@@ -21,6 +28,6 @@ export async function logAction(supabase: SupabaseClient, params: LogParams) {
     description: params.description ?? null,
     user_email: params.user_email ?? null,
     user_name,
-    before_data: params.before_data ?? null,
+    before_data: stored_data,
   });
 }

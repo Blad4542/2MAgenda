@@ -559,7 +559,13 @@ export default function OrdersPage() {
         const { data: before } = await supabase.from("orders").select("*").eq("id", editing.id).single();
         const { error } = await supabase.from("orders").update(payload).eq("id", editing.id);
         if (error) throw new Error(error.message);
-        await logAction(supabase, { table_name: "orders", record_id: editing.id, action: "update", description: `Pedido de ${name}`, user_email: userEmail, before_data: before ?? undefined });
+        await logAction(supabase, {
+          table_name: "orders", record_id: editing.id, action: "update",
+          description: `Editó pedido — ${name} | ${payload.vehicle || "Sin vehículo"} | ${payload.status} | ₡${Number(form.total_amount).toLocaleString("es-CR")}`,
+          user_email: userEmail,
+          before_data: before ?? undefined,
+          after_data: { customer_name: name, phone, vehicle: payload.vehicle, status: payload.status, total_amount: payload.total_amount, initial_payment: payload.initial_payment, product_description: payload.product_description },
+        });
       } else {
         const id = uuidv4();
         const { error } = await supabase.from("orders").insert({ id, order_date: new Date().toISOString().split("T")[0], ...payload });
@@ -567,7 +573,11 @@ export default function OrdersPage() {
         if (detailItems.length > 0) {
           await supabase.from("order_items").insert(detailItems.map(item => ({ id: item.id, order_id: id, description: item.description, price: item.price ?? null })));
         }
-        await logAction(supabase, { table_name: "orders", record_id: id, action: "create", description: `Pedido de ${name}`, user_email: userEmail });
+        await logAction(supabase, {
+          table_name: "orders", record_id: id, action: "create",
+          description: `Nuevo pedido — ${name} | ${payload.vehicle || "Sin vehículo"} | ${payload.status} | ₡${Number(form.total_amount).toLocaleString("es-CR")}`,
+          user_email: userEmail,
+        });
         await notifyAdmin(supabase, { type: "order", message: `Nuevo pedido — ${name}`, record_id: id });
       }
       setIsOpen(false);
@@ -611,7 +621,12 @@ export default function OrdersPage() {
       );
     }
     await supabase.from("orders").delete().eq("id", o.id);
-    await logAction(supabase, { table_name: "orders", record_id: o.id, action: "delete", description: `Convertido a cotización — ${o.customer_name}`, user_email: userEmail });
+    await logAction(supabase, {
+      table_name: "orders", record_id: o.id, action: "delete",
+      description: `Convertido a cotización — ${o.customer_name} | ${o.vehicle || "Sin vehículo"} | ${o.status}`,
+      user_email: userEmail,
+      before_data: { customer_name: o.customer_name, phone: o.phone, vehicle: o.vehicle, status: o.status, total_amount: o.total_amount, initial_payment: o.initial_payment },
+    });
     setConvertTarget(null);
     setConverting(false);
     fetchOrders();
@@ -620,7 +635,7 @@ export default function OrdersPage() {
   const deleteOne = async (o: Order) => {
     const { data: before } = await supabase.from("orders").select("*").eq("id", o.id).single();
     await supabase.from("orders").delete().eq("id", o.id);
-    await logAction(supabase, { table_name: "orders", record_id: o.id, action: "delete", description: `Pedido de ${o.customer_name}`, user_email: userEmail, before_data: before ?? undefined });
+    await logAction(supabase, { table_name: "orders", record_id: o.id, action: "delete", description: `Eliminó pedido — ${o.customer_name} | ${o.vehicle || "Sin vehículo"} | ${o.status} | ₡${Number(o.total_amount).toLocaleString("es-CR")}`, user_email: userEmail, before_data: before ?? undefined });
     fetchOrders();
   };
 

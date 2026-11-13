@@ -564,7 +564,10 @@ const Agenda = () => {
       setSaving(false);
       return;
     }
-    const desc = `Cita de ${currentTask.name} — ${currentTask.assigned_person} ${currentTask.start_time}`;
+    const dateLabel = format(selectedDate, "d MMM yyyy", { locale: es });
+    const timeRange = currentTask.start_time ? `${currentTask.start_time}${currentTask.end_time ? `–${currentTask.end_time}` : ""}` : "";
+    const createDesc = `Nueva cita — ${currentTask.name} | ${currentTask.vehicle || "Sin vehículo"} | ${dateLabel}${timeRange ? ` ${timeRange}` : ""} | ${currentTask.assigned_person}`;
+    const updateDesc = `Editó cita — ${currentTask.name} | ${currentTask.vehicle || "Sin vehículo"} | ${dateLabel}${timeRange ? ` ${timeRange}` : ""} | ${currentTask.assigned_person}`;
     let customerId = currentTask.customer_id;
     let vehicleId = currentTask.vehicle_id;
     try {
@@ -588,16 +591,23 @@ const Agenda = () => {
       const result = await addNoteToSupabase({ ...currentTask, appointment_date: selectedDate.toISOString(), customer_id: customerId, vehicle_id: vehicleId });
       if (result.error) { setErrorMessage(`Error: ${result.error.message}`); setSaving(false); return; }
       const insertedId = String(result.data?.[0]?.id ?? "");
-      await logAction(supabase, { table_name: "appointments", record_id: insertedId, action: "create", description: desc, user_email: userEmail });
+      await logAction(supabase, { table_name: "appointments", record_id: insertedId, action: "create", description: createDesc, user_email: userEmail });
       if (pendingTasks && pendingTasks.length > 0 && insertedId) {
         await supabase.from("appointment_tasks").insert(
           pendingTasks.map(t => ({ appointment_id: Number(insertedId), description: t.text, price: t.price ?? null }))
         );
       }
     } else {
+      const apptId = String(currentTask.id ?? "");
+      const { data: apptBefore } = await supabase.from("appointments").select("name, phone, vehicle, assigned_person, start_time, end_time, status, appointment_date, placa, description, abono").eq("id", apptId).single();
       const result = await updateNoteInSupabase({ ...currentTask, customer_id: customerId, vehicle_id: vehicleId });
       if (result.error) { setErrorMessage(`Error: ${result.error.message}`); setSaving(false); return; }
-      await logAction(supabase, { table_name: "appointments", record_id: String(currentTask.id ?? ""), action: "update", description: desc, user_email: userEmail });
+      await logAction(supabase, {
+        table_name: "appointments", record_id: apptId, action: "update",
+        description: updateDesc, user_email: userEmail,
+        before_data: apptBefore ?? undefined,
+        after_data: { name: currentTask.name, phone: currentTask.phone, vehicle: currentTask.vehicle, assigned_person: currentTask.assigned_person, start_time: currentTask.start_time, end_time: currentTask.end_time, status: currentTask.status, appointment_date: selectedDate.toISOString(), placa: currentTask.placa, description: currentTask.description, abono: currentTask.abono },
+      });
     }
     if (channelRef.current && currentSlotRef.current) { channelRef.current.send({ type: "broadcast", event: "slot-reserved", payload: { action: "release", slot: currentSlotRef.current, user } }); currentSlotRef.current = null; }
     channelRef.current?.send({ type: "broadcast", event: "appointments-updated", payload: {} });
@@ -642,7 +652,7 @@ const Agenda = () => {
       .update({ status: "cancelled", cancel_reason: reason || null })
       .eq("id", currentTask.id);
     if (error) { setErrorMessage(`Error: ${error.message}`); return; }
-    await logAction(supabase, { table_name: "appointments", record_id: String(currentTask.id), action: "update", description: `Cancelada${reason ? `: ${reason}` : ""}`, user_email: userEmail });
+    await logAction(supabase, { table_name: "appointments", record_id: String(currentTask.id), action: "update", description: `Canceló cita — ${currentTask.name} | ${currentTask.vehicle || "Sin vehículo"}${reason ? ` | Motivo: ${reason}` : ""}`, user_email: userEmail, before_data: { name: currentTask.name, phone: currentTask.phone, vehicle: currentTask.vehicle, assigned_person: currentTask.assigned_person, start_time: currentTask.start_time, status: "confirmed" }, after_data: { name: currentTask.name, phone: currentTask.phone, vehicle: currentTask.vehicle, assigned_person: currentTask.assigned_person, start_time: currentTask.start_time, status: "cancelled", cancel_reason: reason || null } });
     channelRef.current?.send({ type: "broadcast", event: "appointments-updated", payload: {} });
     setIsModalOpen(false);
     fetchNotesForSelectedDate();
@@ -652,7 +662,7 @@ const Agenda = () => {
     const appt = notes.find(n => n.id === id);
     const { error } = await deleteNoteFromSupabase(id);
     if (error) { setErrorMessage(`Error: ${error.message}`); return; }
-    await logAction(supabase, { table_name: "appointments", record_id: String(id), action: "delete", description: appt ? `Cita de ${appt.name} — ${appt.assigned_person} ${appt.start_time}` : undefined, user_email: userEmail });
+    await logAction(supabase, { table_name: "appointments", record_id: String(id), action: "delete", description: appt ? `Eliminó cita — ${appt.name} | ${appt.vehicle || "Sin vehículo"} | ${appt.assigned_person} ${appt.start_time}` : "Eliminó cita", user_email: userEmail, before_data: appt ? { name: appt.name, phone: appt.phone, vehicle: appt.vehicle, placa: appt.placa, assigned_person: appt.assigned_person, start_time: appt.start_time, end_time: appt.end_time, status: appt.status, appointment_date: appt.appointment_date } : undefined });
     if (channelRef.current && currentSlotRef.current) { channelRef.current.send({ type: "broadcast", event: "slot-reserved", payload: { action: "release", slot: currentSlotRef.current, user } }); currentSlotRef.current = null; }
     channelRef.current?.send({ type: "broadcast", event: "appointments-updated", payload: {} });
     setIsModalOpen(false);

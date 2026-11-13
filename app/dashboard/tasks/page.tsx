@@ -450,14 +450,24 @@ export default function TasksPage() {
       if (editing) {
         const { data: before } = await supabase.from("pending_tasks").select("*").eq("id", editing.id).single();
         await supabase.from("pending_tasks").update({ ...form, customer_id: customerId, vehicle_id: vehicleId, image_urls: imageUrls }).eq("id", editing.id);
-        await logAction(supabase, { table_name: "pending_tasks", record_id: editing.id, action: "update", description: `Cotización de ${form.name}`, user_email: userEmail, before_data: before ?? undefined });
+        await logAction(supabase, {
+          table_name: "pending_tasks", record_id: editing.id, action: "update",
+          description: `Editó cotización — ${form.name} | ${form.vehicle || "Sin vehículo"} | ${statusLabel[form.status]}`,
+          user_email: userEmail,
+          before_data: before ?? undefined,
+          after_data: { name: form.name, phone: form.phone, vehicle: form.vehicle, status: form.status, description: form.description, notes: form.notes },
+        });
       } else {
         const id = uuidv4();
         await supabase.from("pending_tasks").insert({ id, ...form, customer_id: customerId, vehicle_id: vehicleId, image_urls: imageUrls });
         if (detailItems.length > 0) {
           await supabase.from("quote_items").insert(detailItems.map(item => ({ id: item.id, task_id: id, description: item.description })));
         }
-        await logAction(supabase, { table_name: "pending_tasks", record_id: id, action: "create", description: `Cotización de ${form.name}`, user_email: userEmail });
+        await logAction(supabase, {
+          table_name: "pending_tasks", record_id: id, action: "create",
+          description: `Nueva cotización — ${form.name} | ${form.vehicle || "Sin vehículo"} | ${statusLabel[form.status]}`,
+          user_email: userEmail,
+        });
         await notifyAdmin(supabase, { type: "quote", message: `Nueva cotización — ${form.name}`, record_id: id });
       }
       setIsOpen(false); resetForm(); setEditing(null); fetchTasks(search);
@@ -496,7 +506,12 @@ export default function TasksPage() {
         if (itemsErr) throw new Error(itemsErr.message);
       }
       await supabase.from("pending_tasks").delete().eq("id", task.id);
-      await logAction(supabase, { table_name: "pending_tasks", record_id: task.id, action: "delete", description: `Convertido a pedido — ${task.name}`, user_email: userEmail });
+      await logAction(supabase, {
+        table_name: "pending_tasks", record_id: task.id, action: "delete",
+        description: `Convertido a pedido — ${task.name} | ${task.vehicle || "Sin vehículo"}`,
+        user_email: userEmail,
+        before_data: { name: task.name, phone: task.phone, vehicle: task.vehicle, status: task.status, description: task.description },
+      });
       setConvertTarget(null);
       fetchTasks(search);
     } catch (err) {
@@ -510,14 +525,14 @@ export default function TasksPage() {
     const task = tasks.find(t => t.id === id);
     const { data: before } = await supabase.from("pending_tasks").select("*").eq("id", id).single();
     await supabase.from("pending_tasks").delete().eq("id", id);
-    await logAction(supabase, { table_name: "pending_tasks", record_id: id, action: "delete", description: task ? `Cotización de ${task.name}` : undefined, user_email: userEmail, before_data: before ?? undefined });
+    await logAction(supabase, { table_name: "pending_tasks", record_id: id, action: "delete", description: task ? `Eliminó cotización — ${task.name} | ${task.vehicle || "Sin vehículo"} | ${statusLabel[task.status]}` : undefined, user_email: userEmail, before_data: before ?? undefined });
     setSelected(p => { const n = new Set(p); n.delete(id); return n; }); fetchTasks(search);
   };
   const bulkDel = async (ids: string[]) => {
     await supabase.from("pending_tasks").delete().in("id", ids);
     await Promise.all(ids.map(id => {
       const t = tasks.find(x => x.id === id);
-      return logAction(supabase, { table_name: "pending_tasks", record_id: id, action: "delete", description: t ? `Cotización de ${t.name}` : undefined, user_email: userEmail });
+      return logAction(supabase, { table_name: "pending_tasks", record_id: id, action: "delete", description: t ? `Eliminó cotización — ${t.name} | ${t.vehicle || "Sin vehículo"} | ${statusLabel[t.status]}` : undefined, user_email: userEmail, before_data: t ? { name: t.name, phone: t.phone, vehicle: t.vehicle, status: t.status } : undefined });
     }));
     setSelected(p => { const n = new Set(p); ids.forEach(id => n.delete(id)); return n; }); fetchTasks(search);
   };
@@ -529,7 +544,7 @@ export default function TasksPage() {
     if (draggingTask.status === newStatus) { setDraggingTask(null); return; }
     setTasks(prev => prev.map(t => t.id === draggingTask.id ? { ...t, status: newStatus } : t));
     await supabase.from("pending_tasks").update({ status: newStatus }).eq("id", draggingTask.id);
-    await logAction(supabase, { table_name: "pending_tasks", record_id: draggingTask.id, action: "update", description: `Cotización de ${draggingTask.name} → ${statusLabel[newStatus]}`, user_email: userEmail });
+    await logAction(supabase, { table_name: "pending_tasks", record_id: draggingTask.id, action: "update", description: `Cambió estado — ${draggingTask.name} | ${statusLabel[draggingTask.status]} → ${statusLabel[newStatus]}`, user_email: userEmail, before_data: { name: draggingTask.name, vehicle: draggingTask.vehicle, status: draggingTask.status }, after_data: { name: draggingTask.name, vehicle: draggingTask.vehicle, status: newStatus } });
     setDraggingTask(null);
   };
 
